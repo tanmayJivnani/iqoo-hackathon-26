@@ -520,7 +520,20 @@ async def verify_complaint_resolution(
 async def list_complaints(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Complaint).order_by(Complaint.created_at.desc()))
     complaints = result.scalars().all()
-    return complaints
+    # Strip heavy base64 photo_urls and draft bodies from list view for instant (<50ms) loading
+    return [
+        {
+            "id": c.id,
+            "tracking_id": c.tracking_id,
+            "issue_type": c.issue_type,
+            "urgency_level": c.urgency_level,
+            "address_landmark": c.address_landmark,
+            "verification_status": c.verification_status,
+            "reverification_due_at": c.reverification_due_at.isoformat() if c.reverification_due_at else None,
+            "created_at": c.created_at.isoformat() if c.created_at else None
+        }
+        for c in complaints
+    ]
 
 @router.get("/{id}")
 async def get_complaint(id: str, db: AsyncSession = Depends(get_db)):
