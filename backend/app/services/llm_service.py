@@ -54,9 +54,6 @@ class LlmService:
         else:
             perp_context = "I do not know the identity or contact details of the contractor or perpetrators involved."
 
-        sensor_pitch_context = ""
-        if sensor_tilt_angle is not None:
-            sensor_pitch_context = f"\nDEVICE SENSOR CALIBRATION: On-site device pitch sensor measured a trunk tilt/lean of {sensor_tilt_angle:.1f}° from vertical. Integrate this physical measurement into the arborist risk assessment."
 
         census_context = ""
         if census_tree and census_tree.get("has_census_match"):
@@ -111,6 +108,13 @@ Pune Tree Rakshak (Citizen Complaint Portal)
   Draft the formal grievance for '{target_category}' embedding real coordinates, landmark, ward, and tracking ID, and insert this exact editable placeholder inside the letter body:
   "[SPECIFIC DAMAGE OBSERVATION: Please describe the observed damage or hazard here (e.g. extent of lean, branch height, cut marks, nails/cables, etc.)]"
 
+6. MULTI-PHOTO LEAN & ROOT PLATE STRUCTURAL ASSESSMENT (MANDATORY FOR LEANING TREES):
+- When evaluating tree lean angle or fall hazard, you MUST NOT rely solely on the wide-angle photo.
+- You must synthesize BOTH the wide-angle trajectory photo AND the close-up base/root plate photo:
+  * Wide-Angle Photo: Determines overall lean vector/trajectory relative to true vertical reference points (lamp posts, buildings) and pedestrian/traffic strike danger zone.
+  * Close-up Base / Root Photo: Inspects ground soil tension/compression, root plate lifting, soil fissuring, severed anchor roots, or collar rot.
+  * Structural Synthesis: State whether the lean is a natural phototropic growth curve or an active root-plate structural failure threatening imminent collapse.
+
 You must output a strictly valid JSON object with the following schema:
 {{
   "tree_detected": true | false,
@@ -130,19 +134,17 @@ You must output a strictly valid JSON object with the following schema:
 }}
 """
 
-        tilt_user_str = f"Device Physical Pitch: {sensor_tilt_angle:.1f}° from vertical measured on site.\n" if sensor_tilt_angle is not None else ""
-
         user_prompt_text = f"""
 Please analyze the attached evidence photo(s) for the '{target_category}' report at {address_landmark}, {ward_name} ({latitude:.5f}° N, {longitude:.5f}° E).
 Citizen Observation Notes: "{citizen_notes or 'Visual inspection requested on site.'}"
 {perp_context}
-{tilt_user_str}
 Grievance Reference Number: {tracking_id}
 
 INSTRUCTIONS:
 1. FIRST: Check if a genuine tree or plant subject is present in the photos. If non-tree (keyboard, screen, indoor object, etc.), set tree_detected=false and do not draft.
 2. If tree is present: Identify species and factual condition.
-3. Check for any ADDITIONAL tree violations in the photos beyond the citizen's category (e.g. root choking with concrete, nails/posters driven in trunk, unscientific pruning). If found, populate 'ai_additional_category' and 'ai_additional_reason_en'.
+3. FOR LEANING TREES: Cross-reference the wide-angle tree trajectory WITH the close-up root collar/soil base photo to assess true structural lean angle and root stability.
+4. Check for any ADDITIONAL tree violations in the photos beyond the citizen's category (e.g. root choking with concrete, nails/posters driven in trunk, unscientific pruning). If found, populate 'ai_additional_category' and 'ai_additional_reason_en'.
 4. Draft a concise, first-person formal statutory letter from {citizen_name} to PMC Tree Authority.
 5. Conclude with 'If you need any more details, feel free to contact me.' followed by the structured sign-off block.
 6. Return strictly a valid JSON object.
