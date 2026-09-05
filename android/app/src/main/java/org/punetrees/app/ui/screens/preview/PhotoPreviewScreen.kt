@@ -777,7 +777,7 @@ fun PhotoPreviewScreen(
                                             color = Color.White
                                         )
                                         Text(
-                                            text = "🌐 OpenRouter Multimodal + 2019 GIS Tree Census",
+                                            text = "🌐 Open-Source Qwen 2.5 VL 72B + 2019 Tree Census",
                                             fontSize = 10.sp,
                                             color = Color.White.copy(alpha = 0.85f)
                                         )
@@ -788,7 +788,7 @@ fun PhotoPreviewScreen(
                                     shape = RoundedCornerShape(4.dp)
                                 ) {
                                     Text(
-                                        text = "OpenRouter",
+                                        text = "Qwen VL ✓",
                                         color = Color.White,
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,

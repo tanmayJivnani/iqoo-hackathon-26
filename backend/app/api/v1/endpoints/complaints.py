@@ -248,6 +248,8 @@ async def analyze_and_draft(
         ai_suggested_category=None,
         mismatch_reason_en=None,
         mismatch_reason_mr=None,
+        ai_additional_category=ai_result.get("ai_additional_category"),
+        ai_additional_reason_en=ai_result.get("ai_additional_reason_en"),
         estimated_tree_species=ai_result.get("estimated_tree_species") or (census_match["botanical_name"] if census_match else "Urban Tree Subject"),
         visual_damage_summary=ai_result.get("visual_damage_summary"),
         perpetrator_observed=bool(payload.perpetrator_name or payload.perpetrator_phone or (payload.perpetrator_photos_base64 and len(payload.perpetrator_photos_base64) > 0)),

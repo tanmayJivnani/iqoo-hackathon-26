@@ -84,12 +84,14 @@ class AnalyzeAndDraftResponse(BaseModel):
     # PMC Tree Census GIS Ground Truth Match
     census_tree: Optional[CensusTreeRecord] = None
     
-    # Human-in-the-Loop Mismatch detection
+    # Human-in-the-Loop Mismatch & Additional Defect detection
     citizen_selected_category: Optional[str] = None
     is_category_mismatch: bool = False
     ai_suggested_category: Optional[str] = None
     mismatch_reason_en: Optional[str] = None
     mismatch_reason_mr: Optional[str] = None
+    ai_additional_category: Optional[str] = None
+    ai_additional_reason_en: Optional[str] = None
     estimated_tree_species: Optional[str] = None
     visual_damage_summary: Optional[str] = None
     perpetrator_observed: Optional[bool] = False

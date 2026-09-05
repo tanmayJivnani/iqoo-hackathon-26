@@ -89,6 +89,8 @@ data class AnalyzeAndDraftResponse(
     @SerializedName("ai_suggested_category") val aiSuggestedCategory: String? = null,
     @SerializedName("mismatch_reason_en") val mismatchReasonEn: String? = null,
     @SerializedName("mismatch_reason_mr") val mismatchReasonMr: String? = null,
+    @SerializedName("ai_additional_category") val aiAdditionalCategory: String? = null,
+    @SerializedName("ai_additional_reason_en") val aiAdditionalReasonEn: String? = null,
     @SerializedName("estimated_tree_species") val estimatedTreeSpecies: String? = null,
     @SerializedName("visual_damage_summary") val visualDamageSummary: String? = null,
     @SerializedName("perpetrator_observed") val perpetratorObserved: Boolean = false,

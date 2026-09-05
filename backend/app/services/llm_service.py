@@ -111,6 +111,8 @@ You must output a strictly valid JSON object with the following schema:
   "tree_detected": true | false,
   "rejection_reason": "Explanation if no tree is detected, otherwise null",
   "detected_issue_category": "{target_category}" | "INVALID_IMAGE",
+  "ai_additional_category": "Additional violation category if clearly identified in photos, e.g. ROOT_CONCRETIZATION, NAILS_BOARDS_CABLES, UNAUTHORIZED_PRUNING, DANGEROUS_LEANING_FALL_RISK, or null",
+  "ai_additional_reason_en": "Clear factual reason for the additional violation identified, or null",
   "estimated_tree_species": "Botanical / Common name or null",
   "perpetrator_observed": false,
   "perpetrator_description": "Description of any observed contractor/cutting party, otherwise null",
@@ -133,15 +135,16 @@ Grievance Reference Number: {tracking_id}
 INSTRUCTIONS:
 1. FIRST: Check if a genuine tree or plant subject is present in the photos. If non-tree (keyboard, screen, indoor object, etc.), set tree_detected=false and do not draft.
 2. If tree is present: Identify species and factual condition.
-3. Draft a concise, first-person formal statutory letter from {citizen_name} to PMC Tree Authority.
-4. Conclude with 'If you need any more details, feel free to contact me.' followed by the structured sign-off block.
-5. Return strictly a valid JSON object.
+3. Check for any ADDITIONAL tree violations in the photos beyond the citizen's category (e.g. root choking with concrete, nails/posters driven in trunk, unscientific pruning). If found, populate 'ai_additional_category' and 'ai_additional_reason_en'.
+4. Draft a concise, first-person formal statutory letter from {citizen_name} to PMC Tree Authority.
+5. Conclude with 'If you need any more details, feel free to contact me.' followed by the structured sign-off block.
+6. Return strictly a valid JSON object.
 """
 
         user_content = [{"type": "text", "text": user_prompt_text}] + image_contents
 
         # -------------------------------------------------------------
-        # STEP 1: PRIMARY VISION PROVIDER -> OPENROUTER (openai/gpt-4o-mini)
+        # STEP 1: PRIMARY VISION PROVIDER -> OPENROUTER (OPEN SOURCE: QWEN 2.5 VL 72B)
         # -------------------------------------------------------------
         if settings.OPENROUTER_API_KEY:
             headers = {
@@ -154,15 +157,16 @@ INSTRUCTIONS:
             candidate_models = []
             if settings.OPENROUTER_MODEL:
                 candidate_models.append(settings.OPENROUTER_MODEL)
-            if "openai/gpt-4o-mini" not in candidate_models:
-                candidate_models.append("openai/gpt-4o-mini")
+            for m in ["qwen/qwen2.5-vl-72b-instruct", "qwen/qwen3-vl-32b-instruct"]:
+                if m not in candidate_models:
+                    candidate_models.append(m)
 
             print("\n" + "="*75, flush=True)
-            print("[LLM INITIATED] Primary Vision Provider: OpenRouter Commercial AI", flush=True)
+            print("[LLM INITIATED] Primary Vision Provider: OpenRouter Open-Source Vision AI", flush=True)
             print(f" - Tracking ID : {tracking_id}", flush=True)
             print(f" - Category    : {target_category}", flush=True)
             print(f" - Photos Sent : {len(all_photos[:3])} tree evidence angles", flush=True)
-            print(f" - Models      : {candidate_models}", flush=True)
+            print(f" - Open Models : {candidate_models}", flush=True)
             print("="*75, flush=True)
 
             async with httpx.AsyncClient(timeout=90.0) as client:
@@ -229,6 +233,11 @@ INSTRUCTIONS:
                                         if k not in parsed_json or not parsed_json[k]:
                                             parsed_json[k] = v
                                             
+                                additional_cat = parsed_json.get("ai_additional_category")
+                                if additional_cat and (additional_cat == target_category or additional_cat == "null" or additional_cat == "None"):
+                                    additional_cat = None
+                                parsed_json["ai_additional_category"] = additional_cat
+                                parsed_json["ai_additional_reason_en"] = parsed_json.get("ai_additional_reason_en") if additional_cat else None
                                 parsed_json["detected_issue_category"] = target_category
                                 parsed_json["is_category_mismatch"] = False
                                 parsed_json["ai_suggested_category"] = None

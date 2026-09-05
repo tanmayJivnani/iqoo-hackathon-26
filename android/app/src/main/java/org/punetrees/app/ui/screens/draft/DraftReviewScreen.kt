@@ -79,6 +79,112 @@ fun DraftReviewScreen(
     var editableBody by remember { mutableStateOf(draft.draftBodyEn) }
     var isEditing by remember { mutableStateOf(false) }
 
+    val additionalCatKey = draft.aiAdditionalCategory
+    val additionalCat = remember(additionalCatKey) {
+        additionalCatKey?.let { org.punetrees.app.core.category.TreeCategories.getByKey(it) }
+    }
+    var showAdditionalPrompt by remember { mutableStateOf(!additionalCatKey.isNullOrBlank()) }
+    var isAdditionalIncluded by remember { mutableStateOf(false) }
+    var currentCitations by remember { mutableStateOf(draft.legalCitations) }
+
+    fun includeAdditionalCategory() {
+        if (additionalCat != null && !isAdditionalIncluded) {
+            isAdditionalIncluded = true
+            showAdditionalPrompt = false
+            currentCitations = (currentCitations + additionalCat.statutoryGrounding).distinct()
+
+            if (!editableSubject.contains(additionalCat.title, ignoreCase = true)) {
+                editableSubject = if (editableSubject.contains("[Grievance Ref:")) {
+                    editableSubject.replace("[Grievance Ref:", "& ${additionalCat.title} [Grievance Ref:")
+                } else {
+                    "$editableSubject & ${additionalCat.title}"
+                }
+            }
+
+            val additionSection = """
+
+ADDITIONAL CONCURRENT VIOLATION IDENTIFIED:
+• Category: ${additionalCat.title}
+• Visual Evidence: ${draft.aiAdditionalReasonEn ?: "Observed co-occurring defect on tree subject."}
+• Statutory Violation: ${additionalCat.statutoryGrounding.joinToString("; ")}
+""".trimIndent()
+
+            if (!editableBody.contains(additionalCat.title, ignoreCase = true)) {
+                val signoffIdx = editableBody.indexOf("If you need any more details")
+                editableBody = if (signoffIdx != -1) {
+                    editableBody.substring(0, signoffIdx).trimEnd() + "\n\n" + additionSection + "\n\n" + editableBody.substring(signoffIdx)
+                } else {
+                    editableBody + "\n\n" + additionSection
+                }
+            }
+        }
+    }
+
+    fun declineAdditionalCategory() {
+        showAdditionalPrompt = false
+        isAdditionalIncluded = false
+    }
+
+    // AI Additional Defect Confirmation Prompt
+    if (showAdditionalPrompt && additionalCat != null) {
+        AlertDialog(
+            onDismissRequest = { declineAdditionalCategory() },
+            icon = { Icon(Icons.Default.Warning, contentDescription = null, tint = org.punetrees.app.ui.theme.AlertWarningOrange) },
+            title = { Text("🤖 AI Identified Additional Issue", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "The AI arborist verified your reported grievance, but also identified an additional problem on this tree:",
+                        fontSize = 13.sp
+                    )
+                    Surface(
+                        color = Color(0xFFFFF3E0),
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFCC80)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text(
+                                text = "⚠️ ${additionalCat.title}",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = Color(0xFFE65100)
+                            )
+                            if (!draft.aiAdditionalReasonEn.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = draft.aiAdditionalReasonEn,
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFBF360C)
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        text = "Do you want to include this statutory violation in the grievance letter?",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { includeAdditionalCategory() },
+                    colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary)
+                ) {
+                    Text("Yes, Include in Mail")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { declineAdditionalCategory() }
+                ) {
+                    Text("No, Keep Original Only")
+                }
+            }
+        )
+    }
+
     // Full-Screen Pinch-to-Zoom Dialog
     if (isZoomModalOpen && photoBitmap != null) {
         org.punetrees.app.ui.components.ZoomableImageDialog(
@@ -152,6 +258,68 @@ fun DraftReviewScreen(
                         fontWeight = FontWeight.Bold,
                         color = if (isLocal) ForestGreenDark else Color(0xFF1565C0)
                     )
+                }
+            }
+
+            // Additional Category AI Discovery Status Card
+            if (additionalCat != null) {
+                if (isAdditionalIncluded) {
+                    Surface(
+                        color = Color(0xFFE8F5E9),
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFA5D6A7)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "✓ Included in Grievance: ${additionalCat.title}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = ForestGreenDark
+                                )
+                                Text(
+                                    text = "Statutory section and evidence integrated into formal letter.",
+                                    fontSize = 11.sp,
+                                    color = Color.DarkGray
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Surface(
+                        color = Color(0xFFFFF8E1),
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFE082)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "💡 Extra Defect Detected: ${additionalCat.title}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = Color(0xFFF57F17)
+                                )
+                                Text(
+                                    text = "Not included yet. Tap to review and confirm.",
+                                    fontSize = 10.sp,
+                                    color = Color.DarkGray
+                                )
+                            }
+                            TextButton(onClick = { showAdditionalPrompt = true }) {
+                                Text("Review & Add", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = ForestGreenPrimary)
+                            }
+                        }
+                    }
                 }
             }
 
@@ -481,6 +649,11 @@ fun DraftReviewScreen(
                         )
                     }
                 }
+            }
+
+            // Statutory Legal Citations Card (Updated on user confirmation)
+            if (currentCitations.isNotEmpty()) {
+                LegalCitationCard(citations = currentCitations)
             }
 
             // Marathi Summary Card (for field workers / WhatsApp)
