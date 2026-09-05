@@ -1,0 +1,603 @@
+package org.punetrees.app.ui.screens.preview
+
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
+import android.net.Uri
+import android.util.Base64
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.punetrees.app.core.user.UserProfileManager
+import org.punetrees.app.data.remote.ApiClient
+import org.punetrees.app.data.remote.model.AnalyzeAndDraftRequest
+import org.punetrees.app.data.remote.model.AnalyzeAndDraftResponse
+import org.punetrees.app.ui.theme.ForestGreenDark
+import org.punetrees.app.ui.theme.ForestGreenPrimary
+import java.io.ByteArrayOutputStream
+import java.io.File
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PhotoPreviewScreen(
+    category: String,
+    treePhotosList: List<Pair<Bitmap, String>>,
+    perpetratorName: String?,
+    perpetratorPhone: String?,
+    perpetratorPhotosBase64: List<String>,
+    latitude: Double,
+    longitude: Double,
+    onDraftReady: (draft: AnalyzeAndDraftResponse, primaryPhotoBase64: String) -> Unit,
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val api = remember { ApiClient.getService() }
+    val userProfileManager = remember { UserProfileManager(context) }
+    val antiSpamManager = remember { org.punetrees.app.core.security.AntiSpamManager(context) }
+
+    val currentPhotos = remember { mutableStateListOf<Pair<Bitmap, String>>().apply { addAll(treePhotosList) } }
+    var citizenNotes by remember { mutableStateOf("") }
+    var addressLandmark by remember { mutableStateOf("") }
+    var perpetratorNameInput by remember { mutableStateOf(perpetratorName ?: "") }
+    var perpetratorPhoneInput by remember { mutableStateOf(perpetratorPhone ?: "") }
+    val perpetratorPhotos = remember { mutableStateListOf<Pair<Bitmap, String>>() }
+    var isProcessing by remember { mutableStateOf(false) }
+    var processingStatus by remember { mutableStateOf("Executing analysis...") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    
+    // Anti-spam warning & cooldown dialog states
+    var rejectionDialogText by remember { mutableStateOf<String?>(null) }
+    var cooldownDialogText by remember { mutableStateOf<String?>(null) }
+
+    // Retake state
+    var retakeIndex by remember { mutableStateOf(-1) }
+    var retakeFile by remember { mutableStateOf<File?>(null) }
+
+    val perpetratorLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { bmp ->
+        if (bmp != null) {
+            val stream = ByteArrayOutputStream()
+            bmp.compress(Bitmap.CompressFormat.JPEG, 85, stream)
+            val b64 = Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
+            perpetratorPhotos.add(Pair(bmp, b64))
+            Toast.makeText(context, "Contractor photo ${perpetratorPhotos.size}/4 attached", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val retakeLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success && retakeFile != null && retakeFile!!.exists() && retakeIndex in 0..2) {
+            coroutineScope.launch {
+                val pair = withContext(Dispatchers.IO) {
+                    processImageFile(retakeFile!!)
+                }
+                if (pair != null) {
+                    currentPhotos[retakeIndex] = pair
+                }
+            }
+        }
+    }
+
+    fun launchRetake(index: Int) {
+        retakeIndex = index
+        val imagesDir = File(context.cacheDir, "camera_images").apply { mkdirs() }
+        val file = File(imagesDir, "retake_evidence_${System.currentTimeMillis()}.jpg")
+        retakeFile = file
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        retakeLauncher.launch(uri)
+    }
+
+    fun executeAnalysis() {
+        val (isBlocked, remainingMinutes) = antiSpamManager.isUnderCooldown()
+        if (isBlocked) {
+            cooldownDialogText = "🚫 Spam Protection Activated (3-Hour Cooldown)\n\nYou have submitted 2 consecutive non-tree photos. To conserve arborist AI resources and prevent spam, please wait $remainingMinutes minutes before submitting another report."
+            return
+        }
+
+        if (currentPhotos.size < 3) {
+            errorMessage = "Please capture all 3 mandatory tree evidence photos."
+            return
+        }
+
+        isProcessing = true
+        processingStatus = "Verifying tree presence & running arborist audit..."
+        errorMessage = null
+
+        coroutineScope.launch {
+            try {
+                val profile = userProfileManager.getProfile()
+                val treePhotosBase64 = currentPhotos.map { it.second }
+                val primaryPhoto = treePhotosBase64[0]
+                val allPerpPhotos = (perpetratorPhotosBase64 + perpetratorPhotos.map { it.second }).distinct()
+
+                val req = AnalyzeAndDraftRequest(
+                    photoBase64 = primaryPhoto,
+                    photosBase64 = treePhotosBase64,
+                    perpetratorPhotosBase64 = allPerpPhotos.ifEmpty { null },
+                    citizenSelectedCategory = category,
+                    latitude = latitude,
+                    longitude = longitude,
+                    sensorTiltAngle = null,
+                    citizenNotes = citizenNotes.ifBlank { null },
+                    addressLandmark = addressLandmark.ifBlank { null },
+                    citizenName = profile.name.ifBlank { "Pune Citizen" },
+                    citizenPhone = profile.phone.ifBlank { null },
+                    citizenEmail = profile.email.ifBlank { null },
+                    perpetratorName = perpetratorNameInput.ifBlank { null },
+                    perpetratorPhone = perpetratorPhoneInput.ifBlank { null }
+                )
+
+                val response = api.analyzeAndDraft(req)
+                if (response.isSuccessful && response.body() != null) {
+                    val draft = response.body()!!
+                    
+                    if (!draft.treeDetected) {
+                        isProcessing = false
+                        val (failedCount, isNowBlocked) = antiSpamManager.recordInvalidAttempt()
+                        if (isNowBlocked) {
+                            cooldownDialogText = "🚫 Spam Protection Activated (3-Hour Cooldown)\n\nYou have exceeded 2 invalid photo attempts with no tree detected. To preserve civic resources, submission is paused for 3 hours."
+                        } else {
+                            rejectionDialogText = "⚠️ Tree Not Detected (Attempt $failedCount/2)\n\n${draft.rejectionReason ?: "The AI verified that no tree, branch, or botanical subject is visible in the photos."}\n\nPlease tap any photo above to retake clear photos of the actual tree. You have 1 attempt remaining before a 3-hour cooldown."
+                        }
+                    } else {
+                        antiSpamManager.reset()
+                        onDraftReady(draft, primaryPhoto)
+                    }
+                } else {
+                    isProcessing = false
+                    errorMessage = "Server error (${response.code()}). Please try again."
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                isProcessing = false
+                errorMessage = "Network or timeout error: ${e.localizedMessage ?: "Please check internet connection"}"
+            }
+        }
+    }
+
+    // 1. Rejection Dialog (Attempt 1 of 2)
+    if (rejectionDialogText != null) {
+        AlertDialog(
+            onDismissRequest = { rejectionDialogText = null },
+            icon = { Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFE65100)) },
+            title = { Text("Photo Verification Failed", fontWeight = FontWeight.Bold) },
+            text = { Text(rejectionDialogText!!) },
+            confirmButton = {
+                Button(
+                    onClick = { rejectionDialogText = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary)
+                ) {
+                    Text("Retake Photos")
+                }
+            }
+        )
+    }
+
+    // 2. Anti-Spam Cooldown Dialog (Blocked for 3 hours)
+    if (cooldownDialogText != null) {
+        AlertDialog(
+            onDismissRequest = { cooldownDialogText = null },
+            icon = { Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFC62828)) },
+            title = { Text("Anti-Spam Protection", fontWeight = FontWeight.Bold, color = Color(0xFFC62828)) },
+            text = { Text(cooldownDialogText!!) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        cooldownDialogText = null
+                        onBack()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828))
+                ) {
+                    Text("Understood")
+                }
+            }
+        )
+    }
+
+    val photoLabels = listOf(
+        "1️⃣ Wide Angle / Full Tree & Lean",
+        "2️⃣ Close-up Damage / Cut Marks",
+        "3️⃣ Root Basin & Soil Base"
+    )
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Step 4: Preview Evidence", fontWeight = FontWeight.Bold, fontSize = 17.sp) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
+            )
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            if (isProcessing) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.padding(24.dp)
+                ) {
+                    CircularProgressIndicator(
+                        color = ForestGreenPrimary,
+                        strokeWidth = 4.dp,
+                        modifier = Modifier.size(56.dp)
+                    )
+                    Text(
+                        text = processingStatus,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = ForestGreenDark
+                    )
+                    Text(
+                        text = "Running vision model sequence, arborist morphology audit, and compiling official PMC complaint...",
+                        fontSize = 12.sp,
+                        color = Color.Gray,
+                        lineHeight = 16.sp
+                    )
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    // Header card
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("Grievance Category", fontSize = 11.sp, color = Color.Gray)
+                                Text(category.replace('_', ' '), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ForestGreenDark)
+                            }
+                            Surface(
+                                color = ForestGreenPrimary,
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("3 / 3 Photos Ready", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                            }
+                        }
+                    }
+
+                    // 3 Photo Cards
+                    for (i in 0..2) {
+                        val photo = currentPhotos.getOrNull(i)
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, Color(0xFFE0E0E0)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = photoLabels.getOrElse(i) { "Photo ${i + 1}" },
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = ForestGreenDark
+                                    )
+                                    TextButton(onClick = { launchRetake(i) }) {
+                                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp), tint = ForestGreenPrimary)
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Retake", fontSize = 12.sp, color = ForestGreenPrimary)
+                                    }
+                                }
+
+                                if (photo != null) {
+                                    Image(
+                                        bitmap = photo.first.asImageBitmap(),
+                                        contentDescription = "Tree Evidence Photo ${i + 1}",
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(180.dp)
+                                            .clip(RoundedCornerShape(8.dp)),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(140.dp)
+                                            .background(Color(0xFFF5F5F5), RoundedCornerShape(8.dp))
+                                            .clickable { launchRetake(i) },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("Tap to capture photo ${i + 1}", color = Color.Gray, fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // GPS Location Card
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFECEFF1)),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.LocationOn, contentDescription = null, tint = ForestGreenPrimary, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Evidence Coordinates: ${String.format("%.4f° N, %.4f° E", latitude, longitude)}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.DarkGray
+                            )
+                        }
+                    }
+
+                    // 1. Citizen Observation (Optional)
+                    OutlinedTextField(
+                        value = citizenNotes,
+                        onValueChange = { citizenNotes = it },
+                        label = { Text("Citizen Observation (Optional)") },
+                        placeholder = { Text("e.g. Tree has large hollow, branch leaning over road...") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        minLines = 3
+                    )
+
+                    // 2. Nearby Landmark (Optional)
+                    OutlinedTextField(
+                        value = addressLandmark,
+                        onValueChange = { addressLandmark = it },
+                        label = { Text("Nearby Landmark (Optional)") },
+                        placeholder = { Text("e.g. Opposite Gate 2, near Goodluck Cafe...") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        singleLine = true
+                    )
+
+                    // 3. Contractor / Cutter Info Card (if Felling or Unauthorized Pruning)
+                    if (category in listOf("ILLEGAL_FELLING", "UNAUTHORIZED_PRUNING")) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, Color(0xFFFFB74D)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text(
+                                    text = "👤 Accused Contractor / Cutter Info (Optional)",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = Color(0xFFE65100)
+                                )
+                                Text(
+                                    text = "Enter contractor details or photograph workers/machinery (Saved for official penal records).",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF795548),
+                                    lineHeight = 15.sp
+                                )
+
+                                OutlinedTextField(
+                                    value = perpetratorNameInput,
+                                    onValueChange = { perpetratorNameInput = it },
+                                    label = { Text("Contractor / Tree Cutter Name (Optional)") },
+                                    placeholder = { Text("e.g. ABC Agency / Contractor Name") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(8.dp),
+                                    singleLine = true
+                                )
+
+                                OutlinedTextField(
+                                    value = perpetratorPhoneInput,
+                                    onValueChange = { perpetratorPhoneInput = it },
+                                    label = { Text("Contractor Phone / Vehicle Reg (Optional)") },
+                                    placeholder = { Text("e.g. 98XXXXXXXX / MH-12-XX-XXXX") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(8.dp),
+                                    singleLine = true
+                                )
+
+                                if (perpetratorPhotos.isNotEmpty()) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        perpetratorPhotos.forEachIndexed { index, (bmp, _) ->
+                                            Box(modifier = Modifier.size(70.dp)) {
+                                                Image(
+                                                    bitmap = bmp.asImageBitmap(),
+                                                    contentDescription = "Contractor Photo ${index + 1}",
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .clip(RoundedCornerShape(8.dp)),
+                                                    contentScale = ContentScale.Crop
+                                                )
+                                                Box(
+                                                    modifier = Modifier
+                                                        .align(Alignment.TopEnd)
+                                                        .size(20.dp)
+                                                        .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                                                        .clickable { perpetratorPhotos.removeAt(index) },
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        Icons.Default.Close,
+                                                        contentDescription = "Remove",
+                                                        tint = Color.White,
+                                                        modifier = Modifier.size(12.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        if (perpetratorPhotos.size < 4) {
+                                            Card(
+                                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                                shape = RoundedCornerShape(8.dp),
+                                                border = BorderStroke(1.dp, Color(0xFFFFB74D)),
+                                                modifier = Modifier
+                                                    .size(70.dp)
+                                                    .clickable { perpetratorLauncher.launch(null) }
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                                    verticalArrangement = Arrangement.Center
+                                                ) {
+                                                    Icon(Icons.Default.AddAPhoto, contentDescription = "Add", tint = Color(0xFFE65100), modifier = Modifier.size(20.dp))
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text("Add", fontSize = 10.sp, color = Color(0xFFE65100), fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    OutlinedButton(
+                                        onClick = { perpetratorLauncher.launch(null) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE65100))
+                                    ) {
+                                        Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("📸 Attach Contractor / Equipment Photo (up to 4)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (errorMessage != null) {
+                        Text(
+                            text = errorMessage!!,
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    // Step 5 Launch CTA
+                    Button(
+                        onClick = { executeAnalysis() },
+                        enabled = currentPhotos.size >= 3,
+                        colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                    ) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("🚀 Next: Run AI Analysis & Draft Notice", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+            }
+        }
+    }
+}
+
+private fun processImageFile(file: File): Pair<Bitmap, String>? {
+    try {
+        val exif = ExifInterface(file.absolutePath)
+        val orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_UNDEFINED)
+
+        val boundsOptions = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, boundsOptions)
+        val origWidth = boundsOptions.outWidth
+        val origHeight = boundsOptions.outHeight
+
+        val maxDim = 1280
+        var sampleSize = 1
+        while ((origWidth / sampleSize) > maxDim * 1.5 || (origHeight / sampleSize) > maxDim * 1.5) {
+            sampleSize *= 2
+        }
+
+        val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+        val sampledBitmap = BitmapFactory.decodeFile(file.absolutePath, decodeOptions) ?: return null
+
+        val matrix = Matrix()
+        when (orientation) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
+            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+        }
+
+        val rotatedBitmap = if (!matrix.isIdentity) {
+            Bitmap.createBitmap(sampledBitmap, 0, 0, sampledBitmap.width, sampledBitmap.height, matrix, true)
+        } else {
+            sampledBitmap
+        }
+
+        val scaledBitmap = if (rotatedBitmap.width > maxDim || rotatedBitmap.height > maxDim) {
+            val scale = maxDim.toFloat() / maxOf(rotatedBitmap.width, rotatedBitmap.height)
+            Bitmap.createScaledBitmap(rotatedBitmap, (rotatedBitmap.width * scale).toInt(), (rotatedBitmap.height * scale).toInt(), true)
+        } else {
+            rotatedBitmap
+        }
+
+        val outStream = ByteArrayOutputStream()
+        scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 85, outStream)
+        val bytes = outStream.toByteArray()
+        val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+        return Pair(scaledBitmap, b64)
+    } catch (e: Exception) {
+        e.printStackTrace()
+        return null
+    }
+}

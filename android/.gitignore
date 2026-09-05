@@ -1,0 +1,46 @@
+# Android / Gradle
+.gradle/
+build/
+**/build/
+local.properties
+*.iml
+*.ipr
+*.iws
+.idea/
+.vscode/
+*.class
+*.dex
+*.apk
+*.aar
+*.jks
+*.keystore
+
+# Generated files
+captures/
+navigation.json
+lint/intermediates/
+lint/outputs/
+lint/reports/
+
+# OS / editor files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+
+# Kotlin / Java
+*.orig
+*.rej
+
+# Crashlytics / Fabric
+crashlytics.properties
+com_crashlytics_export_strings.xml
+fabric.properties
+
+# NDK / CMake
+.cxx/
+.externalNativeBuild/
+
+# Ignore common node files if present in Android project
+node_modules/

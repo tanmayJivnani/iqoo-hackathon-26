@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pune Municipal Corporation - Tree Grievance Notice</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 20mm 15mm 20mm 15mm;
+            @bottom-right {
+                content: "Tracking ID: {{ tracking_id }} | Page " counter(page) " of " counter(pages);
+                font-size: 8pt;
+                color: #666;
+            }
+        }
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: #1a1a1a;
+            line-height: 1.4;
+            font-size: 10pt;
+        }
+        .header {
+            border-bottom: 2px solid #1b5e20;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header-title {
+            font-size: 14pt;
+            font-weight: bold;
+            color: #1b5e20;
+            text-transform: uppercase;
+        }
+        .header-subtitle {
+            font-size: 9pt;
+            color: #444;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            font-size: 8pt;
+            font-weight: bold;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+        .badge-critical { background-color: #ffebee; color: #c62828; border: 1px solid #c62828; }
+        .badge-high { background-color: #fff3e0; color: #ef6c00; border: 1px solid #ef6c00; }
+        .badge-medium { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #2e7d32; }
+        
+        .meta-grid {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+            background-color: #f9fbf9;
+            border: 1px solid #e0e0e0;
+        }
+        .meta-grid td {
+            padding: 6px 10px;
+            font-size: 9pt;
+            border-bottom: 1px solid #eee;
+        }
+        .meta-label {
+            font-weight: bold;
+            color: #555;
+            width: 25%;
+        }
+        .letter-content {
+            margin-top: 15px;
+            margin-bottom: 15px;
+            white-space: pre-wrap;
+            font-size: 9.5pt;
+            line-height: 1.5;
+        }
+        .marathi-box {
+            background-color: #fffde7;
+            border-left: 4px solid #fbc02d;
+            padding: 10px;
+            margin: 12px 0;
+            font-size: 9pt;
+            color: #333;
+        }
+        .legal-box {
+            background-color: #f1f8e9;
+            border-left: 4px solid #33691e;
+            padding: 8px 12px;
+            margin: 10px 0;
+            font-size: 8.5pt;
+        }
+        .legal-box ul {
+            margin: 4px 0 0 16px;
+            padding: 0;
+        }
+        .evidence-section {
+            margin-top: 20px;
+            page-break-inside: avoid;
+        }
+        .evidence-title {
+            font-size: 10pt;
+            font-weight: bold;
+            color: #1b5e20;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 4px;
+            margin-bottom: 8px;
+        }
+        .evidence-photo {
+            max-width: 320px;
+            max-height: 220px;
+            border: 1px solid #bbb;
+            border-radius: 4px;
+            display: block;
+        }
+        .footer-note {
+            margin-top: 20px;
+            font-size: 8pt;
+            color: #777;
+            border-top: 1px solid #eee;
+            padding-top: 8px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div>
+            <div class="header-title">Citizen Tree Grievance Notice</div>
+            <div class="header-subtitle">Submitted under Maharashtra (Urban Areas) Protection & Preservation of Trees Act, 1975</div>
+        </div>
+        <div style="text-align: right;">
+            <span class="badge badge-{{ urgency_class }}">{{ urgency_level }}</span>
+            <div style="font-size: 8pt; margin-top: 4px; color: #555;">ID: <strong>{{ tracking_id }}</strong></div>
+        </div>
+    </div>
+
+    <table class="meta-grid">
+        <tr>
+            <td class="meta-label">Location / Landmark:</td>
+            <td>{{ address_landmark }}</td>
+            <td class="meta-label">Ward Jurisdiction:</td>
+            <td>{{ ward_name }}</td>
+        </tr>
+        <tr>
+            <td class="meta-label">GPS Coordinates:</td>
+            <td>{{ latitude }}° N, {{ longitude }}° E</td>
+            <td class="meta-label">Date & Time:</td>
+            <td>{{ created_at }}</td>
+        </tr>
+        <tr>
+            <td class="meta-label">Category:</td>
+            <td><strong>{{ issue_type }}</strong></td>
+            <td class="meta-label">Sensor Tilt Measurement:</td>
+            <td>{{ sensor_tilt_display }}</td>
+        </tr>
+        <tr>
+            <td class="meta-label">Action Target:</td>
+            <td colspan="3"><strong>{{ routed_authority_name }}</strong> ({{ routed_authority_role }})</td>
+        </tr>
+    </table>
+
+    <div class="legal-box">
+        <strong>Statutory Basis & Legal Grounding:</strong>
+        <ul>
+            {% for citation in legal_citations %}
+                <li>{{ citation }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <div class="letter-content">{{ letter_body }}</div>
+
+    <div class="marathi-box">
+        <strong>तक्रार गोषवारा (Marathi Summary for Field Inspection):</strong><br>
+        {{ draft_summary_mr }}
+    </div>
+
+    {% if photo_data_uri %}
+    <div class="evidence-section">
+        <div class="evidence-title">Photographic & Sensor Evidence (Annexure A)</div>
+        <img class="evidence-photo" src="{{ photo_data_uri }}" alt="Citizen Tree Evidence">
+        <div style="font-size: 8pt; color: #666; margin-top: 4px;">
+            Captured via Pune Automated Tree Redressal App. GPS stamped at ({{ latitude }}, {{ longitude }}).
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="footer-note">
+        This is an official citizen grievance generated via the Pune Automated Tree Redressal Platform. 
+        Dispatch target: {{ target_email }} | Helpline: {{ target_whatsapp or 'N/A' }}
+    </div>
+
+</body>
+</html>
