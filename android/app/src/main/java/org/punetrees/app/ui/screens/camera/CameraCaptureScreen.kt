@@ -62,17 +62,9 @@ fun CameraCaptureScreen(
     var currentImageUri by remember { mutableStateOf<Uri?>(null) }
     var currentImageFile by remember { mutableStateOf<File?>(null) }
 
-    val angleTitles = listOf(
-        "Photo 1 of 3: Wide Full Tree & Lean",
-        "Photo 2 of 3: Close-up of Tree Damage",
-        "Photo 3 of 3: Root Basin & Ground Base"
-    )
-
-    val angleGuides = listOf(
-        "Step back 5–10m. Align tree against building/pole so AI measures tilt.",
-        "Frame the physical cut, broken limb, termite cavity, or leaf condition.",
-        "Frame the base of the trunk showing soil perimeter or concrete choke."
-    )
+    val currentCategory = remember(category) { org.punetrees.app.core.category.TreeCategories.getByKey(category) }
+    val angleTitles = remember(currentCategory) { currentCategory.photoSteps.map { it.stepTitle } }
+    val angleGuides = remember(currentCategory) { currentCategory.photoSteps.map { it.instruction } }
 
     fun createTempImageUri(): Pair<Uri, File> {
         val imagesDir = File(context.cacheDir, "camera_images").apply { mkdirs() }

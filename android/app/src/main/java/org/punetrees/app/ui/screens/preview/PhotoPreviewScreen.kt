@@ -226,11 +226,10 @@ fun PhotoPreviewScreen(
         )
     }
 
-    val photoLabels = listOf(
-        "1️⃣ Wide Angle / Full Tree & Lean",
-        "2️⃣ Close-up Damage / Cut Marks",
-        "3️⃣ Root Basin & Soil Base"
-    )
+    val currentCategory = remember(category) { org.punetrees.app.core.category.TreeCategories.getByKey(category) }
+    val photoLabels = remember(currentCategory) {
+        currentCategory.photoSteps.map { it.previewLabel }
+    }
 
     Scaffold(
         topBar = {

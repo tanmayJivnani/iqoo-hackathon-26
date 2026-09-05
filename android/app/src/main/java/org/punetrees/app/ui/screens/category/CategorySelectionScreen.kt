@@ -29,24 +29,6 @@ fun CategorySelectionScreen(
 ) {
     var selectedCategory by remember { mutableStateOf("DANGEROUS_LEANING_FALL_RISK") }
 
-    val categories = listOf(
-        "DANGEROUS_LEANING_FALL_RISK" to "⚠️ Leaning Tree / Fall Risk",
-        "ILLEGAL_FELLING" to "🪓 Illegal Tree Felling",
-        "UNAUTHORIZED_PRUNING" to "✂️ Unauthorized Heavy Pruning",
-        "HAZARDOUS_BRANCH" to "🌿 Hazardous Broken Branch",
-        "ROOT_CONCRETIZATION" to "🧱 Root Concretization",
-        "DISEASE_PEST" to "🐛 Disease / Termite Decay"
-    )
-
-    val categoryDescriptions = mapOf(
-        "DANGEROUS_LEANING_FALL_RISK" to "Trunk with dangerous tilt leaning over road, powerlines, or buildings.",
-        "ILLEGAL_FELLING" to "Tree being cut, sawed, or fresh stump left without Tree Authority permit.",
-        "UNAUTHORIZED_PRUNING" to "Excessive hacking of large limbs, decapitation of canopy, or unscientific cutting.",
-        "HAZARDOUS_BRANCH" to "Fractured, hanging, or cracked heavy limbs threatening pedestrians/traffic.",
-        "ROOT_CONCRETIZATION" to "Asphalt, paver blocks, or concrete choking the 1-meter soil basin around roots.",
-        "DISEASE_PEST" to "Hollow trunk, fungal conks, severe termite infestation, or rotting bark."
-    )
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -77,8 +59,8 @@ fun CategorySelectionScreen(
 
             // Category Selection Cards
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                categories.forEach { (catKey, catLabel) ->
-                    val isSelected = selectedCategory == catKey
+                org.punetrees.app.core.category.TreeCategories.ALL.forEach { cat ->
+                    val isSelected = selectedCategory == cat.key
                     Card(
                         colors = CardDefaults.cardColors(
                             containerColor = if (isSelected) Color(0xFFE8F5E9) else Color(0xFFFAFAFA)
@@ -90,7 +72,7 @@ fun CategorySelectionScreen(
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { selectedCategory = catKey }
+                            .clickable { selectedCategory = cat.key }
                     ) {
                         Row(
                             modifier = Modifier
@@ -100,19 +82,19 @@ fun CategorySelectionScreen(
                         ) {
                             RadioButton(
                                 selected = isSelected,
-                                onClick = { selectedCategory = catKey },
+                                onClick = { selectedCategory = cat.key },
                                 colors = RadioButtonDefaults.colors(selectedColor = ForestGreenPrimary)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = catLabel,
+                                    text = cat.title,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
                                     fontSize = 14.sp,
                                     color = if (isSelected) ForestGreenDark else Color(0xFF212121)
                                 )
                                 Text(
-                                    text = categoryDescriptions[catKey] ?: "",
+                                    text = cat.description,
                                     fontSize = 11.sp,
                                     color = Color.Gray,
                                     lineHeight = 15.sp
