@@ -58,6 +58,7 @@ fun PhotoPreviewScreen(
     perpetratorPhotosBase64: List<String>,
     latitude: Double,
     longitude: Double,
+    sensorTiltAngle: Float? = null,
     onDraftReady: (draft: AnalyzeAndDraftResponse, primaryPhotoBase64: String) -> Unit,
     onBack: () -> Unit
 ) {
@@ -146,6 +147,29 @@ fun PhotoPreviewScreen(
         }
     }
 
+    var isModelInstalledState by remember { mutableStateOf(localGemmaEngine.isModelInstalled()) }
+
+    val importModelLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            isProcessing = true
+            processingStatus = "Importing Gemma 3n model from storage..."
+            coroutineScope.launch {
+                val success = withContext(Dispatchers.IO) {
+                    localGemmaEngine.importModelFromUri(uri)
+                }
+                isProcessing = false
+                if (success) {
+                    isModelInstalledState = true
+                    Toast.makeText(context, "Gemma 3n model installed successfully!", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(context, "Failed to import model. Please check file format.", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
     fun launchRetake(index: Int) {
         retakeIndex = index
         val imagesDir = File(context.cacheDir, "camera_images").apply { mkdirs() }
@@ -185,7 +209,7 @@ fun PhotoPreviewScreen(
                     citizenSelectedCategory = category,
                     latitude = latitude,
                     longitude = longitude,
-                    sensorTiltAngle = null,
+                    sensorTiltAngle = sensorTiltAngle,
                     citizenNotes = citizenNotes.ifBlank { null },
                     addressLandmark = addressLandmark.ifBlank { null },
                     citizenName = profile.name.ifBlank { "Pune Citizen" },
@@ -209,6 +233,7 @@ fun PhotoPreviewScreen(
                         }
                     } else {
                         antiSpamManager.reset()
+                        isProcessing = false
                         onDraftReady(draft, primaryPhoto)
                     }
                 } else {
@@ -249,7 +274,8 @@ fun PhotoPreviewScreen(
                         citizenPhone = profile.phone.ifBlank { null },
                         citizenEmail = profile.email.ifBlank { null },
                         perpetratorName = perpetratorNameInput.ifBlank { null },
-                        perpetratorPhone = perpetratorPhoneInput.ifBlank { null }
+                        perpetratorPhone = perpetratorPhoneInput.ifBlank { null },
+                        sensorTiltAngle = sensorTiltAngle
                     )
                 }
                 isProcessing = false
@@ -697,7 +723,7 @@ fun PhotoPreviewScreen(
                         )
 
                         // 1. Local On-Device Inference Button (Gemma 3n / Edge)
-                        val isModelFound = localGemmaEngine.isModelInstalled()
+                        val isModelFound = isModelInstalledState || localGemmaEngine.isModelInstalled()
                         OutlinedButton(
                             onClick = { executeLocalInference() },
                             enabled = currentPhotos.size >= 3,
@@ -745,6 +771,17 @@ fun PhotoPreviewScreen(
                                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                                     )
                                 }
+                            }
+                        }
+
+                        if (!isModelFound) {
+                            TextButton(
+                                onClick = { importModelLauncher.launch(arrayOf("*/*")) },
+                                modifier = Modifier.align(Alignment.CenterHorizontally)
+                            ) {
+                                Icon(Icons.Default.FileDownload, contentDescription = null, tint = ForestGreenDark, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("📥 Select Gemma 3n .task from Downloads", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = ForestGreenDark)
                             }
                         }
 

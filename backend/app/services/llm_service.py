@@ -18,6 +18,7 @@ class LlmService:
         photos_base64: Optional[List[str]] = None,
         citizen_selected_category: Optional[str] = None,
         census_tree: Optional[Dict[str, Any]] = None,
+        sensor_tilt_angle: Optional[float] = None,
         citizen_notes: Optional[str] = None,
         citizen_name: Optional[str] = "Concerned Pune Citizen",
         citizen_phone: Optional[str] = None,
@@ -53,6 +54,10 @@ class LlmService:
         else:
             perp_context = "I do not know the identity or contact details of the contractor or perpetrators involved."
 
+        sensor_pitch_context = ""
+        if sensor_tilt_angle is not None:
+            sensor_pitch_context = f"\nDEVICE SENSOR CALIBRATION: On-site device pitch sensor measured a trunk tilt/lean of {sensor_tilt_angle:.1f}° from vertical. Integrate this physical measurement into the arborist risk assessment."
+
         census_context = ""
         if census_tree and census_tree.get("has_census_match"):
             census_context = f"""
@@ -70,7 +75,7 @@ IMPORTANT FORENSIC INSTRUCTION:
         system_prompt = f"""
 You are an expert Urban Forensic Arborist and Municipal Grievance Drafting Assistant for Pune Municipal Corporation (PMC).
 The citizen is lodging a formal grievance under category: '{target_category}' under the Maharashtra (Urban Areas) Protection & Preservation of Trees Act, 1975.
-{census_context}
+{census_context}{sensor_pitch_context}
 Your primary objective is to inspect the submitted photo(s) of the tree, verify tree presence, extract factual visual evidence, and draft a formal statutory notice.
 
 CRITICAL RULES:
@@ -125,11 +130,13 @@ You must output a strictly valid JSON object with the following schema:
 }}
 """
 
+        tilt_user_str = f"Device Physical Pitch: {sensor_tilt_angle:.1f}° from vertical measured on site.\n" if sensor_tilt_angle is not None else ""
+
         user_prompt_text = f"""
 Please analyze the attached evidence photo(s) for the '{target_category}' report at {address_landmark}, {ward_name} ({latitude:.5f}° N, {longitude:.5f}° E).
 Citizen Observation Notes: "{citizen_notes or 'Visual inspection requested on site.'}"
 {perp_context}
-
+{tilt_user_str}
 Grievance Reference Number: {tracking_id}
 
 INSTRUCTIONS:

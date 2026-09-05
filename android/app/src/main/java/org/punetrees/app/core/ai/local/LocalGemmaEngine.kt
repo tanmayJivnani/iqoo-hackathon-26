@@ -56,6 +56,22 @@ class LocalGemmaEngine(private val context: Context) {
         return "$dir/gemma-3n-E2B-it-int4.task"
     }
 
+    fun importModelFromUri(uri: android.net.Uri): Boolean {
+        return try {
+            val targetDir = context.getExternalFilesDir(null) ?: context.filesDir
+            val targetFile = File(targetDir, "gemma-3n-E2B-it-int4.task")
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                targetFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            targetFile.exists() && targetFile.length() > 0
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
     fun analyzeAndDraftLocal(
         photos: List<Pair<Bitmap, String>>,
         selectedCategories: List<String>,
@@ -67,7 +83,8 @@ class LocalGemmaEngine(private val context: Context) {
         citizenPhone: String?,
         citizenEmail: String?,
         perpetratorName: String?,
-        perpetratorPhone: String?
+        perpetratorPhone: String?,
+        sensorTiltAngle: Float? = null
     ): AnalyzeAndDraftResponse {
         val modelFile = getModelFile()
         val primaryCategory = selectedCategories.firstOrNull() ?: "HAZARDOUS_BRANCH"
@@ -88,7 +105,8 @@ class LocalGemmaEngine(private val context: Context) {
                     citizenPhone = citizenPhone,
                     citizenEmail = citizenEmail,
                     perpetratorName = perpetratorName,
-                    perpetratorPhone = perpetratorPhone
+                    perpetratorPhone = perpetratorPhone,
+                    sensorTiltAngle = sensorTiltAngle
                 )
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -107,7 +125,8 @@ class LocalGemmaEngine(private val context: Context) {
             citizenPhone = citizenPhone,
             citizenEmail = citizenEmail,
             perpetratorName = perpetratorName,
-            perpetratorPhone = perpetratorPhone
+            perpetratorPhone = perpetratorPhone,
+            sensorTiltAngle = sensorTiltAngle
         )
     }
 
@@ -124,7 +143,8 @@ class LocalGemmaEngine(private val context: Context) {
         citizenPhone: String?,
         citizenEmail: String?,
         perpetratorName: String?,
-        perpetratorPhone: String?
+        perpetratorPhone: String?,
+        sensorTiltAngle: Float? = null
     ): AnalyzeAndDraftResponse {
         val options = LlmInference.LlmInferenceOptions.builder()
             .setModelPath(modelFile.absolutePath)
@@ -132,10 +152,11 @@ class LocalGemmaEngine(private val context: Context) {
             .setTemperature(0.2f)
             .build()
 
+        val tiltPrompt = if (sensorTiltAngle != null) ", Measured Tilt: ${String.format(Locale.ENGLISH, "%.1f", sensorTiltAngle)} deg" else ""
         val inference = LlmInference.createFromOptions(context, options)
         val prompt = """
             You are an on-device civic arborist AI.
-            Analyze report: Category: $primaryCategory, Categories: ${selectedCategories.joinToString()}, Landmark: $addressLandmark, Notes: $citizenNotes.
+            Analyze report: Category: $primaryCategory, Categories: ${selectedCategories.joinToString()}, Landmark: $addressLandmark$tiltPrompt, Notes: $citizenNotes.
             Output JSON:
             {
               "tree_detected": true,
@@ -157,7 +178,7 @@ class LocalGemmaEngine(private val context: Context) {
             "URGENT: Tree Hazard & Statutory Grievance [$trackingId] at ${addressLandmark.ifBlank { "Pune" }}"
         }
         val body = parsed.optString("draft_body_en").ifBlank {
-            buildDefaultLetter(trackingId, primaryCategory, selectedCategories, latitude, longitude, addressLandmark, citizenNotes, citizenName, citizenPhone, citizenEmail, perpetratorName, perpetratorPhone)
+            buildDefaultLetter(trackingId, primaryCategory, selectedCategories, latitude, longitude, addressLandmark, citizenNotes, citizenName, citizenPhone, citizenEmail, perpetratorName, perpetratorPhone, sensorTiltAngle)
         }
         val summaryMr = parsed.optString("draft_summary_mr").ifBlank {
             buildDefaultMarathiSummary(trackingId, primaryCategory, addressLandmark)
@@ -170,7 +191,7 @@ class LocalGemmaEngine(private val context: Context) {
             urgencyLevel = parsed.optString("urgency_level", "HIGH"),
             fellingStage = "NOT_APPLICABLE",
             isCognizableOffence = primaryCategory == "ILLEGAL_FELLING" || primaryCategory == "UNAUTHORIZED_PRUNING",
-            sensorTiltAngle = null,
+            sensorTiltAngle = sensorTiltAngle,
             censusTree = null,
             citizenSelectedCategory = primaryCategory,
             isCategoryMismatch = false,
@@ -191,13 +212,21 @@ class LocalGemmaEngine(private val context: Context) {
             rejectionReason = null,
             latitude = latitude,
             longitude = longitude,
-            addressLandmark = addressLandmark.ifBlank { "Pune Urban Area" },
+            addressLandmark = addressLandmark.ifBlank { "Pune Municipal Area" },
             wardName = "Pune Municipal Corporation",
             legalCitations = getDeterministicCitations(selectedCategories),
             draftSubjectEn = subject,
             draftBodyEn = body,
             draftSummaryMr = summaryMr,
-            reverificationDueHours = 48
+            reverificationDueHours = 48,
+            reverificationDueDate = null,
+            routedAuthority = org.punetrees.app.data.remote.model.RoutingAuthorityDetail(
+                name = "Pune Municipal Tree Authority",
+                role = "Superintendent of Gardens / Tree Officer",
+                email = "treecomplaint@punecorporation.org",
+                whatsapp = "+919689900002",
+                emergencyPhone = "1800-1030-222"
+            )
         )
     }
 
@@ -213,14 +242,15 @@ class LocalGemmaEngine(private val context: Context) {
         citizenPhone: String?,
         citizenEmail: String?,
         perpetratorName: String?,
-        perpetratorPhone: String?
+        perpetratorPhone: String?,
+        sensorTiltAngle: Float? = null
     ): AnalyzeAndDraftResponse {
         val citations = getDeterministicCitations(selectedCategories)
         val subject = "URGENT: Statutory Tree Notice [Grievance Ref: $trackingId] at ${addressLandmark.ifBlank { "Pune" }}"
         val body = buildDefaultLetter(
             trackingId, primaryCategory, selectedCategories, latitude, longitude,
             addressLandmark, citizenNotes, citizenName, citizenPhone, citizenEmail,
-            perpetratorName, perpetratorPhone
+            perpetratorName, perpetratorPhone, sensorTiltAngle
         )
         val summaryMr = buildDefaultMarathiSummary(trackingId, primaryCategory, addressLandmark)
 
@@ -231,7 +261,7 @@ class LocalGemmaEngine(private val context: Context) {
             urgencyLevel = if (primaryCategory in listOf("ILLEGAL_FELLING", "DANGEROUS_LEANING_FALL_RISK")) "CRITICAL_EMERGENCY" else "HIGH",
             fellingStage = if (primaryCategory == "ILLEGAL_FELLING") "IN_PROGRESS" else "NOT_APPLICABLE",
             isCognizableOffence = primaryCategory in listOf("ILLEGAL_FELLING", "UNAUTHORIZED_PRUNING"),
-            sensorTiltAngle = null,
+            sensorTiltAngle = sensorTiltAngle,
             censusTree = null,
             citizenSelectedCategory = primaryCategory,
             isCategoryMismatch = false,
@@ -296,7 +326,8 @@ class LocalGemmaEngine(private val context: Context) {
         phone: String?,
         email: String?,
         perpName: String?,
-        perpPhone: String?
+        perpPhone: String?,
+        sensorTiltAngle: Float? = null
     ): String {
         val dateStr = SimpleDateFormat("dd MMMM yyyy", Locale.ENGLISH).format(Date())
         val locStr = if (landmark.isNotBlank()) landmark else String.format(Locale.ENGLISH, "%.4f° N, %.4f° E", latitude, longitude)
@@ -307,6 +338,10 @@ class LocalGemmaEngine(private val context: Context) {
         } else {
             "I do not have the identity or contact details of the contractor or parties involved on site."
         }
+
+        val tiltSection = if (sensorTiltAngle != null && sensorTiltAngle >= 5.0f) {
+            "Physical Sensor Verification: Measured trunk pitch/tilt angle is ${String.format(Locale.ENGLISH, "%.1f", sensorTiltAngle)}° from vertical, presenting structural tipping risk.\n"
+        } else ""
 
         return """
 To,
@@ -323,6 +358,7 @@ I am writing to bring to your urgent notice an acute tree violation and public s
 
 Primary Violation: ${primaryCategory.replace('_', ' ')}
 Reported Issues: $issuesStr
+$tiltSection
 Citizen Observation: ${if (notes.isNotBlank()) notes else "Physical inspection requested immediately on site."}
 
 $perpSection

@@ -700,7 +700,13 @@ ADDITIONAL CONCURRENT VIOLATION IDENTIFIED:
                         isGeneratingPdf = true
                         coroutineScope.launch {
                             try {
-                                val res = api.renderPdf(RenderPdfRequest(draft.complaintId))
+                                val res = api.renderPdf(
+                                    RenderPdfRequest(
+                                        complaintId = draft.complaintId,
+                                        draftSubjectEn = editableSubject,
+                                        draftBodyEn = editableBody
+                                    )
+                                )
                                 if (res.isSuccessful && res.body() != null) {
                                     val returnedPdfUrl = res.body()!!.pdfUrl
                                     pdfUrl = returnedPdfUrl
@@ -762,7 +768,15 @@ ADDITIONAL CONCURRENT VIOLATION IDENTIFIED:
 
             // Proceed to Dispatch CTA
             Button(
-                onClick = { onProceedToDispatch(draft.copy(draftSubjectEn = editableSubject, draftBodyEn = editableBody)) },
+                onClick = {
+                    onProceedToDispatch(
+                        draft.copy(
+                            draftSubjectEn = editableSubject,
+                            draftBodyEn = editableBody,
+                            legalCitations = currentCitations
+                        )
+                    )
+                },
                 colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier

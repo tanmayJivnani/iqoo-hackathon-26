@@ -47,6 +47,7 @@ fun AppNavHost(
     var capturedTreePhotos by remember { mutableStateOf<List<Pair<Bitmap, String>>>(emptyList()) }
     var capturedLat by remember { mutableStateOf(18.5196) }
     var capturedLon by remember { mutableStateOf(73.8436) }
+    var capturedTilt by remember { mutableStateOf<Float?>(null) }
 
     // Draft & Dispatch State
     var currentDraft by remember { mutableStateOf<AnalyzeAndDraftResponse?>(null) }
@@ -86,15 +87,17 @@ fun AppNavHost(
             )
         }
 
-        // Step 3: Camera Capture (3 Mandatory Photos)
+        // Step 3: Camera Capture (3 Mandatory Photos + Tilt Sensor)
         composable(Screen.Camera.route) {
             CameraCaptureScreen(
                 category = selectedCategory,
                 locationProvider = locationProvider,
-                onPhotosCaptured = { treePhotos, lat, lon ->
+                tiltSensor = tiltSensor,
+                onPhotosCaptured = { treePhotos, lat, lon, tilt ->
                     capturedTreePhotos = treePhotos
                     capturedLat = lat
                     capturedLon = lon
+                    capturedTilt = tilt
                     navController.navigate(Screen.Preview.route)
                 },
                 onBack = { navController.popBackStack() }
@@ -111,6 +114,7 @@ fun AppNavHost(
                 perpetratorPhotosBase64 = perpetratorPhotosBase64,
                 latitude = capturedLat,
                 longitude = capturedLon,
+                sensorTiltAngle = capturedTilt,
                 onDraftReady = { draft, photoB64 ->
                     currentDraft = draft
                     primaryPhotoBase64 = photoB64

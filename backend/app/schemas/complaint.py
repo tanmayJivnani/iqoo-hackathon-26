@@ -130,6 +130,8 @@ class AnalyzeAndDraftResponse(BaseModel):
 # 3. PDF Generation schemas
 class RenderPdfRequest(BaseModel):
     complaint_id: str
+    draft_subject_en: Optional[str] = None
+    draft_body_en: Optional[str] = None
 
 class RenderPdfResponse(BaseModel):
     complaint_id: str
