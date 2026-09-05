@@ -8,8 +8,8 @@ import java.util.concurrent.TimeUnit
 
 object ApiClient {
 
-    // Local development host for physical device on Wi-Fi
-    var baseUrl: String = "http://10.47.105.160:8000/"
+    // Live Cloudflare Tunnel URL (Works across all Wi-Fi, 4G, and 5G networks)
+    var baseUrl: String = "https://formula-reduction-previous-hopefully.trycloudflare.com/"
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
