@@ -37,6 +37,7 @@ import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.punetrees.app.core.image.ImageUtils
 import org.punetrees.app.core.user.UserProfileManager
 import org.punetrees.app.data.remote.ApiClient
 import org.punetrees.app.data.remote.model.AnalyzeAndDraftRequest
@@ -79,9 +80,11 @@ fun PhotoPreviewScreen(
     var rejectionDialogText by remember { mutableStateOf<String?>(null) }
     var cooldownDialogText by remember { mutableStateOf<String?>(null) }
 
-    // Retake state
+    // Retake / photo replacement state
     var retakeIndex by remember { mutableStateOf(-1) }
     var retakeFile by remember { mutableStateOf<File?>(null) }
+    var showPhotoSourceDialogForIndex by remember { mutableStateOf<Int?>(null) }
+    var showContractorSourceDialog by remember { mutableStateOf(false) }
 
     val perpetratorLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicturePreview()
@@ -95,13 +98,44 @@ fun PhotoPreviewScreen(
         }
     }
 
+    val perpetratorGalleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            coroutineScope.launch {
+                val pair = withContext(Dispatchers.IO) {
+                    ImageUtils.processImageUri(context, uri)
+                }
+                if (pair != null) {
+                    perpetratorPhotos.add(pair)
+                    Toast.makeText(context, "Contractor photo ${perpetratorPhotos.size}/4 attached", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
     val retakeLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
         if (success && retakeFile != null && retakeFile!!.exists() && retakeIndex in 0..2) {
             coroutineScope.launch {
                 val pair = withContext(Dispatchers.IO) {
-                    processImageFile(retakeFile!!)
+                    ImageUtils.processImageFile(retakeFile!!)
+                }
+                if (pair != null) {
+                    currentPhotos[retakeIndex] = pair
+                }
+            }
+        }
+    }
+
+    val retakeGalleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null && retakeIndex in 0..2) {
+            coroutineScope.launch {
+                val pair = withContext(Dispatchers.IO) {
+                    ImageUtils.processImageUri(context, uri)
                 }
                 if (pair != null) {
                     currentPhotos[retakeIndex] = pair
@@ -231,6 +265,80 @@ fun PhotoPreviewScreen(
         currentCategory.photoSteps.map { it.previewLabel }
     }
 
+    // 3. Photo Replacement Source Dialog
+    if (showPhotoSourceDialogForIndex != null) {
+        val targetIdx = showPhotoSourceDialogForIndex!!
+        AlertDialog(
+            onDismissRequest = { showPhotoSourceDialogForIndex = null },
+            icon = { Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = ForestGreenPrimary) },
+            title = { Text("Replace Photo ${targetIdx + 1}", fontWeight = FontWeight.Bold) },
+            text = { Text("Choose how you want to provide evidence for:\n${photoLabels.getOrElse(targetIdx) { "Photo ${targetIdx + 1}" }}") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val idx = targetIdx
+                        showPhotoSourceDialogForIndex = null
+                        launchRetake(idx)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary)
+                ) {
+                    Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Camera")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = {
+                        val idx = targetIdx
+                        showPhotoSourceDialogForIndex = null
+                        retakeIndex = idx
+                        retakeGalleryLauncher.launch("image/*")
+                    }
+                ) {
+                    Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Gallery")
+                }
+            }
+        )
+    }
+
+    // 4. Contractor Photo Source Dialog
+    if (showContractorSourceDialog) {
+        AlertDialog(
+            onDismissRequest = { showContractorSourceDialog = false },
+            icon = { Icon(Icons.Default.CameraAlt, contentDescription = null, tint = Color(0xFFE65100)) },
+            title = { Text("Attach Contractor Evidence", fontWeight = FontWeight.Bold) },
+            text = { Text("Choose photo source for contractor or equipment evidence:") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showContractorSourceDialog = false
+                        perpetratorLauncher.launch(null)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE65100))
+                ) {
+                    Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Camera")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = {
+                        showContractorSourceDialog = false
+                        perpetratorGalleryLauncher.launch("image/*")
+                    }
+                ) {
+                    Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Gallery")
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -329,10 +437,13 @@ fun PhotoPreviewScreen(
                                         fontSize = 13.sp,
                                         color = ForestGreenDark
                                     )
-                                    TextButton(onClick = { launchRetake(i) }) {
+                                    TextButton(onClick = {
+                                        retakeIndex = i
+                                        showPhotoSourceDialogForIndex = i
+                                    }) {
                                         Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp), tint = ForestGreenPrimary)
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Retake", fontSize = 12.sp, color = ForestGreenPrimary)
+                                        Text("Change", fontSize = 12.sp, color = ForestGreenPrimary)
                                     }
                                 }
 
@@ -352,10 +463,13 @@ fun PhotoPreviewScreen(
                                             .fillMaxWidth()
                                             .height(140.dp)
                                             .background(Color(0xFFF5F5F5), RoundedCornerShape(8.dp))
-                                            .clickable { launchRetake(i) },
+                                            .clickable {
+                                                retakeIndex = i
+                                                showPhotoSourceDialogForIndex = i
+                                            },
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Text("Tap to capture photo ${i + 1}", color = Color.Gray, fontSize = 12.sp)
+                                        Text("Tap to capture or upload photo ${i + 1}", color = Color.Gray, fontSize = 12.sp)
                                     }
                                 }
                             }
@@ -491,7 +605,7 @@ fun PhotoPreviewScreen(
                                                 border = BorderStroke(1.dp, Color(0xFFFFB74D)),
                                                 modifier = Modifier
                                                     .size(70.dp)
-                                                    .clickable { perpetratorLauncher.launch(null) }
+                                                    .clickable { showContractorSourceDialog = true }
                                             ) {
                                                 Column(
                                                     modifier = Modifier.fillMaxSize(),
@@ -507,7 +621,7 @@ fun PhotoPreviewScreen(
                                     }
                                 } else {
                                     OutlinedButton(
-                                        onClick = { perpetratorLauncher.launch(null) },
+                                        onClick = { showContractorSourceDialog = true },
                                         modifier = Modifier.fillMaxWidth(),
                                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE65100))
                                     ) {
@@ -548,55 +662,5 @@ fun PhotoPreviewScreen(
                 }
             }
         }
-    }
-}
-
-private fun processImageFile(file: File): Pair<Bitmap, String>? {
-    try {
-        val exif = ExifInterface(file.absolutePath)
-        val orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_UNDEFINED)
-
-        val boundsOptions = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(file.absolutePath, boundsOptions)
-        val origWidth = boundsOptions.outWidth
-        val origHeight = boundsOptions.outHeight
-
-        val maxDim = 1280
-        var sampleSize = 1
-        while ((origWidth / sampleSize) > maxDim * 1.5 || (origHeight / sampleSize) > maxDim * 1.5) {
-            sampleSize *= 2
-        }
-
-        val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
-        val sampledBitmap = BitmapFactory.decodeFile(file.absolutePath, decodeOptions) ?: return null
-
-        val matrix = Matrix()
-        when (orientation) {
-            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
-            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
-            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
-        }
-
-        val rotatedBitmap = if (!matrix.isIdentity) {
-            Bitmap.createBitmap(sampledBitmap, 0, 0, sampledBitmap.width, sampledBitmap.height, matrix, true)
-        } else {
-            sampledBitmap
-        }
-
-        val scaledBitmap = if (rotatedBitmap.width > maxDim || rotatedBitmap.height > maxDim) {
-            val scale = maxDim.toFloat() / maxOf(rotatedBitmap.width, rotatedBitmap.height)
-            Bitmap.createScaledBitmap(rotatedBitmap, (rotatedBitmap.width * scale).toInt(), (rotatedBitmap.height * scale).toInt(), true)
-        } else {
-            rotatedBitmap
-        }
-
-        val outStream = ByteArrayOutputStream()
-        scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 85, outStream)
-        val bytes = outStream.toByteArray()
-        val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
-        return Pair(scaledBitmap, b64)
-    } catch (e: Exception) {
-        e.printStackTrace()
-        return null
     }
 }

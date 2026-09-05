@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.media.ExifInterface
+import android.net.Uri
 import android.util.Base64
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -35,6 +36,7 @@ import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.punetrees.app.core.image.ImageUtils
 import org.punetrees.app.core.location.LocationProvider
 import org.punetrees.app.data.remote.ApiClient
 import org.punetrees.app.data.remote.model.ComplaintDetailResponse
@@ -57,19 +59,18 @@ fun ReverificationScreen(
     val coroutineScope = rememberCoroutineScope()
     val api = remember { ApiClient.getService() }
 
+    var currentCoords by remember { mutableStateOf<Pair<Double, Double>?>(null) }
     var complaintDetail by remember { mutableStateOf<ComplaintDetailResponse?>(null) }
     var origBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var currentCoords by remember { mutableStateOf<Pair<Double, Double>?>(null) }
 
-    // Re-verification photo state
     var auditBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var auditBase64 by remember { mutableStateOf<String?>(null) }
     var auditFile by remember { mutableStateOf<File?>(null) }
     var citizenNotes by remember { mutableStateOf("") }
-
     var isAuditing by remember { mutableStateOf(false) }
     var auditResult by remember { mutableStateOf<ReverifyResponse?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var showSourceDialog by remember { mutableStateOf(false) }
 
     // Native Camera Launcher
     val cameraLauncher = rememberLauncherForActivityResult(
@@ -78,7 +79,24 @@ fun ReverificationScreen(
         if (success && auditFile != null && auditFile!!.exists()) {
             coroutineScope.launch {
                 val pair = withContext(Dispatchers.IO) {
-                    processAuditFile(auditFile!!)
+                    ImageUtils.processImageFile(auditFile!!)
+                }
+                if (pair != null) {
+                    auditBitmap = pair.first
+                    auditBase64 = pair.second
+                }
+            }
+        }
+    }
+
+    // Gallery Launcher
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            coroutineScope.launch {
+                val pair = withContext(Dispatchers.IO) {
+                    ImageUtils.processImageUri(context, uri)
                 }
                 if (pair != null) {
                     auditBitmap = pair.first
@@ -149,6 +167,40 @@ fun ReverificationScreen(
                 isAuditing = false
             }
         }
+    }
+
+    if (showSourceDialog) {
+        AlertDialog(
+            onDismissRequest = { showSourceDialog = false },
+            icon = { Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = ForestGreenPrimary) },
+            title = { Text("Provide Verification Photo", fontWeight = FontWeight.Bold) },
+            text = { Text("Choose how you want to provide on-site reverification evidence:") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showSourceDialog = false
+                        launchNativeCamera()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary)
+                ) {
+                    Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Camera")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = {
+                        showSourceDialog = false
+                        galleryLauncher.launch("image/*")
+                    }
+                ) {
+                    Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Gallery")
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -321,7 +373,7 @@ fun ReverificationScreen(
                                     .fillMaxWidth()
                                     .height(160.dp)
                                     .clip(RoundedCornerShape(8.dp))
-                                    .clickable { launchNativeCamera() },
+                                    .clickable { showSourceDialog = true },
                                 contentScale = ContentScale.Crop
                             )
                         } else {
@@ -331,29 +383,29 @@ fun ReverificationScreen(
                                     .height(160.dp)
                                     .background(Color(0xFFF1F8E9), RoundedCornerShape(8.dp))
                                     .border(1.dp, ForestGreenPrimary, RoundedCornerShape(8.dp))
-                                    .clickable { launchNativeCamera() },
+                                    .clickable { showSourceDialog = true },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Icon(Icons.Default.CameraAlt, contentDescription = null, tint = ForestGreenPrimary)
                                     Spacer(modifier = Modifier.height(4.dp))
-                                    Text("Tap to Snap Photo", fontSize = 11.sp, color = ForestGreenPrimary, fontWeight = FontWeight.Bold)
+                                    Text("Tap to Add Photo", fontSize = 11.sp, color = ForestGreenPrimary, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
                     }
                 }
 
-                // Snap Photo Button
+                // Snap / Upload Photo Button
                 OutlinedButton(
-                    onClick = { launchNativeCamera() },
+                    onClick = { showSourceDialog = true },
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.Default.CameraAlt, contentDescription = null, tint = ForestGreenPrimary)
+                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = ForestGreenPrimary)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = if (auditBitmap != null) "📸 Retake Today's Photo" else "📸 Snap Verification Photo (Native Camera)",
+                        text = if (auditBitmap != null) "📸 / 🖼️ Change Today's Photo" else "📸 / 🖼️ Add Verification Photo (Camera / Gallery)",
                         color = ForestGreenPrimary,
                         fontWeight = FontWeight.Bold
                     )
@@ -391,55 +443,5 @@ fun ReverificationScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
         }
-    }
-}
-
-private fun processAuditFile(file: File): Pair<Bitmap, String>? {
-    try {
-        val exif = ExifInterface(file.absolutePath)
-        val orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_UNDEFINED)
-
-        val boundsOptions = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(file.absolutePath, boundsOptions)
-        val origWidth = boundsOptions.outWidth
-        val origHeight = boundsOptions.outHeight
-
-        val maxDim = 1280
-        var sampleSize = 1
-        while ((origWidth / sampleSize) > maxDim * 1.5 || (origHeight / sampleSize) > maxDim * 1.5) {
-            sampleSize *= 2
-        }
-
-        val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
-        val sampledBitmap = BitmapFactory.decodeFile(file.absolutePath, decodeOptions) ?: return null
-
-        val matrix = Matrix()
-        when (orientation) {
-            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
-            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
-            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
-        }
-
-        val rotatedBitmap = if (!matrix.isIdentity) {
-            Bitmap.createBitmap(sampledBitmap, 0, 0, sampledBitmap.width, sampledBitmap.height, matrix, true)
-        } else {
-            sampledBitmap
-        }
-
-        val scaledBitmap = if (rotatedBitmap.width > maxDim || rotatedBitmap.height > maxDim) {
-            val scale = maxDim.toFloat() / maxOf(rotatedBitmap.width, rotatedBitmap.height)
-            Bitmap.createScaledBitmap(rotatedBitmap, (rotatedBitmap.width * scale).toInt(), (rotatedBitmap.height * scale).toInt(), true)
-        } else {
-            rotatedBitmap
-        }
-
-        val outStream = ByteArrayOutputStream()
-        scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 85, outStream)
-        val bytes = outStream.toByteArray()
-        val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
-        return Pair(scaledBitmap, b64)
-    } catch (e: Exception) {
-        e.printStackTrace()
-        return null
     }
 }

@@ -2,20 +2,16 @@ package org.punetrees.app.ui.screens.camera
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Matrix
-import android.media.ExifInterface
 import android.net.Uri
-import android.util.Base64
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -36,11 +32,11 @@ import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.punetrees.app.core.category.TreeCategories
+import org.punetrees.app.core.image.ImageUtils
 import org.punetrees.app.core.location.LocationProvider
-import org.punetrees.app.core.sensors.DeviceTiltSensor
 import org.punetrees.app.ui.theme.ForestGreenDark
 import org.punetrees.app.ui.theme.ForestGreenPrimary
-import java.io.ByteArrayOutputStream
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,15 +52,24 @@ fun CameraCaptureScreen(
 
     var currentCoords by remember { mutableStateOf<Pair<Double, Double>?>(null) }
     var isProcessing by remember { mutableStateOf(false) }
+    var processingMessage by remember { mutableStateOf("Processing photo...") }
 
     // Multi-shot state (Mandatory 3 photos)
     val capturedTreePhotos = remember { mutableStateListOf<Pair<Bitmap, String>>() }
     var currentImageUri by remember { mutableStateOf<Uri?>(null) }
     var currentImageFile by remember { mutableStateOf<File?>(null) }
 
-    val currentCategory = remember(category) { org.punetrees.app.core.category.TreeCategories.getByKey(category) }
+    val currentCategory = remember(category) { TreeCategories.getByKey(category) }
     val angleTitles = remember(currentCategory) { currentCategory.photoSteps.map { it.stepTitle } }
     val angleGuides = remember(currentCategory) { currentCategory.photoSteps.map { it.instruction } }
+
+    fun checkAndComplete() {
+        if (capturedTreePhotos.size >= 3) {
+            val lat = currentCoords?.first ?: 18.5196
+            val lon = currentCoords?.second ?: 73.8436
+            onPhotosCaptured(capturedTreePhotos.toList(), lat, lon)
+        }
+    }
 
     fun createTempImageUri(): Pair<Uri, File> {
         val imagesDir = File(context.cacheDir, "camera_images").apply { mkdirs() }
@@ -77,23 +82,21 @@ fun CameraCaptureScreen(
         return Pair(uri, file)
     }
 
+    // 1. Native Camera Launcher
     val takePictureLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
         if (success && currentImageFile != null && currentImageFile!!.exists()) {
             isProcessing = true
+            processingMessage = "Optimizing camera photo..."
             coroutineScope.launch {
                 val pair = withContext(Dispatchers.IO) {
-                    processImageFile(currentImageFile!!)
+                    ImageUtils.processImageFile(currentImageFile!!)
                 }
                 isProcessing = false
                 if (pair != null) {
                     capturedTreePhotos.add(pair)
-                    if (capturedTreePhotos.size >= 3) {
-                        val lat = currentCoords?.first ?: 18.5196
-                        val lon = currentCoords?.second ?: 73.8436
-                        onPhotosCaptured(capturedTreePhotos.toList(), lat, lon)
-                    }
+                    checkAndComplete()
                 }
             }
         } else {
@@ -101,11 +104,53 @@ fun CameraCaptureScreen(
         }
     }
 
+    // 2. Single Gallery Picker (for 1 shot)
+    val pickSingleLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            isProcessing = true
+            processingMessage = "Importing photo from gallery..."
+            coroutineScope.launch {
+                val pair = withContext(Dispatchers.IO) {
+                    ImageUtils.processImageUri(context, uri)
+                }
+                isProcessing = false
+                if (pair != null) {
+                    capturedTreePhotos.add(pair)
+                    checkAndComplete()
+                }
+            }
+        }
+    }
+
+    // 3. Multi Gallery Picker (Batch upload for presentation)
+    val pickMultipleLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            isProcessing = true
+            processingMessage = "Batch importing ${uris.size} photos..."
+            coroutineScope.launch {
+                val processed = withContext(Dispatchers.IO) {
+                    uris.take(3).mapNotNull { uri -> ImageUtils.processImageUri(context, uri) }
+                }
+                isProcessing = false
+                if (processed.isNotEmpty()) {
+                    for (pair in processed) {
+                        if (capturedTreePhotos.size < 3) {
+                            capturedTreePhotos.add(pair)
+                        }
+                    }
+                    checkAndComplete()
+                }
+            }
+        }
+    }
+
     fun launchCamera() {
         if (capturedTreePhotos.size >= 3) {
-            val lat = currentCoords?.first ?: 18.5196
-            val lon = currentCoords?.second ?: 73.8436
-            onPhotosCaptured(capturedTreePhotos.toList(), lat, lon)
+            checkAndComplete()
             return
         }
         val (uri, file) = createTempImageUri()
@@ -116,18 +161,22 @@ fun CameraCaptureScreen(
 
     LaunchedEffect(Unit) {
         currentCoords = locationProvider.getCurrentLocation()
-        if (capturedTreePhotos.isEmpty()) {
-            launchCamera()
-        }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Step 3: Capture 3 Photos", fontWeight = FontWeight.Bold, fontSize = 17.sp) },
+                title = { Text("Step 3: Tree Evidence (${capturedTreePhotos.size}/3)", fontWeight = FontWeight.Bold, fontSize = 17.sp) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    if (capturedTreePhotos.isNotEmpty()) {
+                        TextButton(onClick = { capturedTreePhotos.clear() }) {
+                            Text("Reset", color = Color(0xFFC62828), fontWeight = FontWeight.Bold)
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
@@ -148,7 +197,7 @@ fun CameraCaptureScreen(
                 ) {
                     CircularProgressIndicator(color = ForestGreenPrimary, modifier = Modifier.size(48.dp))
                     Text(
-                        text = "Saving Photo ${capturedTreePhotos.size + 1}...",
+                        text = processingMessage,
                         fontWeight = FontWeight.Bold,
                         color = ForestGreenDark,
                         fontSize = 15.sp
@@ -210,7 +259,7 @@ fun CameraCaptureScreen(
                     ) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(
-                                text = "Target: ${angleTitles[currentIdx]}",
+                                text = "Target Shot ${currentIdx + 1}: ${angleTitles[currentIdx]}",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 15.sp,
                                 color = ForestGreenDark
@@ -224,41 +273,65 @@ fun CameraCaptureScreen(
                         }
                     }
 
-                    // Thumbnails of already captured photos
-                    if (capturedTreePhotos.isNotEmpty()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            capturedTreePhotos.forEachIndexed { index, (bmp, _) ->
-                                Column(
-                                    modifier = Modifier.weight(1f),
-                                    horizontalAlignment = Alignment.CenterHorizontally
+                    // Thumbnails of captured photos & placeholders
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        capturedTreePhotos.forEachIndexed { index, (bmp, _) ->
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(110.dp)
                                 ) {
                                     Image(
                                         bitmap = bmp.asImageBitmap(),
                                         contentDescription = "Shot ${index + 1}",
                                         modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(110.dp)
+                                            .fillMaxSize()
                                             .clip(RoundedCornerShape(8.dp)),
                                         contentScale = ContentScale.Crop
                                     )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text("Photo ${index + 1} ✓", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = ForestGreenPrimary)
+                                    IconButton(
+                                        onClick = { capturedTreePhotos.removeAt(index) },
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .size(22.dp)
+                                            .background(Color.Black.copy(alpha = 0.65f), RoundedCornerShape(4.dp))
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Close,
+                                            contentDescription = "Remove",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
                                 }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("Shot ${index + 1} ✓", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = ForestGreenPrimary)
                             }
-                            // Empty placeholders if less than 3
-                            for (i in capturedTreePhotos.size..2) {
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(110.dp)
-                                        .background(Color(0xFFFAFAFA), RoundedCornerShape(8.dp))
-                                        .clip(RoundedCornerShape(8.dp)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text("Slot ${i + 1}", color = Color.LightGray, fontSize = 11.sp)
+                        }
+
+                        // Empty placeholders if less than 3 (clickable to pick from gallery)
+                        for (i in capturedTreePhotos.size..2) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(110.dp)
+                                    .background(Color(0xFFFAFAFA), RoundedCornerShape(8.dp))
+                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(8.dp))
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { pickSingleLauncher.launch("image/*") },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(22.dp))
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("Slot ${i + 1}", color = Color.Gray, fontSize = 11.sp)
                                 }
                             }
                         }
@@ -266,75 +339,72 @@ fun CameraCaptureScreen(
 
                     Spacer(modifier = Modifier.weight(1f))
 
-                    // Launch Camera CTA
-                    Button(
-                        onClick = { launchCamera() },
-                        colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp)
+                    // Action Buttons (Camera / Gallery / Fast-Track)
+                    val currentShotName = angleTitles[currentIdx].substringBefore(':')
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(Icons.Default.CameraAlt, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "📸 Snap ${angleTitles[currentIdx].substringBefore(':')}",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
-                        )
+                        // 1. Camera Snap
+                        Button(
+                            onClick = { launchCamera() },
+                            colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp)
+                        ) {
+                            Icon(Icons.Default.CameraAlt, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "📸 Snap Shot ${currentIdx + 1} ($currentShotName)",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        }
+
+                        // 2. Pick from Gallery
+                        OutlinedButton(
+                            onClick = { pickSingleLauncher.launch("image/*") },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = ForestGreenDark),
+                            border = BorderStroke(1.5.dp, ForestGreenPrimary),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp)
+                        ) {
+                            Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = ForestGreenDark)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "🖼️ Upload Shot ${currentIdx + 1} from Gallery",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        }
+
+                        // 3. Fast-Track Presentation Batch Upload
+                        FilledTonalButton(
+                            onClick = { pickMultipleLauncher.launch("image/*") },
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = Color(0xFFE8F5E9),
+                                contentColor = ForestGreenDark
+                            ),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(46.dp)
+                        ) {
+                            Icon(Icons.Default.Bolt, contentDescription = null, tint = ForestGreenDark)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "⚡ Hackathon Demo: Select 3 Photos at Once",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp
+                            )
+                        }
                     }
                 }
             }
         }
-    }
-}
-
-private fun processImageFile(file: File): Pair<Bitmap, String>? {
-    try {
-        val exif = ExifInterface(file.absolutePath)
-        val orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_UNDEFINED)
-
-        val boundsOptions = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(file.absolutePath, boundsOptions)
-        val origWidth = boundsOptions.outWidth
-        val origHeight = boundsOptions.outHeight
-
-        val maxDim = 1280
-        var sampleSize = 1
-        while ((origWidth / sampleSize) > maxDim * 1.5 || (origHeight / sampleSize) > maxDim * 1.5) {
-            sampleSize *= 2
-        }
-
-        val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
-        val sampledBitmap = BitmapFactory.decodeFile(file.absolutePath, decodeOptions) ?: return null
-
-        val matrix = Matrix()
-        when (orientation) {
-            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
-            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
-            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
-        }
-
-        val rotatedBitmap = if (!matrix.isIdentity) {
-            Bitmap.createBitmap(sampledBitmap, 0, 0, sampledBitmap.width, sampledBitmap.height, matrix, true)
-        } else {
-            sampledBitmap
-        }
-
-        val scaledBitmap = if (rotatedBitmap.width > maxDim || rotatedBitmap.height > maxDim) {
-            val scale = maxDim.toFloat() / maxOf(rotatedBitmap.width, rotatedBitmap.height)
-            Bitmap.createScaledBitmap(rotatedBitmap, (rotatedBitmap.width * scale).toInt(), (rotatedBitmap.height * scale).toInt(), true)
-        } else {
-            rotatedBitmap
-        }
-
-        val outStream = ByteArrayOutputStream()
-        scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 85, outStream)
-        val bytes = outStream.toByteArray()
-        val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
-        return Pair(scaledBitmap, b64)
-    } catch (e: Exception) {
-        e.printStackTrace()
-        return null
     }
 }
