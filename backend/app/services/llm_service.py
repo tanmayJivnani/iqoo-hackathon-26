@@ -141,10 +141,122 @@ INSTRUCTIONS:
         user_content = [{"type": "text", "text": user_prompt_text}] + image_contents
 
         # -------------------------------------------------------------
-        # STEP 1: PRIMARY FAST VISION PROVIDER -> GOOGLE GEMINI FLASH (Free Tier)
+        # STEP 1: PRIMARY VISION PROVIDER -> OPENROUTER (openai/gpt-4o-mini)
+        # -------------------------------------------------------------
+        if settings.OPENROUTER_API_KEY:
+            headers = {
+                "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
+                "HTTP-Referer": "https://punetrees.org",
+                "X-Title": "Pune Tree Civic Grievance System",
+                "Content-Type": "application/json"
+            }
+
+            candidate_models = []
+            if settings.OPENROUTER_MODEL:
+                candidate_models.append(settings.OPENROUTER_MODEL)
+            if "openai/gpt-4o-mini" not in candidate_models:
+                candidate_models.append("openai/gpt-4o-mini")
+
+            print("\n" + "="*75, flush=True)
+            print("[LLM INITIATED] Primary Vision Provider: OpenRouter Commercial AI", flush=True)
+            print(f" - Tracking ID : {tracking_id}", flush=True)
+            print(f" - Category    : {target_category}", flush=True)
+            print(f" - Photos Sent : {len(all_photos[:3])} tree evidence angles", flush=True)
+            print(f" - Models      : {candidate_models}", flush=True)
+            print("="*75, flush=True)
+
+            async with httpx.AsyncClient(timeout=90.0) as client:
+                for candidate_model in candidate_models:
+                    print(f"\n[OPENROUTER ATTEMPT] Querying model: '{candidate_model}' ...", flush=True)
+                    payload = {
+                        "model": candidate_model,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_content}
+                        ],
+                        "temperature": 0.2,
+                        "max_tokens": 2048
+                    }
+
+                    try:
+                        response = await client.post(
+                            f"{settings.OPENROUTER_BASE_URL}/chat/completions",
+                            headers=headers,
+                            json=payload
+                        )
+                        
+                        if response.status_code == 200:
+                            data = response.json()
+                            choice = data.get("choices", [{}])[0].get("message", {})
+                            content = choice.get("content") or choice.get("text") or choice.get("reasoning") or ""
+                            
+                            parsed_json = LlmService._parse_lenient(content)
+
+                            if parsed_json.get("tree_detected") is False or str(parsed_json.get("tree_detected")).lower() == "false":
+                                parsed_json["tree_detected"] = False
+                                parsed_json["rejection_reason"] = parsed_json.get("rejection_reason") or "No tree or vegetation subject detected in the submitted photos. Please provide clear photos of the actual tree."
+                                parsed_json["detected_issue_category"] = "INVALID_IMAGE"
+                                parsed_json["estimated_tree_species"] = None
+                                parsed_json["visual_damage_summary"] = "No tree detected in submitted photos."
+                                parsed_json["draft_body_en"] = None
+                                parsed_json["draft_subject_en"] = None
+                                parsed_json["draft_summary_mr"] = None
+                                parsed_json["is_fallback"] = False
+                                parsed_json["ai_provider"] = f"OPENROUTER ({candidate_model})"
+
+                                print("\n" + "="*75, flush=True)
+                                print(f" 🚫 [OPENROUTER REJECTION] NO TREE DETECTED IN EVIDENCE VIA: '{candidate_model}'", flush=True)
+                                print(f"   • Reason : {parsed_json.get('rejection_reason')}", flush=True)
+                                print("="*75 + "\n", flush=True)
+                                return parsed_json
+
+                            if parsed_json.get("detected_issue_category") or parsed_json.get("tree_detected") is True:
+                                parsed_json["tree_detected"] = True
+                                species = parsed_json.get("estimated_tree_species")
+                                if not parsed_json.get("draft_body_en") or not parsed_json.get("draft_subject_en"):
+                                    base_draft = LlmService._get_default_draft(
+                                        tracking_id=tracking_id,
+                                        latitude=latitude,
+                                        longitude=longitude,
+                                        citizen_notes=f"{citizen_notes or ''} [Tree Species: {species or 'Observed tree'}]",
+                                        citizen_name=citizen_name,
+                                        citizen_phone=citizen_phone,
+                                        citizen_email=citizen_email,
+                                        address_landmark=address_landmark,
+                                        ward_name=ward_name
+                                    )
+                                    for k, v in base_draft.items():
+                                        if k not in parsed_json or not parsed_json[k]:
+                                            parsed_json[k] = v
+                                            
+                                parsed_json["detected_issue_category"] = target_category
+                                parsed_json["is_category_mismatch"] = False
+                                parsed_json["ai_suggested_category"] = None
+                                parsed_json["mismatch_reason_en"] = None
+                                parsed_json["is_fallback"] = False
+                                parsed_json["ai_provider"] = f"OPENROUTER ({candidate_model})"
+                                
+                                print("\n" + "="*75, flush=True)
+                                print(f" ✨ [OPENROUTER SUCCESS] COMPLETED VIA: '{candidate_model}'", flush=True)
+                                print(f"   • Tree Detected      : True")
+                                print(f"   • Species Identified : {parsed_json.get('estimated_tree_species')}", flush=True)
+                                print(f"   • Visual Observation : {parsed_json.get('visual_damage_summary')}", flush=True)
+                                print("="*75 + "\n", flush=True)
+
+                                return parsed_json
+                        else:
+                            print(f" ❌ [OPENROUTER FAILED] '{candidate_model}' HTTP {response.status_code}:\n{response.text}", flush=True)
+                            print(f" ➔ Trying next model candidate...", flush=True)
+                    except Exception as e:
+                        print(f" ❌ [OPENROUTER EXCEPTION] '{candidate_model}' error: {e}", flush=True)
+
+            print(" ➔ OpenRouter candidates unavailable. Cascading to secondary provider...", flush=True)
+
+        # -------------------------------------------------------------
+        # STEP 2: SECONDARY FAST VISION PROVIDER -> GOOGLE GEMINI FLASH
         # -------------------------------------------------------------
         if settings.GEMINI_API_KEY:
-            gemini_candidates = ["gemini-3.6-flash", "gemini-3.5-flash"]
+            gemini_candidates = ["gemini-2.5-flash", "gemini-1.5-flash"]
             
             gemini_parts = [{"text": system_prompt + "\n\n" + user_prompt_text}]
             for p in all_photos[:3]:
@@ -163,13 +275,6 @@ INSTRUCTIONS:
                     "temperature": 0.2
                 }
             }
-
-            print("\n" + "="*75, flush=True)
-            print("[LLM INITIATED] Primary Vision Provider: Google Gemini Flash", flush=True)
-            print(f" - Tracking ID : {tracking_id}", flush=True)
-            print(f" - Category    : {target_category}", flush=True)
-            print(f" - Photos Sent : {len(all_photos[:3])} tree evidence angles", flush=True)
-            print("="*75, flush=True)
 
             async with httpx.AsyncClient(timeout=90.0) as client:
                 for g_model in gemini_candidates:
@@ -195,11 +300,6 @@ INSTRUCTIONS:
                                 parsed_json["draft_summary_mr"] = None
                                 parsed_json["is_fallback"] = False
                                 parsed_json["ai_provider"] = f"GOOGLE_GEMINI ({g_model})"
-
-                                print("\n" + "="*75, flush=True)
-                                print(f" 🚫 [GEMINI REJECTION] NO TREE DETECTED IN EVIDENCE VIA: '{g_model}'", flush=True)
-                                print(f"   • Reason : {parsed_json.get('rejection_reason')}", flush=True)
-                                print("="*75 + "\n", flush=True)
                                 return parsed_json
 
                             if parsed_json.get("detected_issue_category") or parsed_json.get("tree_detected") is True:
@@ -227,119 +327,9 @@ INSTRUCTIONS:
                                 parsed_json["mismatch_reason_en"] = None
                                 parsed_json["is_fallback"] = False
                                 parsed_json["ai_provider"] = f"GOOGLE_GEMINI ({g_model})"
-
-                                print("\n" + "="*75, flush=True)
-                                print(f" ✨ [GEMINI SUCCESS] AI VISION INFERENCE COMPLETED VIA: '{g_model}'", flush=True)
-                                print(f"   • Tree Detected      : True")
-                                print(f"   • Grievance Category : {parsed_json.get('detected_issue_category')}", flush=True)
-                                print(f"   • Species Identified : {parsed_json.get('estimated_tree_species')}", flush=True)
-                                print(f"   • Visual Observation : {parsed_json.get('visual_damage_summary')}", flush=True)
-                                print("="*75 + "\n", flush=True)
-
                                 return parsed_json
-                        else:
-                            print(f" ❌ [GEMINI FAILED] '{g_model}' HTTP {resp.status_code}:\n{resp.text}", flush=True)
-                            print(f" ➔ Trying next model candidate...", flush=True)
                     except Exception as e:
                         print(f" ❌ [GEMINI EXCEPTION] '{g_model}' error: {e}", flush=True)
-
-            print(" ➔ All Gemini Flash candidates unavailable. Cascading to OpenRouter Nvidia Nemotron fallback...", flush=True)
-
-        # -------------------------------------------------------------
-        # STEP 2: OPENROUTER BACKUP -> NVIDIA NEMOTRON
-        # -------------------------------------------------------------
-        if settings.OPENROUTER_API_KEY:
-            headers = {
-                "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
-                "HTTP-Referer": "https://punetrees.org",
-                "X-Title": "Pune Tree Civic Grievance System",
-                "Content-Type": "application/json"
-            }
-
-            candidate_model = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
-
-            print(f"\n[OPENROUTER FALLBACK] Querying candidate model: '{candidate_model}' ...", flush=True)
-            payload = {
-                "model": candidate_model,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_content}
-                ],
-                "temperature": 0.2,
-                "max_tokens": 2048
-            }
-
-            async with httpx.AsyncClient(timeout=90.0) as client:
-                try:
-                    response = await client.post(
-                        f"{settings.OPENROUTER_BASE_URL}/chat/completions",
-                        headers=headers,
-                        json=payload
-                    )
-                    
-                    if response.status_code == 200:
-                        data = response.json()
-                        choice = data.get("choices", [{}])[0].get("message", {})
-                        content = choice.get("content") or choice.get("text") or choice.get("reasoning") or ""
-                        
-                        parsed_json = LlmService._parse_lenient(content)
-
-                        if parsed_json.get("tree_detected") is False or str(parsed_json.get("tree_detected")).lower() == "false":
-                            parsed_json["tree_detected"] = False
-                            parsed_json["rejection_reason"] = parsed_json.get("rejection_reason") or "No tree or vegetation subject detected in the submitted photos. Please provide clear photos of the actual tree."
-                            parsed_json["detected_issue_category"] = "INVALID_IMAGE"
-                            parsed_json["estimated_tree_species"] = None
-                            parsed_json["visual_damage_summary"] = "No tree detected in submitted photos."
-                            parsed_json["draft_body_en"] = None
-                            parsed_json["draft_subject_en"] = None
-                            parsed_json["draft_summary_mr"] = None
-                            parsed_json["is_fallback"] = False
-                            parsed_json["ai_provider"] = f"OPENROUTER_VISION ({candidate_model})"
-
-                            print("\n" + "="*75, flush=True)
-                            print(f" 🚫 [OPENROUTER REJECTION] NO TREE DETECTED IN EVIDENCE VIA: '{candidate_model}'", flush=True)
-                            print(f"   • Reason : {parsed_json.get('rejection_reason')}", flush=True)
-                            print("="*75 + "\n", flush=True)
-                            return parsed_json
-
-                        if parsed_json.get("detected_issue_category") or parsed_json.get("tree_detected") is True:
-                            parsed_json["tree_detected"] = True
-                            species = parsed_json.get("estimated_tree_species")
-                            if not parsed_json.get("draft_body_en") or not parsed_json.get("draft_subject_en"):
-                                base_draft = LlmService._get_default_draft(
-                                    tracking_id=tracking_id,
-                                    latitude=latitude,
-                                    longitude=longitude,
-                                    citizen_notes=f"{citizen_notes or ''} [Tree Species: {species or 'Observed tree'}]",
-                                    citizen_name=citizen_name,
-                                    citizen_phone=citizen_phone,
-                                    citizen_email=citizen_email,
-                                    address_landmark=address_landmark,
-                                    ward_name=ward_name
-                                )
-                                for k, v in base_draft.items():
-                                    if k not in parsed_json or not parsed_json[k]:
-                                        parsed_json[k] = v
-                                        
-                            parsed_json["detected_issue_category"] = target_category
-                            parsed_json["is_category_mismatch"] = False
-                            parsed_json["ai_suggested_category"] = None
-                            parsed_json["mismatch_reason_en"] = None
-                            parsed_json["is_fallback"] = False
-                            parsed_json["ai_provider"] = f"OPENROUTER_VISION ({candidate_model})"
-                            
-                            print("\n" + "="*75, flush=True)
-                            print(f" ✨ [OPENROUTER SUCCESS] COMPLETED VIA: '{candidate_model}'", flush=True)
-                            print(f"   • Tree Detected      : True")
-                            print(f"   • Species Identified : {parsed_json.get('estimated_tree_species')}", flush=True)
-                            print(f"   • Visual Observation : {parsed_json.get('visual_damage_summary')}", flush=True)
-                            print("="*75 + "\n", flush=True)
-
-                            return parsed_json
-                    else:
-                        print(f" ❌ [OPENROUTER FAILED] HTTP {response.status_code}:\n{response.text}", flush=True)
-                except Exception as e:
-                    print(f" ❌ [OPENROUTER EXCEPTION] {e}", flush=True)
 
         # -------------------------------------------------------------
         # STEP 3: LOCAL DETERMINISTIC STATUTORY GENERATOR

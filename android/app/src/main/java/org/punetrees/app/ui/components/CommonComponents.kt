@@ -51,8 +51,9 @@ fun UrgencyBadge(urgency: String, modifier: Modifier = Modifier) {
 @Composable
 fun LegalCitationCard(citations: List<String>, modifier: Modifier = Modifier) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF1F8E9)),
+        colors = CardDefaults.cardColors(containerColor = BarkBrownContainer.copy(alpha = 0.5f)),
         shape = RoundedCornerShape(8.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, WoodBorder),
         modifier = modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
@@ -60,7 +61,7 @@ fun LegalCitationCard(citations: List<String>, modifier: Modifier = Modifier) {
                 text = "Statutory Grounding (Maharashtra Tree Act 1975)",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
-                color = ForestGreenDark
+                color = BarkBrownDark
             )
             Spacer(modifier = Modifier.height(4.dp))
             citations.forEach { citation ->

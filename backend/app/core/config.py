@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     # OpenRouter API Key and Fallback Model
     OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
     OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
-    OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free")
+    OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
     
     # Database URL (Defaults to SQLite for instant plug-and-play, supports PostgreSQL/Supabase)
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./pune_trees.db")

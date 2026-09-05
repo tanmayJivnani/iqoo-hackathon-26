@@ -8,11 +8,18 @@ import androidx.compose.runtime.Composable
 private val LightColorScheme = lightColorScheme(
     primary = ForestGreenPrimary,
     onPrimary = CardBackground,
-    primaryContainer = ForestGreenLight,
-    secondary = LeafGreenSecondary,
-    background = SurfaceCream,
+    primaryContainer = ForestGreenContainer,
+    onPrimaryContainer = ForestGreenDark,
+    secondary = BarkBrownPrimary,
+    onSecondary = CardBackground,
+    secondaryContainer = BarkBrownContainer,
+    onSecondaryContainer = BarkBrownDark,
+    tertiary = ForestGreenLight,
+    background = WoodParchment,
     surface = CardBackground,
-    onSurface = TextPrimary
+    surfaceVariant = BarkBrownContainer,
+    onSurface = TextPrimary,
+    outline = WoodBorder
 )
 
 @Composable
