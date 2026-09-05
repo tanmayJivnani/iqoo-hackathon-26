@@ -136,8 +136,8 @@ class JurisdictionRulesEngine:
                 "is_cognizable_offence": False,
                 "reverification_due_hours": 168, # 7 days
                 "routed_authority": {
-                    "name": "PMC Road Department & Ward Tree Officer",
-                    "role": "De-concretization of suffocated tree bases and clearing illegal advertising signboards/nails",
+                    "name": "PMC Road Department & Ward Tree Officer (Garden Dept)",
+                    "role": "De-concretization of suffocated tree bases and restoring mandatory unpaved breathing basins",
                     "email": settings.PMC_GENERAL_FEEDBACK_EMAIL,
                     "whatsapp": settings.PMC_WHATSAPP_HELPLINE,
                     "emergency_phone": None
@@ -150,7 +150,29 @@ class JurisdictionRulesEngine:
                 "prayer_mr": "झाडाच्या बुंध्याभोवती घातलेले सिमेंट काँक्रीट हटवून एनजीटीच्या नियमानुसार १ मीटर जागा मातीसाठी मोकळी करावी."
             }
 
-        # 6. DEFAULT / UNAUTHORIZED PRUNING
+        # 6. NAILS, BOARDS & CABLE STRANGULATION (TREE VANDALISM)
+        if "NAIL" in normalized_issue or "BOARD" in normalized_issue or "CABLE" in normalized_issue or "STRANGUL" in normalized_issue or "BANNER" in normalized_issue:
+            return {
+                "issue_type": "NAILS_BOARDS_CABLE_STRANGULATION",
+                "urgency_level": "MEDIUM",
+                "is_cognizable_offence": False,
+                "reverification_due_hours": 96, # 4 days
+                "routed_authority": {
+                    "name": "PMC Garden Department (Tree Ambulance) & Ward Encroachment",
+                    "role": "Extraction of hammered nails, removal of advertising boards, freeing strangled cambium layer",
+                    "email": settings.PMC_TREE_AUTHORITY_EMAIL,
+                    "whatsapp": settings.PMC_WHATSAPP_HELPLINE,
+                    "emergency_phone": None
+                },
+                "legal_citations": [
+                    "Maharashtra (Urban Areas) Protection & Preservation of Trees Act, 1975: Section 2(c) ('to fell a tree' includes in any way damaging a tree) read with Section 8",
+                    "High Court of Bombay Orders & PMC Public Directives: Hammering nails, metal brackets, and commercial hoarding defacement on trees is a punishable offense"
+                ],
+                "prayer_en": "Deploy Tree Ambulance / Garden team to extract all hammered iron nails, remove illegal advertising hoardings, detach tight cables strangling the cambium, and initiate penal action against advertisers.",
+                "prayer_mr": "झाडावर ठोकलेले खिळे, जाहिरात फलक व बांधलेल्या तारा तात्काळ काढून झाडाची हानी करणाऱ्या संबंधितांवर कारवाई करावी."
+            }
+
+        # 7. DEFAULT / UNAUTHORIZED PRUNING
         return {
             "issue_type": "UNAUTHORIZED_PRUNING",
             "urgency_level": "MEDIUM",

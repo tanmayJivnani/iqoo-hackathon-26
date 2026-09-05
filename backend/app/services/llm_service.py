@@ -99,12 +99,12 @@ Email: {citizen_email or 'citizen@example.com'}
 Pune Tree Rakshak (Citizen Complaint Portal)
 
 5. FORENSIC DAMAGE & PLACEHOLDER DRAFTING FOR '{target_category}':
-- If tree damage for '{target_category}' is clearly visible (e.g. leaning trunk, cut marks, hanging fractured limb, concretized basin, or termite rot):
+- If tree damage for '{target_category}' is clearly visible (e.g. leaning trunk, cut marks, hanging fractured limb, concretized basin, nails/advertising boards/strangling cables, or termite rot):
   Extract precise factual morphological evidence into 'visual_damage_summary' and draft the formal statutory notice.
 - If a genuine tree is present ('tree_detected': true) but specific micro-damage details for '{target_category}' are subtle or obstructed from the camera angle:
   Set 'visual_damage_summary': "Tree present at locus; specific '{target_category}' damage details require on-site verification."
   Draft the formal grievance for '{target_category}' embedding real coordinates, landmark, ward, and tracking ID, and insert this exact editable placeholder inside the letter body:
-  "[SPECIFIC DAMAGE OBSERVATION: Please describe the observed damage or hazard here (e.g. extent of lean, branch height, cut marks, etc.)]"
+  "[SPECIFIC DAMAGE OBSERVATION: Please describe the observed damage or hazard here (e.g. extent of lean, branch height, cut marks, nails/cables, etc.)]"
 
 You must output a strictly valid JSON object with the following schema:
 {{
