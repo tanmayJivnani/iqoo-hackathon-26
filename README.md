@@ -1,56 +1,77 @@
-# 🌳 Pune Automated Tree Grievance & Civic Verification System
-> **iQOO Hackathon 2026 — Pune City Battle (Open Innovation / Productivity Track)**
+# 🌳 Pune Tree Rakshak (Citizen Complaint App)
+> **iQOO Hackathon 2026 — Pune City Battle (Open Innovation Track)**
 
-A phone-first civic redressal platform empowering Pune citizens to report, legally ground, dispatch, and independently verify tree emergencies (dangerous leaning trees, illegal felling, hazardous branches, concretized roots).
+A phone-first civic accountability and tree preservation platform empowering Pune citizens to document, legally ground, dispatch, and independently verify tree emergencies and environmental violations under the **Maharashtra (Urban Areas) Protection & Preservation of Trees Act, 1975**.
 
 ---
 
 ## 🌟 Key Innovations & Technical Highlights
 
-1. **Hardware-Integrated Leaning Tree Measurement**:
-   * Uses the phone's **Gyroscope / Accelerometer** sensor to quantitatively calculate trunk tilt angle (e.g. `28.5° from vertical`) and injects measured physical evidence into the complaint.
-2. **On-Device Fast Triage + Multimodal Backend AI**:
-   * **Step 1 (On-Device)**: Ultra-fast TFLite tree sanity & lighting validator (<50ms).
-   * **Step 2 (Backend)**: Multimodal AI (**Qwen2.5-VL via OpenRouter**) for fine-grained visual damage analysis and bilingual (English + Marathi) grievance drafting.
-3. **Deterministic Jurisdiction Engine (No LLM Hallucinations)**:
-   * Fixed statutory lookup grounded strictly in the **Maharashtra (Urban Areas) Protection & Preservation of Trees Act, 1975** (Sections 7, 8, and 21) routing directly to PMC Disaster Cell, Pune City Police (112), Tree Authority, or Ward Horticulture Officers.
-4. **Smart Proximity Duplicate Detection**:
-   * Scans a 30-meter spatial radius to prevent municipal spam while allowing citizens to **"Add Photo & Upvote"** as corroborating witnesses, dynamically elevating complaint priority.
-5. **Citizen-Controlled Multi-Channel Dispatch**:
-   * **Official Email**: Sends formal WeasyPrint A4 PDF notice via SMTP.
-   * **WhatsApp**: Deep link (`wa.me`) with pre-filled Marathi/English alert and live status tracker URL.
-   * **X / Twitter**: Generates public escalation post tagging `@PMCPune`, `@PuneCityPolice`, `@CollectorPune`.
-6. **Photo-Based Re-verification with Ghost Camera Overlay**:
-   * Overlays the original complaint photo as a semi-transparent guide so citizens can re-photograph the exact same angle. Backend AI performs visual differential comparison to verify whether the hazard was actually resolved or requires escalation.
+1. **7-Category Statutory Civic Taxonomy**:
+   * Covers all major urban tree violations: Leaning Trees, Illegal Felling & Sabotage, Heavy Pruning, Hazardous Branches, Root Concretization, Disease/Pest, and Tree Vandalism (Nails/Banners/Cables).
+2. **3-Layer Forensic Evidence Standard (Locus $\rightarrow$ Structure $\rightarrow$ Detail)**:
+   * Dynamically guides citizens through 3 standardized angles:
+     * **Layer 1 (Locus Context)**: Wide shot of tree and street setting (eliminates "not from this street" municipal pushback).
+     * **Layer 2 (Structural Frame)**: Mid-range frame connecting the issue to the tree's main architecture (lean vector, severed limbs, trunk clutter).
+     * **Layer 3 (Forensic Macro)**: Close-up evidence of the exact violation (fresh chainsaw tooth marks, iron nails in cambium bark, cracked limb joint, choked root collar).
+3. **AI Anti-Spam Gate & Quota Protection**:
+   * Computer vision verifies genuine tree presence before processing, rejecting non-tree/indoor photos with a strict 2-attempt quota and a 3-hour cooldown to protect civic and AI resources.
+4. **Government GIS Tree Census Integration (4.09M Trees)**:
+   * Spatially queries Pune Municipal Corporation's official 4.09-Million Tree Census GIS dataset within a 10-meter radius to attach the government-verified Census Tree ID, botanical name, and girth record.
+5. **Deterministic Legal Routing Engine**:
+   * Replaces hallucination-prone black-box LLMs with an explainable statutory engine encoding the Maharashtra Tree Act, 1975:
+     * **Active Cutting** $\rightarrow$ Pune Police (112) + Tree Officer (Section 21 cognizable offense).
+     * **Stumps / Sabotage** $\rightarrow$ PMC Tree Authority (Ghole Road) + Local Police Station (FIR trail).
+     * **Tree Vandalism (Nails/Wires)** $\rightarrow$ PMC Garden Department (Tree Ambulance) + Ward Encroachment.
+     * **Root Concretization** $\rightarrow$ PMC Road Department & Ward Tree Officer (NGT 1-meter basin mandate).
+     * **Leaning Hazards** $\rightarrow$ PMC Disaster Management Cell & Ward Tree Officer.
+6. **Sealed Statutory PDF & Bilingual Dispatch**:
+   * Automatically compiles timestamped, tamper-evident PDF evidence documents complete with GPS coordinates, photos, and legal citations.
+   * Generates formal English email (with attached PDF) + Marathi summary for WhatsApp dispatch.
+7. **Zero-Trust Timelock Re-Audit & Escalation**:
+   * Replaces fake municipal ticket closures with an independent citizen re-photography timelock (24h to 72h) and one-tap escalation to the Municipal Commissioner if unresolved.
+8. **Hybrid Edge-to-Cloud AI Architecture**:
+   * On-device NPU/GPU execution (via Google MediaPipe / LiteRT) for instant, offline, zero-cost analysis on flagship hardware like **iQOO 15**, backed by cloud vision AI (**Google Gemini 3.6 Flash**) for universal accessibility.
 
 ---
 
 ## 🏗️ Architecture
 
+```mermaid
+flowchart TD
+    A["📱 Mobile Client (CameraX 3-Layer + GPS)"] --> B{"🛡️ AI Anti-Spam Gate"}
+    B -- "No Tree / Indoor Spam" --> B1["🚫 Reject (2 Attempts) + 3h Cooldown"]
+    B -- "Tree Verified" --> C["🌿 AI Vision Analyzer (Species & Damage)"]
+    C --> D["📍 GIS Spatial Matcher (PMC 4.09M Census within 10m)"]
+    D --> E["⚖️ Deterministic Statutory Engine (Maharashtra Tree Act 1975)"]
+    E --> F["📄 Sealed Legal PDF Generator (ReportLab)"]
+    F --> G["🚀 Bilingual Dispatch (Email with PDF + WhatsApp)"]
+    G --> H["⏱️ Timelock Tracker & Independent Ground Re-Audit"]
 ```
-[Phone Camera + Gyroscope Tilt Sensor]
-          │
-          ▼ (Step 1: Local Sanity Check)
-  [TFLite Tree Classifier (<50ms)]
-          │
-          ▼ (Step 2: Proximity Duplicate Search)
-  [Spatial 30m Duplicate Scanner]
-          │
-          ▼ (Step 3: Vision + Bilingual Drafting)
-  [FastAPI Backend + Qwen2.5-VL (OpenRouter)]
-          │
-          ▼ (Step 4: Deterministic Jurisdiction Matrix)
-  [Maharashtra Tree Act 1975 Statutory Routing]
-          │
-          ▼ (Step 5: Official PDF Compilation)
-  [WeasyPrint A4 Grievance Document]
-          │
-          ▼ (Step 6: Citizen Gate Confirmation)
-  [Dispatch: Email (PDF) | WhatsApp (wa.me) | Twitter Tagging]
-          │
-          ▼ (Step 7: Resolution Audit)
-  [Ghost Camera Re-Verification & Visual Diff]
-```
+
+---
+
+## 📋 The 7 Statutory Categories & Photo Guidance
+
+| # | Category | Core Focus | 3-Layer Photo Sequence | Primary Authority |
+|---|---|---|---|---|
+| 1 | `DANGEROUS_LEANING_FALL_RISK` | Uprooting, tilt hazard | Wide street $\rightarrow$ Trunk angle $\rightarrow$ Root plate heave | PMC Disaster Cell & Ward Tree Officer |
+| 2 | `ILLEGAL_FELLING` | Severing, chopping, poisoning | Avenue gap $\rightarrow$ Felled timber $\rightarrow$ Sawn stump/base | Active: Police 112 + Tree Officer<br>Stump: Tree Authority (Ghole Rd) |
+| 3 | `UNAUTHORIZED_PRUNING` | Canopy decapitation | Ruined crown $\rightarrow$ Scaffold cuts $\rightarrow$ Severed branch stubs | PMC Tree Authority (Ghole Road) |
+| 4 | `HAZARDOUS_BRANCH` | Snapped hanging limbs | Traffic clearance $\rightarrow$ Limb joint $\rightarrow$ Fracture split | Ward Tree Officer (Garden Dept) |
+| 5 | `ROOT_CONCRETIZATION` | Suffocated root collar | Footpath setting $\rightarrow$ Paving extent $\rightarrow$ Concrete touching bark | PMC Road Dept & Ward Tree Officer |
+| 6 | `DISEASE_PEST` | Rot, cavities, termites | Canopy vigour $\rightarrow$ Affected trunk $\rightarrow$ Fungal conk / termite mud | Ward Tree Officer & Tree Authority |
+| 7 | `NAILS_BOARDS_CABLE_STRANGULATION` | Cambium strangulation | Street defacement $\rightarrow$ Trunk clutter $\rightarrow$ Nails/cables in bark | PMC Garden Dept (Tree Ambulance) |
+
+---
+
+## ⚖️ Statutory Legal Grounding
+* **Section 2(c)**: *"to fell a tree" includes burning or cutting or in any way damaging a tree.*
+* **Section 7(b)**: Duty to remove dangerous or leaning trees to protect human life and property.
+* **Section 8(1)**: Absolute statutory prohibition on felling, lopping, or girdling without Tree Authority sanction.
+* **Section 21**: Cognizable criminal offence punishable with fine and imprisonment; mandatory police intervention for in-progress felling.
+* **NGT Principal Bench Directives**: Mandatory 1-meter unpaved green basin around all urban tree bases.
+* **High Court of Bombay Orders**: Hammering iron nails, driving screws, and fixing commercial boards on trees is a punishable offense.
 
 ---
 
@@ -62,14 +83,9 @@ A phone-first civic redressal platform empowering Pune citizens to report, legal
 cd backend
 
 # Create virtual environment & install dependencies
+python -m venv venv
+source venv/bin/activate # or venv\Scripts\activate on Windows
 pip install -r requirements.txt
-
-# Configure environment
-cp .env.example .env
-# Add your OPENROUTER_API_KEY in .env
-
-# Run unit tests
-python -m tests.test_backend
 
 # Start backend server
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -81,17 +97,6 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ```bash
 cd android
-# Open in Android Studio or build via Gradle
+# Build debug APK
 ./gradlew assembleDebug
 ```
-
-* **Demo Presets Mode**: Built-in Pune coordinate simulation (FC Road Goodluck Chowk, Baner High St, Kothrud, Shaniwar Wada) for indoor hackathon demo environments.
-
----
-
-## ⚖️ Statutory Legal Grounding
-* **Section 7(b)**: Emergency preservation of public safety against hazardous / leaning trees.
-* **Section 8(1)**: Absolute prohibition against unauthorized tree felling.
-* **Section 8(3)**: Mandatory public notification and objection window.
-* **Section 21**: Cognizable penal offences and police seizure powers for illegal felling.
-* **NGT Principal Bench Directives**: Mandatory 1-meter de-concretized soil basin around urban tree roots.
