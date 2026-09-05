@@ -9,7 +9,7 @@ import java.util.concurrent.TimeUnit
 object ApiClient {
 
     // Local development host for physical device on Wi-Fi
-    var baseUrl: String = "http://192.168.1.9:8000/"
+    var baseUrl: String = "http://10.47.105.160:8000/"
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
