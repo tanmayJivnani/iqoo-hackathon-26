@@ -58,7 +58,6 @@ fun PhotoPreviewScreen(
     perpetratorPhotosBase64: List<String>,
     latitude: Double,
     longitude: Double,
-    sensorTiltAngle: Float? = null,
     onDraftReady: (draft: AnalyzeAndDraftResponse, primaryPhotoBase64: String) -> Unit,
     onBack: () -> Unit
 ) {
@@ -209,7 +208,7 @@ fun PhotoPreviewScreen(
                     citizenSelectedCategory = category,
                     latitude = latitude,
                     longitude = longitude,
-                    sensorTiltAngle = sensorTiltAngle,
+                    sensorTiltAngle = null,
                     citizenNotes = citizenNotes.ifBlank { null },
                     addressLandmark = addressLandmark.ifBlank { null },
                     citizenName = profile.name.ifBlank { "Pune Citizen" },
@@ -274,8 +273,7 @@ fun PhotoPreviewScreen(
                         citizenPhone = profile.phone.ifBlank { null },
                         citizenEmail = profile.email.ifBlank { null },
                         perpetratorName = perpetratorNameInput.ifBlank { null },
-                        perpetratorPhone = perpetratorPhoneInput.ifBlank { null },
-                        sensorTiltAngle = sensorTiltAngle
+                        perpetratorPhone = perpetratorPhoneInput.ifBlank { null }
                     )
                 }
                 isProcessing = false

@@ -61,6 +61,17 @@ class LocationProvider(private val context: Context) {
         }
     }
 
+    fun isLocationHardwareEnabled(): Boolean {
+        if (activePreset != null) return true
+        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return false
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            locationManager.isLocationEnabled
+        } else {
+            locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
+            locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+        }
+    }
+
     @SuppressLint("MissingPermission")
     suspend fun getCurrentLocation(): Pair<Double, Double>? {
         // If demo preset is selected, use deterministic Pune coordinate

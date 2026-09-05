@@ -11,8 +11,37 @@ data class TreeCategory(
     val key: String,
     val title: String,
     val description: String,
-    val photoSteps: List<PhotoStepGuide>
-)
+    val photoSteps: List<PhotoStepGuide>,
+    val customGrounding: List<String> = emptyList()
+) {
+    val statutoryGrounding: List<String>
+        get() = if (customGrounding.isNotEmpty()) customGrounding else when (key) {
+            "ILLEGAL_FELLING" -> listOf(
+                "Section 8 & 21 - Maharashtra Tree Act 1975: Cognizable Offence for unauthorized felling/sabotage",
+                "PMC Tree Authority Mandate: Zero tolerance for tree destruction without prior gazetted notice"
+            )
+            "UNAUTHORIZED_PRUNING" -> listOf(
+                "Section 8 & 21 - Maharashtra Tree Act 1975: Heavy branch lopping or header chopping requires explicit permit",
+                "Urban Tree Canopy Preservation Norms: Balanced arborist crown reduction only"
+            )
+            "ROOT_CONCRETIZATION" -> listOf(
+                "Section 2(c) - Tree Act 1975: Suffocating or choking root basin constitutes statutory tree damage",
+                "Bombay High Court Mandate: Mandatory 1-meter unpaved breathing soil basin around all street trees"
+            )
+            "NAILS_BOARDS_CABLE_STRANGULATION" -> listOf(
+                "Section 2(c) - Tree Act 1975: Driving metal nails, advertising boards, or strangling cables damages live cambium",
+                "PMC Public Notice: Immediate de-nailing and removal of commercial defacement from avenue trees"
+            )
+            "DANGEROUS_LEANING_FALL_RISK", "HAZARDOUS_BRANCH" -> listOf(
+                "Section 8 & 19 - Maharashtra Tree Act 1975: Emergency public safety removal / stabilization of hazardous trees",
+                "PMC Disaster Management Charter: 48-hour emergency tree ambulance response window"
+            )
+            else -> listOf(
+                "Maharashtra (Urban Areas) Protection and Preservation of Trees Act, 1975",
+                "Section 2(c) & Section 21: Damaging or sabotaging protected urban vegetation"
+            )
+        }
+}
 
 object TreeCategories {
 

@@ -35,8 +35,6 @@ import kotlinx.coroutines.withContext
 import org.punetrees.app.core.category.TreeCategories
 import org.punetrees.app.core.image.ImageUtils
 import org.punetrees.app.core.location.LocationProvider
-import org.punetrees.app.core.sensors.DeviceTiltSensor
-import org.punetrees.app.ui.components.LiveTiltIndicator
 import org.punetrees.app.ui.theme.ForestGreenDark
 import org.punetrees.app.ui.theme.ForestGreenPrimary
 import java.io.File
@@ -45,16 +43,12 @@ import java.io.File
 @Composable
 fun CameraCaptureScreen(
     category: String,
-    onPhotosCaptured: (treePhotos: List<Pair<Bitmap, String>>, latitude: Double, longitude: Double, tiltAngle: Float?) -> Unit,
+    onPhotosCaptured: (treePhotos: List<Pair<Bitmap, String>>, latitude: Double, longitude: Double) -> Unit,
     onBack: () -> Unit,
-    locationProvider: LocationProvider,
-    tiltSensor: DeviceTiltSensor? = null
+    locationProvider: LocationProvider
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-
-    val liveTilt by (tiltSensor?.tiltAngleDegrees?.collectAsState() ?: remember { mutableStateOf(0.0f) })
-    var capturedTilt by remember { mutableStateOf<Float?>(null) }
 
     var currentCoords by remember { mutableStateOf<Pair<Double, Double>?>(null) }
     var isProcessing by remember { mutableStateOf(false) }
@@ -73,8 +67,7 @@ fun CameraCaptureScreen(
         if (capturedTreePhotos.size >= 3) {
             val lat = currentCoords?.first ?: 18.5196
             val lon = currentCoords?.second ?: 73.8436
-            val finalTilt = capturedTilt ?: liveTilt
-            onPhotosCaptured(capturedTreePhotos.toList(), lat, lon, finalTilt)
+            onPhotosCaptured(capturedTreePhotos.toList(), lat, lon)
         }
     }
 
@@ -94,7 +87,6 @@ fun CameraCaptureScreen(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
         if (success && currentImageFile != null && currentImageFile!!.exists()) {
-            capturedTilt = liveTilt
             isProcessing = true
             processingMessage = "Optimizing camera photo..."
             coroutineScope.launch {
@@ -255,11 +247,6 @@ fun CameraCaptureScreen(
                                 }
                             }
                         }
-                    }
-
-                    // Live device tilt sensor overlay for leaning/fall hazard
-                    if (category.contains("LEAN") || currentCategory.key == "DANGEROUS_LEANING_FALL_RISK") {
-                        LiveTiltIndicator(angleDegrees = liveTilt)
                     }
 
                     // Current shot instruction card

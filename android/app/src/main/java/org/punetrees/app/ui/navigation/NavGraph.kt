@@ -7,7 +7,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import org.punetrees.app.core.location.LocationProvider
-import org.punetrees.app.core.sensors.DeviceTiltSensor
 import org.punetrees.app.data.remote.model.AnalyzeAndDraftResponse
 import org.punetrees.app.ui.screens.camera.CameraCaptureScreen
 import org.punetrees.app.ui.screens.category.CategorySelectionScreen
@@ -34,8 +33,7 @@ sealed class Screen(val route: String) {
 @Composable
 fun AppNavHost(
     navController: NavHostController = rememberNavController(),
-    locationProvider: LocationProvider,
-    tiltSensor: DeviceTiltSensor
+    locationProvider: LocationProvider
 ) {
     // Flow State
     var selectedCategory by remember { mutableStateOf("DANGEROUS_LEANING_FALL_RISK") }
@@ -47,7 +45,6 @@ fun AppNavHost(
     var capturedTreePhotos by remember { mutableStateOf<List<Pair<Bitmap, String>>>(emptyList()) }
     var capturedLat by remember { mutableStateOf(18.5196) }
     var capturedLon by remember { mutableStateOf(73.8436) }
-    var capturedTilt by remember { mutableStateOf<Float?>(null) }
 
     // Draft & Dispatch State
     var currentDraft by remember { mutableStateOf<AnalyzeAndDraftResponse?>(null) }
@@ -87,17 +84,15 @@ fun AppNavHost(
             )
         }
 
-        // Step 3: Camera Capture (3 Mandatory Photos + Tilt Sensor)
+        // Step 3: Camera Capture (3 Mandatory Photos)
         composable(Screen.Camera.route) {
             CameraCaptureScreen(
                 category = selectedCategory,
                 locationProvider = locationProvider,
-                tiltSensor = tiltSensor,
-                onPhotosCaptured = { treePhotos, lat, lon, tilt ->
+                onPhotosCaptured = { treePhotos, lat, lon ->
                     capturedTreePhotos = treePhotos
                     capturedLat = lat
                     capturedLon = lon
-                    capturedTilt = tilt
                     navController.navigate(Screen.Preview.route)
                 },
                 onBack = { navController.popBackStack() }
@@ -114,7 +109,6 @@ fun AppNavHost(
                 perpetratorPhotosBase64 = perpetratorPhotosBase64,
                 latitude = capturedLat,
                 longitude = capturedLon,
-                sensorTiltAngle = capturedTilt,
                 onDraftReady = { draft, photoB64 ->
                     currentDraft = draft
                     primaryPhotoBase64 = photoB64

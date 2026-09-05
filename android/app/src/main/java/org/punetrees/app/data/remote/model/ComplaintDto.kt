@@ -116,12 +116,15 @@ data class AnalyzeAndDraftResponse(
     @SerializedName("draft_subject_en") val draftSubjectEn: String = "",
     @SerializedName("draft_body_en") val draftBodyEn: String = "",
     @SerializedName("draft_summary_mr") val draftSummaryMr: String = "",
-    @SerializedName("reverification_due_hours") val reverificationDueHours: Int = 48
+    @SerializedName("reverification_due_hours") val reverificationDueHours: Int = 48,
+    @SerializedName("reverification_due_date") val reverificationDueDate: String? = null
 )
 
 // 3. PDF DTOs
 data class RenderPdfRequest(
-    @SerializedName("complaint_id") val complaintId: String
+    @SerializedName("complaint_id") val complaintId: String,
+    @SerializedName("draft_subject_en") val draftSubjectEn: String? = null,
+    @SerializedName("draft_body_en") val draftBodyEn: String? = null
 )
 
 data class RenderPdfResponse(

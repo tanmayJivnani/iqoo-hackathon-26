@@ -199,10 +199,10 @@ class PdfService:
         # PAGE 1: STATUTORY NOTICE & FORMAL GRIEVANCE LETTER
         # =========================================================================
         
-        # 1. Official Header (Forest Green)
+        # 1. Official Platform Header (Forest Green)
         writer.draw_rect(35, 765, 525, 48, fill_rgb=(0.14, 0.42, 0.20), stroke_rgb=(0.10, 0.32, 0.15), line_width=1.5)
-        writer.draw_text("PUNE MUNICIPAL CORPORATION - TREE AUTHORITY", 50, 792, size=13, bold=True, color_rgb=(1, 1, 1))
-        writer.draw_text("OFFICIAL STATUTORY GRIEVANCE NOTICE | MAHARASHTRA TREE ACT, 1975", 50, 776, size=8.5, bold=False, color_rgb=(0.88, 0.96, 0.88))
+        writer.draw_text("PUNE TREE RAKSHAK (CITIZEN GRIEVANCE REDRESSAL)", 50, 792, size=12.5, bold=True, color_rgb=(1, 1, 1))
+        writer.draw_text("CITIZEN STATUTORY GRIEVANCE DOSSIER | SUBMITTED TO PMC TREE AUTHORITY", 50, 776, size=8.5, bold=False, color_rgb=(0.88, 0.96, 0.88))
 
         # 2. Key Metadata Card (Clean 2-column grid with strict bounds)
         urgency = str(data.get("urgency_level", "HIGH")).replace("_", " ")
@@ -251,8 +251,6 @@ class PdfService:
         # 4. Tamper-Proof Cryptographic Digital Seal & Attestation Footer
         citizen_name = data.get("citizen_name", "Concerned Citizen of Pune")
         citizen_phone = data.get("citizen_phone", "+91-XXXXXXXXXX")
-        tilt_val = data.get("sensor_tilt_angle")
-        tilt_str = f"{float(tilt_val):.1f} deg trunk tilt" if tilt_val is not None else "Normal vertical axis"
 
         writer.draw_rect(35, 55, 525, 138, fill_rgb=(0.97, 0.98, 0.97), stroke_rgb=(0.75, 0.85, 0.75), line_width=1)
         
@@ -260,7 +258,7 @@ class PdfService:
         writer.draw_text("CITIZEN DIGITAL CERTIFICATION & ATTESTATION", 48, 175, size=8.5, bold=True, color_rgb=(0.14, 0.42, 0.20))
         writer.draw_text(f"Digitally Attested by : {citizen_name}", 48, 158, size=9, bold=True, color_rgb=(0.1, 0.1, 0.1))
         writer.draw_text(f"Citizen Contact        : {citizen_phone} | {data.get('citizen_email', 'Verified Mobile Client')}", 48, 144, size=8, color_rgb=(0.3, 0.3, 0.3))
-        writer.draw_text(f"Hardware Sensors     : {tilt_str} | GPS Geofence: PMC Pune City Validated", 48, 130, size=8, color_rgb=(0.3, 0.3, 0.3))
+        writer.draw_text("Capture Integrity    : Live Hardware GPS Lock | Pune Municipal Corporation Locus", 48, 130, size=8, color_rgb=(0.3, 0.3, 0.3))
         writer.draw_text("Statutory Oath         : Submitted in good faith under Sec 2(c) & 21 of Maharashtra Tree Act 1975.", 48, 116, size=7.5, color_rgb=(0.4, 0.4, 0.4))
         writer.draw_text("Legal Admissibility   : Electronic record under Section 65B of the Indian Evidence Act, 1872.", 48, 102, size=7.5, color_rgb=(0.4, 0.4, 0.4))
 
@@ -275,7 +273,7 @@ class PdfService:
         writer.draw_text("[SEAL] Tamper-Proof Verified", 385, 88, size=7.5, bold=True, color_rgb=(0.1, 0.5, 0.1))
         writer.draw_text(f"verify: punetrees.org/t/{tracking_id[:12]}", 385, 75, size=6.5, color_rgb=(0.4, 0.4, 0.4))
 
-        writer.draw_text("Page 1 of 2  |  Official Pune Tree Complaint Redressal System  |  Sec 65B Certified", 145, 38, size=7.5, color_rgb=(0.5, 0.5, 0.5))
+        writer.draw_text("Page 1 of 2  |  Pune Tree Rakshak Citizen Portal  |  Sec 65B Certified", 155, 38, size=7.5, color_rgb=(0.5, 0.5, 0.5))
 
         # =========================================================================
         # PAGE 2: PHOTOGRAPHIC EVIDENCE APPENDIX & FORENSIC ARBORIST AUDIT
@@ -284,22 +282,27 @@ class PdfService:
 
         # Header
         writer.draw_rect(35, 765, 525, 48, fill_rgb=(0.14, 0.42, 0.20), stroke_rgb=(0.10, 0.32, 0.15), line_width=1.5)
-        writer.draw_text("EVIDENTIARY APPENDIX -- MULTI-ANGLE PHOTOGRAPHIC PROOF", 50, 792, size=12, bold=True, color_rgb=(1, 1, 1))
-        writer.draw_text(f"REF: {tracking_id}  |  FORENSIC BOTANICAL SCENE AUDIT", 50, 776, size=8.5, color_rgb=(0.88, 0.96, 0.88))
+        writer.draw_text("PUNE TREE RAKSHAK -- MULTI-ANGLE EVIDENCE DOSSIER", 50, 792, size=11.5, bold=True, color_rgb=(1, 1, 1))
+        writer.draw_text(f"REF: {tracking_id}  |  SUBMITTED TO PMC TREE AUTHORITY UNDER MAHARASHTRA TREE ACT 1975", 50, 776, size=8, color_rgb=(0.88, 0.96, 0.88))
 
         # Forensic Visual Audit Card
         census_data = data.get("census_tree")
-        census_str = f"#{census_data.get('census_tag_id')} ({census_data.get('botanical_name')}, {census_data.get('distance_meters')}m away)" if census_data else "No historical municipal tree census record within 15m radius."
+        if census_data:
+            census_str = f"Possible correlation with #{census_data.get('census_tag_id')} ({census_data.get('botanical_name')}, ~{census_data.get('distance_meters')}m away) [Unconfirmed potential match; requires on-site validation]"
+        else:
+            census_str = "No historical municipal tree census record within 15m radius."
         visual_damage = data.get("visual_damage_summary", "Physical visual evidence recorded on site. Immediate arborist attention warranted.")
 
         writer.draw_rect(35, 665, 525, 90, fill_rgb=(0.98, 0.98, 0.98), stroke_rgb=(0.85, 0.85, 0.85), line_width=1)
         writer.draw_text("FORENSIC BOTANICAL OBSERVATIONS & GIS CENSUS CORRELATION", 48, 740, size=8.5, bold=True, color_rgb=(0.14, 0.42, 0.20))
         writer.draw_text(f"- Botanical Subject    : {species}", 48, 724, size=8.5, bold=True, color_rgb=(0.15, 0.15, 0.15))
-        writer.draw_text(f"- PMC Census (2019) : {census_str}", 48, 710, size=8, color_rgb=(0.3, 0.3, 0.3))
-        writer.draw_text(f"- Locus Coordinates : {float(lat):.5f} N, {float(lon):.5f} E | Landmark: {addr}", 48, 696, size=8, color_rgb=(0.3, 0.3, 0.3))
-        writer.draw_text(f"- Observed Defect   : {visual_damage[:85]}", 48, 682, size=8, color_rgb=(0.2, 0.2, 0.2))
+        writer.draw_text(f"- Census Correlation : {census_str[:78]}", 48, 710, size=7.5, color_rgb=(0.3, 0.3, 0.3))
+        if len(census_str) > 78:
+            writer.draw_text(f"  {census_str[78:165]}", 48, 700, size=7, color_rgb=(0.4, 0.4, 0.4))
+        writer.draw_text(f"- Locus Coordinates : {float(lat):.5f} N, {float(lon):.5f} E | Landmark: {addr}", 48, 688, size=8, color_rgb=(0.3, 0.3, 0.3))
+        writer.draw_text(f"- Observed Defect   : {visual_damage[:85]}", 48, 676, size=8, color_rgb=(0.2, 0.2, 0.2))
         if len(visual_damage) > 85:
-            writer.draw_text(f"  {visual_damage[85:175]}", 48, 670, size=8, color_rgb=(0.2, 0.2, 0.2))
+            writer.draw_text(f"  {visual_damage[85:175]}", 48, 666, size=8, color_rgb=(0.2, 0.2, 0.2))
 
         # Photos Gallery
         raw_photos = data.get("photo_urls", []) or []
@@ -312,7 +315,7 @@ class PdfService:
         writer.draw_text("PHOTOGRAPHIC EVIDENCE RECORD (CAPTURED ON-SITE):", 35, 645, size=9, bold=True, color_rgb=(0.1, 0.1, 0.1))
 
         photo_labels = [
-            "Angle 1: Overview & Tilt",
+            "Angle 1: Overview & Lean (AI Vision)",
             "Angle 2: Damage Close-up",
             "Angle 3: Root Basin / Base"
         ]
@@ -339,11 +342,11 @@ class PdfService:
         # Legal Disclaimer & Chain of Custody
         writer.draw_rect(35, 80, 525, 80, fill_rgb=(0.97, 0.97, 0.98), stroke_rgb=(0.82, 0.82, 0.88), line_width=1)
         writer.draw_text("CHAIN OF CUSTODY & STATUTORY ENFORCEABILITY", 48, 144, size=8.5, bold=True, color_rgb=(0.1, 0.1, 0.4))
-        writer.draw_text("1. All photographic timestamps, EXIF geolocation coordinates, and sensor pitches are cryptographically sealed.", 48, 130, size=7.5, color_rgb=(0.3, 0.3, 0.3))
+        writer.draw_text("1. All photographic timestamps, EXIF geolocation coordinates, and visual damage hashes are cryptographically sealed.", 48, 130, size=7.5, color_rgb=(0.3, 0.3, 0.3))
         writer.draw_text("2. Any physical alteration, felling, or unauthorized lopping post-filing constitutes tampering under Section 21.", 48, 116, size=7.5, color_rgb=(0.3, 0.3, 0.3))
         writer.draw_text(f"3. SHA-256 Digest: {sha256_hash} | Sealed on {created_at}", 48, 102, size=7, color_rgb=(0.2, 0.4, 0.2))
-        writer.draw_text(f"4. Municipal Tree Ambulance Inspection SLA: 48 hours from filing under PMC Citizen Charter.", 48, 90, size=7.5, bold=True, color_rgb=(0.5, 0.1, 0.1))
+        writer.draw_text("4. Municipal Tree Ambulance Inspection SLA: 48 hours from filing under PMC Citizen Charter.", 48, 90, size=7.5, bold=True, color_rgb=(0.5, 0.1, 0.1))
 
-        writer.draw_text("Page 2 of 2  |  Official Pune Tree Complaint Redressal System  |  Sec 65B Certified", 145, 45, size=7.5, color_rgb=(0.5, 0.5, 0.5))
+        writer.draw_text("Page 2 of 2  |  Pune Tree Rakshak Citizen Platform  |  Sec 65B Certified", 155, 45, size=7.5, color_rgb=(0.5, 0.5, 0.5))
 
         return writer.build_pdf(output_path)
