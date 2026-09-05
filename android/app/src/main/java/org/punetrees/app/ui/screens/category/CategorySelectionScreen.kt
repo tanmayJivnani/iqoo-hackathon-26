@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.punetrees.app.core.category.TreeCategories
 import org.punetrees.app.ui.theme.ForestGreenDark
 import org.punetrees.app.ui.theme.ForestGreenPrimary
 
@@ -27,12 +28,22 @@ fun CategorySelectionScreen(
     onProceedToGuidance: (category: String) -> Unit,
     onBack: () -> Unit
 ) {
-    var selectedCategory by remember { mutableStateOf("DANGEROUS_LEANING_FALL_RISK") }
+    val selectedCategories = remember { mutableStateListOf("DANGEROUS_LEANING_FALL_RISK") }
+
+    fun toggleCategory(key: String) {
+        if (selectedCategories.contains(key)) {
+            if (selectedCategories.size > 1) {
+                selectedCategories.remove(key)
+            }
+        } else {
+            selectedCategories.add(key)
+        }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Step 1: Select Tree Issue", fontWeight = FontWeight.Bold, fontSize = 17.sp) },
+                title = { Text("Step 1: Select Tree Issues", fontWeight = FontWeight.Bold, fontSize = 17.sp) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -48,19 +59,28 @@ fun CategorySelectionScreen(
                 .padding(padding)
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text(
-                text = "What is the tree issue you are reporting?",
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp,
-                color = ForestGreenDark
-            )
+            Column {
+                Text(
+                    text = "What tree issue(s) are you reporting?",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = ForestGreenDark
+                )
+                Text(
+                    text = "Select one or more. First selected sets the 3-step photo guide. AI will also audit compound defects.",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+            }
 
             // Category Selection Cards
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                org.punetrees.app.core.category.TreeCategories.ALL.forEach { cat ->
-                    val isSelected = selectedCategory == cat.key
+                TreeCategories.ALL.forEach { cat ->
+                    val isSelected = selectedCategories.contains(cat.key)
+                    val isPrimary = selectedCategories.firstOrNull() == cat.key
+
                     Card(
                         colors = CardDefaults.cardColors(
                             containerColor = if (isSelected) Color(0xFFE8F5E9) else Color(0xFFFAFAFA)
@@ -72,7 +92,7 @@ fun CategorySelectionScreen(
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { selectedCategory = cat.key }
+                            .clickable { toggleCategory(cat.key) }
                     ) {
                         Row(
                             modifier = Modifier
@@ -80,19 +100,38 @@ fun CategorySelectionScreen(
                                 .padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            RadioButton(
-                                selected = isSelected,
-                                onClick = { selectedCategory = cat.key },
-                                colors = RadioButtonDefaults.colors(selectedColor = ForestGreenPrimary)
+                            Checkbox(
+                                checked = isSelected,
+                                onCheckedChange = { toggleCategory(cat.key) },
+                                colors = CheckboxDefaults.colors(checkedColor = ForestGreenPrimary)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = cat.title,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                                    fontSize = 14.sp,
-                                    color = if (isSelected) ForestGreenDark else Color(0xFF212121)
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = cat.title,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                        fontSize = 14.sp,
+                                        color = if (isSelected) ForestGreenDark else Color(0xFF212121)
+                                    )
+                                    if (isPrimary && selectedCategories.size > 1) {
+                                        Surface(
+                                            color = ForestGreenPrimary,
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = "Primary",
+                                                color = Color.White,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    }
+                                }
                                 Text(
                                     text = cat.description,
                                     fontSize = 11.sp,
@@ -108,15 +147,20 @@ fun CategorySelectionScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             // Primary Launch Guidance CTA
+            val count = selectedCategories.size
             Button(
-                onClick = { onProceedToGuidance(selectedCategory) },
+                onClick = { onProceedToGuidance(selectedCategories.joinToString(",")) },
                 colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp)
             ) {
-                Text("Next: View Photo Guidelines", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text(
+                    text = if (count > 1) "Next: Proceed with $count Issues" else "Next: View Photo Guidelines",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                )
                 Spacer(modifier = Modifier.width(8.dp))
                 Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
             }

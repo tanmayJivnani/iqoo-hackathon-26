@@ -135,10 +135,11 @@ fun DraftReviewScreen(
             }
 
             // AI Source Engine Transparency Banner
+            val isLocal = draft.aiProvider?.contains("LOCAL", ignoreCase = true) == true || draft.aiProvider?.contains("ON-DEVICE", ignoreCase = true) == true || draft.isFallback
             Surface(
-                color = if (draft.isFallback) Color(0xFFFFF3E0) else Color(0xFFE8F5E9),
+                color = if (isLocal) Color(0xFFE8F5E9) else Color(0xFFE3F2FD),
                 shape = RoundedCornerShape(8.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, if (draft.isFallback) Color(0xFFFFB74D) else Color(0xFFA5D6A7)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, if (isLocal) Color(0xFFA5D6A7) else Color(0xFF90CAF9)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -146,10 +147,10 @@ fun DraftReviewScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (draft.isFallback) "⚡ Generator: Local Deterministic Legal Engine" else "✨ Generator: OpenRouter Vision AI (Live)",
+                        text = "🤖 Engine: ${draft.aiProvider ?: "OpenRouter Multimodal Vision"}",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (draft.isFallback) Color(0xFFE65100) else Color(0xFF2E7D32)
+                        color = if (isLocal) ForestGreenDark else Color(0xFF1565C0)
                     )
                 }
             }

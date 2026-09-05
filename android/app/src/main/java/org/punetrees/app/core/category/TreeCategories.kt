@@ -195,6 +195,7 @@ object TreeCategories {
     )
 
     fun getByKey(key: String): TreeCategory {
-        return ALL.find { it.key == key } ?: ALL[0]
+        val cleanKey = if (key.contains(",")) key.substringBefore(",") else key
+        return ALL.find { it.key == cleanKey } ?: ALL[0]
     }
 }

@@ -37,6 +37,7 @@ import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.punetrees.app.core.ai.local.LocalGemmaEngine
 import org.punetrees.app.core.image.ImageUtils
 import org.punetrees.app.core.user.UserProfileManager
 import org.punetrees.app.data.remote.ApiClient
@@ -65,6 +66,7 @@ fun PhotoPreviewScreen(
     val api = remember { ApiClient.getService() }
     val userProfileManager = remember { UserProfileManager(context) }
     val antiSpamManager = remember { org.punetrees.app.core.security.AntiSpamManager(context) }
+    val localGemmaEngine = remember { LocalGemmaEngine(context) }
 
     val currentPhotos = remember { mutableStateListOf<Pair<Bitmap, String>>().apply { addAll(treePhotosList) } }
     var citizenNotes by remember { mutableStateOf("") }
@@ -217,6 +219,45 @@ fun PhotoPreviewScreen(
                 e.printStackTrace()
                 isProcessing = false
                 errorMessage = "Network or timeout error: ${e.localizedMessage ?: "Please check internet connection"}"
+            }
+        }
+    }
+
+    fun executeLocalInference() {
+        if (currentPhotos.size < 3) {
+            errorMessage = "Please capture all 3 mandatory tree evidence photos."
+            return
+        }
+
+        isProcessing = true
+        processingStatus = "Running on-device edge AI inference..."
+        errorMessage = null
+
+        coroutineScope.launch {
+            try {
+                val profile = userProfileManager.getProfile()
+                val categoriesList = category.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                val draft = withContext(Dispatchers.IO) {
+                    localGemmaEngine.analyzeAndDraftLocal(
+                        photos = currentPhotos.toList(),
+                        selectedCategories = categoriesList,
+                        latitude = latitude,
+                        longitude = longitude,
+                        citizenNotes = citizenNotes,
+                        addressLandmark = addressLandmark,
+                        citizenName = profile.name.ifBlank { "Pune Citizen" },
+                        citizenPhone = profile.phone.ifBlank { null },
+                        citizenEmail = profile.email.ifBlank { null },
+                        perpetratorName = perpetratorNameInput.ifBlank { null },
+                        perpetratorPhone = perpetratorPhoneInput.ifBlank { null }
+                    )
+                }
+                isProcessing = false
+                onDraftReady(draft, currentPhotos[0].second)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                isProcessing = false
+                errorMessage = "Local inference error: ${e.localizedMessage}"
             }
         }
     }
@@ -643,19 +684,119 @@ fun PhotoPreviewScreen(
                         )
                     }
 
-                    // Step 5 Launch CTA
-                    Button(
-                        onClick = { executeAnalysis() },
-                        enabled = currentPhotos.size >= 3,
-                        colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp)
+                    // Dual AI Inference Demonstration Selection
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("🚀 Next: Run AI Analysis & Draft Notice", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Text(
+                            text = "🤖 Select AI Inference Mode (Hackathon Showcase)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = ForestGreenDark
+                        )
+
+                        // 1. Local On-Device Inference Button (Gemma 3n / Edge)
+                        val isModelFound = localGemmaEngine.isModelInstalled()
+                        OutlinedButton(
+                            onClick = { executeLocalInference() },
+                            enabled = currentPhotos.size >= 3,
+                            border = BorderStroke(1.5.dp, ForestGreenPrimary),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFFF1F8E9)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(Icons.Default.PhoneAndroid, contentDescription = null, tint = ForestGreenDark, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column {
+                                        Text(
+                                            text = if (isModelFound) "📱 Run Local Gemma 3n (On-Device)" else "📱 Run Local Edge AI (Offline Engine)",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = ForestGreenDark
+                                        )
+                                        Text(
+                                            text = if (isModelFound) "⚡ NPU accelerated • 0ms Network • Offline" else "⚡ Deterministic Statutory Matrix • Offline",
+                                            fontSize = 10.sp,
+                                            color = Color.DarkGray
+                                        )
+                                    }
+                                }
+                                Surface(
+                                    color = ForestGreenPrimary,
+                                    shape = RoundedCornerShape(4.dp)
+                                ) {
+                                    Text(
+                                        text = if (isModelFound) "Gemma 3n ✓" else "Offline",
+                                        color = Color.White,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // 2. Backend Cloud Inference Button (OpenRouter)
+                        Button(
+                            onClick = { executeAnalysis() },
+                            enabled = currentPhotos.size >= 3,
+                            colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(Icons.Default.Cloud, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column {
+                                        Text(
+                                            text = "☁️ Run Backend Cloud Inference",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = Color.White
+                                        )
+                                        Text(
+                                            text = "🌐 OpenRouter Multimodal + 2019 GIS Tree Census",
+                                            fontSize = 10.sp,
+                                            color = Color.White.copy(alpha = 0.85f)
+                                        )
+                                    }
+                                }
+                                Surface(
+                                    color = Color.White.copy(alpha = 0.2f),
+                                    shape = RoundedCornerShape(4.dp)
+                                ) {
+                                    Text(
+                                        text = "OpenRouter",
+                                        color = Color.White,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
