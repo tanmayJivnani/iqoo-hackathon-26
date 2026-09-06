@@ -1003,13 +1003,13 @@ fun PhotoPreviewScreen(
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Column {
                                         Text(
-                                            text = "☁️ Run Backend Cloud Inference",
+                                            text = "☁️ Run Cloud AI Inference",
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.sp,
                                             color = Color.White
                                         )
                                         Text(
-                                            text = "🌐 Open-Source Qwen 2.5 VL 72B + 2019 Tree Census",
+                                            text = "🌐 High-Precision Arborist Vision + 2019 Tree Census",
                                             fontSize = 10.sp,
                                             color = Color.White.copy(alpha = 0.85f)
                                         )
@@ -1020,7 +1020,7 @@ fun PhotoPreviewScreen(
                                     shape = RoundedCornerShape(4.dp)
                                 ) {
                                     Text(
-                                        text = "Qwen VL ✓",
+                                        text = "Cloud AI ✓",
                                         color = Color.White,
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,

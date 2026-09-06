@@ -72,7 +72,7 @@ IMPORTANT FORENSIC INSTRUCTION:
         system_prompt = f"""
 You are an expert Urban Forensic Arborist and Municipal Grievance Drafting Assistant for Pune Municipal Corporation (PMC).
 The citizen is lodging a formal grievance under category: '{target_category}' under the Maharashtra (Urban Areas) Protection & Preservation of Trees Act, 1975.
-{census_context}{sensor_pitch_context}
+{census_context}
 Your primary objective is to inspect the submitted photo(s) of the tree, verify tree presence, extract factual visual evidence, and draft a formal statutory notice.
 
 CRITICAL RULES:
@@ -215,7 +215,7 @@ INSTRUCTIONS:
                                 parsed_json["draft_subject_en"] = None
                                 parsed_json["draft_summary_mr"] = None
                                 parsed_json["is_fallback"] = False
-                                parsed_json["ai_provider"] = f"OPENROUTER ({candidate_model})"
+                                parsed_json["ai_provider"] = "Cloud Multimodal Arborist AI"
 
                                 print("\n" + "="*75, flush=True)
                                 print(f" 🚫 [OPENROUTER REJECTION] NO TREE DETECTED IN EVIDENCE VIA: '{candidate_model}'", flush=True)
@@ -252,7 +252,7 @@ INSTRUCTIONS:
                                 parsed_json["ai_suggested_category"] = None
                                 parsed_json["mismatch_reason_en"] = None
                                 parsed_json["is_fallback"] = False
-                                parsed_json["ai_provider"] = f"OPENROUTER ({candidate_model})"
+                                parsed_json["ai_provider"] = "Cloud Multimodal Arborist AI"
                                 
                                 print("\n" + "="*75, flush=True)
                                 print(f" ✨ [OPENROUTER SUCCESS] COMPLETED VIA: '{candidate_model}'", flush=True)
@@ -317,7 +317,7 @@ INSTRUCTIONS:
                                 parsed_json["draft_subject_en"] = None
                                 parsed_json["draft_summary_mr"] = None
                                 parsed_json["is_fallback"] = False
-                                parsed_json["ai_provider"] = f"GOOGLE_GEMINI ({g_model})"
+                                parsed_json["ai_provider"] = "Cloud Multimodal Arborist AI"
                                 return parsed_json
 
                             if parsed_json.get("detected_issue_category") or parsed_json.get("tree_detected") is True:
@@ -344,7 +344,7 @@ INSTRUCTIONS:
                                 parsed_json["ai_suggested_category"] = None
                                 parsed_json["mismatch_reason_en"] = None
                                 parsed_json["is_fallback"] = False
-                                parsed_json["ai_provider"] = f"GOOGLE_GEMINI ({g_model})"
+                                parsed_json["ai_provider"] = "Cloud Multimodal Arborist AI"
                                 return parsed_json
                     except Exception as e:
                         print(f" ❌ [GEMINI EXCEPTION] '{g_model}' error: {e}", flush=True)

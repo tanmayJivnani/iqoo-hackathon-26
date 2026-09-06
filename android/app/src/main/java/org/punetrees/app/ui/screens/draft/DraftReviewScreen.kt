@@ -253,7 +253,7 @@ ADDITIONAL CONCURRENT VIOLATION IDENTIFIED:
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "🤖 Engine: ${draft.aiProvider ?: "OpenRouter Multimodal Vision"}",
+                        text = "🤖 Engine: ${if (isLocal) (draft.aiProvider ?: "📱 On-Device Engine") else "☁️ Cloud Arborist AI Engine"}",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (isLocal) ForestGreenDark else Color(0xFF1565C0)
