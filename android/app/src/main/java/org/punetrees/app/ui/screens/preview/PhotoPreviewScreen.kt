@@ -216,7 +216,7 @@ fun PhotoPreviewScreen(
     fun executeAnalysis() {
         val (isBlocked, remainingMinutes) = antiSpamManager.isUnderCooldown()
         if (isBlocked) {
-            cooldownDialogText = "🚫 Spam Protection Activated (3-Hour Cooldown)\n\nYou have submitted 2 consecutive non-tree photos. To conserve arborist AI resources and prevent spam, please wait $remainingMinutes minutes before submitting another report."
+            cooldownDialogText = "🚫 Spam Protection Activated (3-Hour Cooldown)\n\nYou have submitted 3 consecutive non-tree photos. To conserve arborist AI resources and prevent spam, please wait $remainingMinutes minutes before submitting another report."
             return
         }
 
@@ -260,10 +260,13 @@ fun PhotoPreviewScreen(
                     if (!draft.treeDetected) {
                         isProcessing = false
                         val (failedCount, isNowBlocked) = antiSpamManager.recordInvalidAttempt()
+                        val maxAttempts = org.punetrees.app.core.security.AntiSpamManager.MAX_INVALID_ATTEMPTS
+                        val remainingAttempts = maxAttempts - failedCount
                         if (isNowBlocked) {
-                            cooldownDialogText = "🚫 Spam Protection Activated (3-Hour Cooldown)\n\nYou have exceeded 2 invalid photo attempts with no tree detected. To preserve civic resources, submission is paused for 3 hours."
+                            cooldownDialogText = "🚫 Spam Protection Activated (3-Hour Cooldown)\n\nYou have exceeded $maxAttempts invalid photo attempts with no tree detected. To preserve civic resources, submission is paused for 3 hours."
                         } else {
-                            rejectionDialogText = "⚠️ Tree Not Detected (Attempt $failedCount/2)\n\n${draft.rejectionReason ?: "The AI verified that no tree, branch, or botanical subject is visible in the photos."}\n\nPlease tap any photo above to retake clear photos of the actual tree. You have 1 attempt remaining before a 3-hour cooldown."
+                            val attemptsMsg = if (remainingAttempts == 1) "1 attempt remaining" else "$remainingAttempts attempts remaining"
+                            rejectionDialogText = "⚠️ Tree Not Detected (Attempt $failedCount/$maxAttempts)\n\n${draft.rejectionReason ?: "The AI verified that no tree, branch, or botanical subject is visible in the photos."}\n\nPlease tap any photo above to retake clear photos of the actual tree. You have $attemptsMsg before a 3-hour cooldown."
                         }
                     } else {
                         antiSpamManager.reset()
@@ -314,10 +317,13 @@ fun PhotoPreviewScreen(
                 if (!draft.treeDetected) {
                     isProcessing = false
                     val (failedCount, isNowBlocked) = antiSpamManager.recordInvalidAttempt()
+                    val maxAttempts = org.punetrees.app.core.security.AntiSpamManager.MAX_INVALID_ATTEMPTS
+                    val remainingAttempts = maxAttempts - failedCount
                     if (isNowBlocked) {
-                        cooldownDialogText = "🚫 Spam Protection Activated (3-Hour Cooldown)\n\nYou have exceeded 2 invalid photo attempts with no tree detected. To preserve civic resources, submission is paused for 3 hours."
+                        cooldownDialogText = "🚫 Spam Protection Activated (3-Hour Cooldown)\n\nYou have exceeded $maxAttempts invalid photo attempts with no tree detected. To preserve civic resources, submission is paused for 3 hours."
                     } else {
-                        rejectionDialogText = "⚠️ Tree Not Detected (Attempt $failedCount/2)\n\n${draft.rejectionReason ?: "On-device Gemma 3n verified that no tree, branch, or botanical subject is visible in the photos."}\n\nPlease tap any photo above to retake clear photos of the actual tree. You have 1 attempt remaining before a 3-hour cooldown."
+                        val attemptsMsg = if (remainingAttempts == 1) "1 attempt remaining" else "$remainingAttempts attempts remaining"
+                        rejectionDialogText = "⚠️ Tree Not Detected (Attempt $failedCount/$maxAttempts)\n\n${draft.rejectionReason ?: "On-device Gemma 3n verified that no tree, branch, or botanical subject is visible in the photos."}\n\nPlease tap any photo above to retake clear photos of the actual tree. You have $attemptsMsg before a 3-hour cooldown."
                     }
                 } else {
                     antiSpamManager.reset()

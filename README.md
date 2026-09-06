@@ -15,7 +15,7 @@ A phone-first civic accountability and tree preservation platform empowering Pun
      * **Layer 2 (Structural Frame)**: Mid-range frame connecting the issue to the tree's main architecture (lean vector, severed limbs, trunk clutter).
      * **Layer 3 (Forensic Macro)**: Close-up evidence of the exact violation (fresh chainsaw tooth marks, iron nails in cambium bark, cracked limb joint, choked root collar).
 3. **AI Anti-Spam Gate & Quota Protection**:
-   * Computer vision verifies genuine tree presence before processing, rejecting non-tree/indoor photos with a strict 2-attempt quota and a 3-hour cooldown to protect civic and AI resources.
+   * Computer vision verifies genuine tree presence before processing, rejecting non-tree/indoor photos with a strict 3-attempt quota and a 3-hour cooldown to protect civic and AI resources.
 4. **Government GIS Tree Census Integration (4.09M Trees)**:
    * Spatially queries Pune Municipal Corporation's official 4.09-Million Tree Census GIS dataset within a 10-meter radius to attach the government-verified Census Tree ID, botanical name, and girth record.
 5. **Deterministic Legal Routing Engine**:

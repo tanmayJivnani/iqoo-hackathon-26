@@ -7,7 +7,7 @@ class AntiSpamManager(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("pune_tree_anti_spam", Context.MODE_PRIVATE)
 
     companion object {
-        const val MAX_INVALID_ATTEMPTS = 2
+        const val MAX_INVALID_ATTEMPTS = 3
         const val COOLDOWN_DURATION_MS = 3 * 60 * 60 * 1000L // 3 Hours
     }
 
