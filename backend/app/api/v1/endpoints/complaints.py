@@ -114,8 +114,8 @@ async def analyze_and_draft(
     """
     # 1. Reverse Geocode for Ward & Landmark
     address, ward = reverse_geocode_pune(payload.latitude, payload.longitude)
-    if payload.address_landmark:
-        address = f"{payload.address_landmark}, {ward}, Pune"
+    if payload.address_landmark and payload.address_landmark.strip():
+        address = payload.address_landmark.strip()
 
     # 2. PMC Tree Census GIS Spatial Match
     census_match = TreeCensusService.match_nearest_tree(payload.latitude, payload.longitude)

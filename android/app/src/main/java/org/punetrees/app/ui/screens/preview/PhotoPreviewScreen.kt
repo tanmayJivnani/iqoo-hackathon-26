@@ -245,7 +245,7 @@ fun PhotoPreviewScreen(
                     longitude = longitude,
                     sensorTiltAngle = null,
                     citizenNotes = citizenNotes.ifBlank { null },
-                    addressLandmark = addressLandmark.ifBlank { null },
+                    addressLandmark = addressLandmark.ifBlank { geotaggedAddress },
                     citizenName = profile.name.ifBlank { "Pune Citizen" },
                     citizenPhone = profile.phone.ifBlank { null },
                     citizenEmail = profile.email.ifBlank { null },
@@ -303,7 +303,7 @@ fun PhotoPreviewScreen(
                         latitude = latitude,
                         longitude = longitude,
                         citizenNotes = citizenNotes,
-                        addressLandmark = addressLandmark,
+                        addressLandmark = addressLandmark.ifBlank { geotaggedAddress ?: "Pune Municipal Corporation" },
                         citizenName = profile.name.ifBlank { "Pune Citizen" },
                         citizenPhone = profile.phone.ifBlank { null },
                         citizenEmail = profile.email.ifBlank { null },
@@ -787,21 +787,69 @@ fun PhotoPreviewScreen(
                         )
                     }
 
-                    // Dual AI Inference Demonstration Selection
+                    // Complaint Drafting Options
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
-                            text = "🤖 Select AI Inference Mode (Hackathon Showcase)",
+                            text = "Submit & Draft Formal Grievance",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             color = ForestGreenDark
                         )
 
-                        val isModelFound = isModelInstalledState || localGemmaEngine.isModelInstalled()
+                        // 1. Online Smart Report (Primary / Recommended)
+                        Button(
+                            onClick = { executeAnalysis() },
+                            enabled = currentPhotos.size >= 3,
+                            colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(Icons.Default.Cloud, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column {
+                                        Text(
+                                            text = "✨ Online Smart Report",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = Color.White
+                                        )
+                                        Text(
+                                            text = "Checks tree photos & matches with Tree Census",
+                                            fontSize = 10.sp,
+                                            color = Color.White.copy(alpha = 0.9f)
+                                        )
+                                    }
+                                }
+                                Surface(
+                                    color = Color.White.copy(alpha = 0.25f),
+                                    shape = RoundedCornerShape(4.dp)
+                                ) {
+                                    Text(
+                                        text = "Recommended",
+                                        color = Color.White,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
 
-                        // 1. Local On-Device Inference Button (Gemma 3n / Edge)
+                        // 2. Offline Quick Report
                         OutlinedButton(
                             onClick = { executeLocalInference() },
                             enabled = currentPhotos.size >= 3,
@@ -825,78 +873,28 @@ fun PhotoPreviewScreen(
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Column {
                                         Text(
-                                            text = if (isModelFound) "📱 Run Local Gemma 3n (On-Device)" else "📱 Run Local Edge AI (Offline Engine)",
+                                            text = "📱 Offline Quick Report",
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.sp,
                                             color = ForestGreenDark
                                         )
                                         Text(
-                                            text = if (isModelFound) "⚡ NPU accelerated • 0ms Network • Offline" else "⚡ Tap to import model or run rule engine",
+                                            text = "Works without internet • Instant letter draft",
                                             fontSize = 10.sp,
                                             color = Color.DarkGray
                                         )
                                     }
                                 }
                                 Surface(
-                                    color = if (isModelFound) ForestGreenPrimary else Color(0xFF757575),
+                                    color = ForestGreenPrimary,
                                     shape = RoundedCornerShape(4.dp)
                                 ) {
                                     Text(
-                                        text = if (isModelFound) "Gemma 3n ✓" else "Setup / Rule",
+                                        text = "Offline ✓",
                                         color = Color.White,
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        // 2. Backend Cloud Inference Button (OpenRouter)
-                        Button(
-                            onClick = { executeAnalysis() },
-                            enabled = currentPhotos.size >= 3,
-                            colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Icon(Icons.Default.Cloud, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text(
-                                            text = "☁️ Run Cloud AI Inference",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp,
-                                            color = Color.White
-                                        )
-                                        Text(
-                                            text = "🌐 High-Precision Arborist Vision + 2019 Tree Census",
-                                            fontSize = 10.sp,
-                                            color = Color.White.copy(alpha = 0.85f)
-                                        )
-                                    }
-                                }
-                                Surface(
-                                    color = Color.White.copy(alpha = 0.2f),
-                                    shape = RoundedCornerShape(4.dp)
-                                ) {
-                                    Text(
-                                        text = "Cloud AI ✓",
-                                        color = Color.White,
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
                                 }
                             }
