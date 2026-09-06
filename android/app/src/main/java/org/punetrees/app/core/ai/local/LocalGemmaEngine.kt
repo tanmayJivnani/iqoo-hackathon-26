@@ -242,17 +242,12 @@ class LocalGemmaEngine(private val context: Context) {
 
         val parsed = parseJsonSafely(rawResponse)
 
-        // Robust check for rejection: if Gemma says no tree or rejection_reason is present
-        val rawExplicitlyRejected = rawResponse.contains(Regex("""tree_detected["\s]*:\s*false""", RegexOption.IGNORE_CASE)) ||
-                                    rawResponse.contains("rejection_reason", ignoreCase = true) ||
-                                    rawResponse.contains("no tree", ignoreCase = true) ||
-                                    rawResponse.contains("botanical subject", ignoreCase = true) ||
-                                    (parsed.has("tree_detected") && !parsed.optBoolean("tree_detected", true))
-
-        val isTreeDetected = if (rawExplicitlyRejected) {
-            false
-        } else {
+        val isTreeDetected = if (parsed.has("tree_detected")) {
             parsed.optBoolean("tree_detected", true)
+        } else {
+            !rawResponse.contains(Regex("""tree_detected["\s]*:\s*false""", RegexOption.IGNORE_CASE)) &&
+            !rawResponse.contains("No tree", ignoreCase = true) &&
+            !rawResponse.contains("botanical subject", ignoreCase = true)
         }
 
         val rejectionReason = if (!isTreeDetected) {

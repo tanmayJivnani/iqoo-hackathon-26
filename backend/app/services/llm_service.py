@@ -100,13 +100,13 @@ Phone: {citizen_phone or '+91-XXXXXXXXXX'}
 Email: {citizen_email or 'citizen@example.com'}
 Pune Tree Rakshak (Citizen Complaint Portal)
 
-5. FORENSIC DAMAGE & PLACEHOLDER DRAFTING FOR '{target_category}':
-- If tree damage for '{target_category}' is clearly visible (e.g. leaning trunk, cut marks, hanging fractured limb, concretized basin, nails/advertising boards/strangling cables, or termite rot):
-  Extract precise factual morphological evidence into 'visual_damage_summary' and draft the formal statutory notice.
-- If a genuine tree is present ('tree_detected': true) but specific micro-damage details for '{target_category}' are subtle or obstructed from the camera angle:
-  Set 'visual_damage_summary': "Tree present at locus; specific '{target_category}' damage details require on-site verification."
-  Draft the formal grievance for '{target_category}' embedding real coordinates, landmark, ward, and tracking ID, and insert this exact editable placeholder inside the letter body:
-  "[SPECIFIC DAMAGE OBSERVATION: Please describe the observed damage or hazard here (e.g. extent of lean, branch height, cut marks, nails/cables, etc.)]"
+5. FORENSIC DAMAGE OBSERVATION FOR '{target_category}':
+- You MUST actively analyze the photos and describe the observed tree damage, structural hazard, or violation directly in 'visual_damage_summary' and the letter body (AI filled).
+- Do NOT output placeholder text like '[SPECIFIC DAMAGE OBSERVATION...]' whenever any visible tree feature, lean, limb damage, or site hazard can be described.
+- ONLY in the specific case where the tree appears visually intact, completely healthy, and without any visible defects from the camera angle:
+  Set 'visual_damage_summary': "Tree appears visually healthy from photos. Physical on-site inspection requested."
+  And only in that case, insert this editable placeholder in the letter body:
+  "[SPECIFIC DAMAGE OBSERVATION: Tree appears visually healthy in photos. Please describe what specific defect or hazard you observed on site.]"
 
 6. MULTI-PHOTO LEAN & ROOT PLATE STRUCTURAL ASSESSMENT (MANDATORY FOR LEANING TREES):
 - When evaluating tree lean angle or fall hazard, you MUST NOT rely solely on the wide-angle photo.
@@ -432,7 +432,7 @@ Pune Tree Rakshak (Citizen Complaint Portal)"""
         cat_display = cat.replace("_", " ").title()
         subject = f"URGENT: Notice Regarding {cat_display} at {landmark_str}, {ward_str} [Grievance Ref: {tracking_id}]"
         
-        detail_text = citizen_notes if citizen_notes else f"[SPECIFIC DAMAGE OBSERVATION: Please describe what you observed on site regarding the {cat_display.lower()} condition (e.g. extent of lean, severed branches, root damage, etc.)]"
+        detail_text = citizen_notes if citizen_notes else f"The tree exhibits observable physical signs of {cat_display.lower()} posing an imminent structural and public safety hazard."
         
         body = f"""To,
 The Tree Officer / Competent Authority,

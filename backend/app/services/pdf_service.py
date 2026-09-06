@@ -34,10 +34,36 @@ class MultiPageNativePdfWriter:
         self.pages = [[]] # List of stream chunks per page
         self.current_page_idx = 0
         self.images = [] # List of (image_bytes, w, h)
+        self.page_links = [[]] # List of [(x1, y1, x2, y2, url)] per page
 
     def new_page(self):
         self.pages.append([])
+        self.page_links.append([])
         self.current_page_idx += 1
+
+    def add_link(self, x: float, y: float, w: float, h: float, url: str):
+        """Adds an interactive clickable rectangular hyperlink to the current page."""
+        self.page_links[self.current_page_idx].append((x, y, x + w, y + h, url))
+
+    def draw_qr_code(self, qr_text: str, x: float, y: float, size: float = 64.0):
+        """Draws a crisp, scannable vector QR code using pure-Python pyqrcode."""
+        try:
+            import pyqrcode
+            qr = pyqrcode.create(qr_text, error='M')
+            matrix = qr.code
+            n = len(matrix)
+            cell_size = size / n
+            self.draw_rect(x - 2, y - 2, size + 4, size + 4, fill_rgb=(1, 1, 1), stroke_rgb=(0.85, 0.85, 0.85), line_width=0.5)
+            stream = self.pages[self.current_page_idx]
+            stream.append("0.0 0.0 0.0 rg\n")
+            for r_idx, row in enumerate(matrix):
+                cell_y = y + size - (r_idx + 1) * cell_size
+                for c_idx, val in enumerate(row):
+                    if val == 1:
+                        cell_x = x + c_idx * cell_size
+                        stream.append(f"{cell_x:.2f} {cell_y:.2f} {cell_size:.2f} {cell_size:.2f} re f\n")
+        except Exception as e:
+            print(f"[PDF QR NOTICE] Could not draw QR code: {e}")
 
     def add_image(self, b64_or_bytes) -> Optional[int]:
         try:
@@ -105,6 +131,19 @@ class MultiPageNativePdfWriter:
             xobj_res += f"/Im{img_idx} {obj_num} 0 R "
         xobj_entry = f"/XObject<<{xobj_res}>>" if xobj_res else ""
 
+        # Format link annotation objects
+        annot_objs = []
+        page_annot_map = {}
+        for p_idx, links in enumerate(self.page_links):
+            page_annot_map[p_idx] = []
+            for (x1, y1, x2, y2, url) in links:
+                annot_num = current_obj_num
+                current_obj_num += 1
+                page_annot_map[p_idx].append(annot_num)
+                safe_url = url.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+                annot_data = f"<</Type/Annot/Subtype/Link/Rect[{x1:.2f} {y1:.2f} {x2:.2f} {y2:.2f}]/Border[0 0 0]/A<</Type/Action/S/URI/URI({safe_url})>>>>".encode("ascii", errors="replace")
+                annot_objs.append(annot_data)
+
         page_count = len(self.pages)
         page_obj_nums = []
         content_obj_nums = []
@@ -124,12 +163,18 @@ class MultiPageNativePdfWriter:
 
         all_objects = [catalog_obj, pages_obj, f1_obj, f2_obj]
         all_objects.extend(pdf_objs)
+        all_objects.extend(annot_objs)
 
         for p_idx in range(page_count):
             stream_str = "".join(self.pages[p_idx])
             stream_bytes = stream_str.encode("latin-1", errors="replace")
             content_obj_data = f"<</Length {len(stream_bytes)}>>\nstream\n{stream_str}\nendstream".encode("latin-1", errors="replace")
-            page_obj_data = f"<</Type/Page/Parent 2 0 R/MediaBox[0 0 {self.page_w:.2f} {self.page_h:.2f}]/Contents {content_obj_nums[p_idx]} 0 R/Resources<</Font<</F1 3 0 R/F2 4 0 R>> {xobj_entry}>>>>".encode("latin-1")
+
+            annots_list = page_annot_map.get(p_idx, [])
+            annots_str = " ".join([f"{a} 0 R" for a in annots_list])
+            annots_entry = f"/Annots[{annots_str}]" if annots_str else ""
+
+            page_obj_data = f"<</Type/Page/Parent 2 0 R/MediaBox[0 0 {self.page_w:.2f} {self.page_h:.2f}]/Contents {content_obj_nums[p_idx]} 0 R/Resources<</Font<</F1 3 0 R/F2 4 0 R>> {xobj_entry}>> {annots_entry}>>".encode("latin-1")
 
             all_objects.append(page_obj_data)
             all_objects.append(content_obj_data)
@@ -262,18 +307,28 @@ class PdfService:
         writer.draw_text("Statutory Oath         : Submitted in good faith under Sec 2(c) & 21 of Maharashtra Tree Act 1975.", 48, 116, size=7.5, color_rgb=(0.4, 0.4, 0.4))
         writer.draw_text("Legal Admissibility   : Electronic record under Section 65B of the Indian Evidence Act, 1872.", 48, 102, size=7.5, color_rgb=(0.4, 0.4, 0.4))
 
-        # Right: Tamper-Proof Cryptographic Seal
-        writer.draw_rect(375, 68, 172, 112, fill_rgb=(0.93, 0.96, 0.93), stroke_rgb=(0.18, 0.50, 0.24), line_width=1.5)
-        writer.draw_text("IMMUTABLE EVIDENCE SEAL", 385, 164, size=8, bold=True, color_rgb=(0.12, 0.40, 0.18))
-        writer.draw_text("SHA-256 HASH MANIFEST:", 385, 150, size=7, bold=True, color_rgb=(0.2, 0.2, 0.2))
-        writer.draw_text(f"{sha256_hash[:16]}", 385, 138, size=7, color_rgb=(0.15, 0.45, 0.20))
-        writer.draw_text(f"{sha256_hash[16:32]}", 385, 126, size=7, color_rgb=(0.15, 0.45, 0.20))
-        writer.draw_text(f"{sha256_hash[32:48]}", 385, 114, size=7, color_rgb=(0.15, 0.45, 0.20))
-        writer.draw_text(f"{sha256_hash[48:64]}", 385, 102, size=7, color_rgb=(0.15, 0.45, 0.20))
-        writer.draw_text("[SEAL] Tamper-Proof Verified", 385, 88, size=7.5, bold=True, color_rgb=(0.1, 0.5, 0.1))
-        writer.draw_text(f"verify: punetrees.org/t/{tracking_id[:12]}", 385, 75, size=6.5, color_rgb=(0.4, 0.4, 0.4))
+        # Right: Tamper-Proof Cryptographic Seal & Scannable QR Code
+        writer.draw_rect(370, 68, 178, 112, fill_rgb=(0.93, 0.96, 0.93), stroke_rgb=(0.18, 0.50, 0.24), line_width=1.5)
+        writer.draw_text("IMMUTABLE EVIDENCE SEAL", 378, 164, size=7.5, bold=True, color_rgb=(0.12, 0.40, 0.18))
+        writer.draw_text("SHA-256 HASH MANIFEST:", 378, 151, size=6.5, bold=True, color_rgb=(0.2, 0.2, 0.2))
+        writer.draw_text(f"{sha256_hash[:16]}", 378, 139, size=6.5, color_rgb=(0.15, 0.45, 0.20))
+        writer.draw_text(f"{sha256_hash[16:32]}", 378, 128, size=6.5, color_rgb=(0.15, 0.45, 0.20))
+        writer.draw_text(f"{sha256_hash[32:48]}", 378, 117, size=6.5, color_rgb=(0.15, 0.45, 0.20))
+        writer.draw_text(f"{sha256_hash[48:64]}", 378, 106, size=6.5, color_rgb=(0.15, 0.45, 0.20))
+        writer.draw_text("[SEAL] Tamper-Proof Verified", 378, 92, size=7, bold=True, color_rgb=(0.1, 0.5, 0.1))
+
+        # Live Scannable Vector QR Code
+        verify_url = f"https://punetrees.org/t/{tracking_id}"
+        writer.draw_qr_code(verify_url, 474, 98, size=64)
+        # Interactive clickable link over the QR Code
+        writer.add_link(474, 98, 64, 64, verify_url)
+
+        # Interactive clickable link text underneath QR
+        writer.draw_text(f"verify: punetrees.org/t/{tracking_id[:10]}", 464, 76, size=6, bold=True, color_rgb=(0.12, 0.35, 0.70))
+        writer.add_link(464, 72, 80, 16, verify_url)
 
         writer.draw_text("Page 1 of 2  |  Pune Tree Rakshak Citizen Portal  |  Sec 65B Certified", 155, 38, size=7.5, color_rgb=(0.5, 0.5, 0.5))
+        writer.add_link(155, 34, 280, 14, verify_url)
 
         # =========================================================================
         # PAGE 2: PHOTOGRAPHIC EVIDENCE APPENDIX & FORENSIC ARBORIST AUDIT
