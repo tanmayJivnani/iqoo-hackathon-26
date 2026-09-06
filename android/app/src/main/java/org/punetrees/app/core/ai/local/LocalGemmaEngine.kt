@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.os.Environment
 import com.google.mediapipe.framework.image.BitmapImageBuilder
+import com.google.mediapipe.tasks.genai.llminference.GraphOptions
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import com.google.mediapipe.tasks.genai.llminference.LlmInferenceSession
 import org.json.JSONObject
@@ -194,7 +195,13 @@ class LocalGemmaEngine(private val context: Context) {
 
         var rawResponse = ""
         try {
-            val sessionOptions = LlmInferenceSession.LlmInferenceSessionOptions.builder().build()
+            val sessionOptions = LlmInferenceSession.LlmInferenceSessionOptions.builder()
+                .setGraphOptions(
+                    GraphOptions.builder()
+                        .setEnableVisionModality(true)
+                        .build()
+                )
+                .build()
             val session = LlmInferenceSession.createFromOptions(inference, sessionOptions)
             try {
                 session.addQueryChunk(prompt)
