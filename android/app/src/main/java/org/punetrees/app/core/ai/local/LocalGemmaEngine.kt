@@ -176,26 +176,28 @@ class LocalGemmaEngine(private val context: Context) {
         val prompt = """
             <start_of_turn>user
             Carefully inspect the attached photo evidence.
-            1. First check: Is there a real, living or damaged tree, branch, stump, or botanical tree structure visible?
-            2. If NO tree is visible (for example: photo of a laptop keyboard, screen, desk, indoor wall, car, human face, or paper), you MUST reject:
-               "tree_detected": false,
-               "rejection_reason": "No tree or botanical subject detected in photo. Please point camera at a real tree."
-            3. If a tree IS visible, analyze the reported violation: $primaryCategory at ${addressLandmark.ifBlank { "Pune" }}.
-            
-            Return strictly valid JSON only:
-            {
-              "tree_detected": true,
-              "rejection_reason": null,
-              "estimated_tree_species": "estimated species name or Native Shade Tree",
-              "visual_damage_summary": "what is visible regarding tree hazard or violation",
-              "draft_subject_en": "Statutory Notice under Maharashtra Tree Act 1975: $primaryCategory at ${addressLandmark.ifBlank { "Pune" }} [$trackingId]",
-              "draft_body_en": "Formal legal complaint letter addressed to Tree Officer, PMC under Section 2(c) and Section 21 of Maharashtra Tree Act 1975.",
-              "draft_summary_mr": "मराठी तक्रार सारांश",
-              "urgency_level": "HIGH"
-            }
+            1. First check: Is there a real, living or damaged tree, branch, stump, foliage, or botanical tree structure visible?
+            2. If NO tree is visible (for example: photo of a keyboard, screen, desk, pen, notebook, paper, indoor wall, furniture, car, human face):
+               You MUST return strictly this JSON:
+               {
+                 "tree_detected": false,
+                 "rejection_reason": "No tree or botanical subject detected in photo. Please point camera at a real tree."
+               }
+            3. If a real tree IS visible, analyze the reported violation: $primaryCategory at ${addressLandmark.ifBlank { "Pune" }}.
+               Return strictly valid JSON only:
+               {
+                 "tree_detected": true,
+                 "rejection_reason": null,
+                 "estimated_tree_species": "estimated species name or Native Shade Tree",
+                 "visual_damage_summary": "what is visible regarding tree hazard or violation",
+                 "draft_subject_en": "Statutory Notice under Maharashtra Tree Act 1975: $primaryCategory at ${addressLandmark.ifBlank { "Pune" }} [$trackingId]",
+                 "draft_body_en": "Formal legal complaint letter addressed to Tree Officer, PMC under Section 2(c) and Section 21 of Maharashtra Tree Act 1975.",
+                 "draft_summary_mr": "मराठी तक्रार सारांश",
+                 "urgency_level": "HIGH"
+               }
+            Return ONLY the raw JSON object.
             <end_of_turn>
             <start_of_turn>model
-            {
         """.trimIndent()
 
         var rawResponse = ""
@@ -236,12 +238,32 @@ class LocalGemmaEngine(private val context: Context) {
             try { inference.close() } catch (_: Throwable) {}
         }
 
-        val fullResponse = if (rawResponse.startsWith("{")) rawResponse else "{$rawResponse"
-        android.util.Log.d("LocalGemmaEngine", "Raw Gemma response:\n$fullResponse")
+        android.util.Log.d("LocalGemmaEngine", "Raw Gemma response:\n$rawResponse")
 
-        val parsed = parseJsonSafely(fullResponse)
-        val isTreeDetected = parsed.optBoolean("tree_detected", true)
-        val rejectionReason = parsed.optString("rejection_reason").takeIf { it.isNotBlank() && it != "null" }
+        val parsed = parseJsonSafely(rawResponse)
+
+        // Robust check for rejection: if Gemma says no tree or rejection_reason is present
+        val rawExplicitlyRejected = rawResponse.contains(Regex("""tree_detected["\s]*:\s*false""", RegexOption.IGNORE_CASE)) ||
+                                    rawResponse.contains("rejection_reason", ignoreCase = true) ||
+                                    rawResponse.contains("no tree", ignoreCase = true) ||
+                                    rawResponse.contains("botanical subject", ignoreCase = true) ||
+                                    (parsed.has("tree_detected") && !parsed.optBoolean("tree_detected", true))
+
+        val isTreeDetected = if (rawExplicitlyRejected) {
+            false
+        } else {
+            parsed.optBoolean("tree_detected", true)
+        }
+
+        val rejectionReason = if (!isTreeDetected) {
+            parsed.optString("rejection_reason").takeIf { it.isNotBlank() && it != "null" }
+                ?: Regex("""(?i)"?rejection_reason"?\s*:\s*"([^"]+)"""").find(rawResponse)?.groupValues?.getOrNull(1)
+                ?: "No tree or botanical subject detected in photo. Please point camera at a real tree."
+        } else {
+            null
+        }
+
+        android.util.Log.i("LocalGemmaEngine", "Tree detection evaluation: isTreeDetected=$isTreeDetected, rejectionReason=$rejectionReason")
 
         val subject = parsed.optString("draft_subject_en").ifBlank {
             "URGENT: Tree Hazard & Statutory Grievance [$trackingId] at ${addressLandmark.ifBlank { "Pune" }}"
@@ -450,20 +472,57 @@ Pune Tree Rakshak (Citizen Grievance Portal)
 
     private fun parseJsonSafely(raw: String): JSONObject {
         if (raw.isBlank()) return JSONObject()
+        val cleaned = cleanJsonString(raw)
         return try {
-            val startIndex = raw.indexOf('{')
-            val endIndex = raw.lastIndexOf('}')
-            if (startIndex != -1 && endIndex != -1 && endIndex > startIndex) {
-                val jsonStr = raw.substring(startIndex, endIndex + 1)
-                JSONObject(jsonStr)
-            } else {
-                val clean = raw.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
-                JSONObject(clean)
-            }
+            JSONObject(cleaned)
         } catch (e: Exception) {
-            android.util.Log.e("LocalGemmaEngine", "JSON parsing failed for text: $raw", e)
-            JSONObject()
+            android.util.Log.w("LocalGemmaEngine", "JSON parsing failed for cleaned text: $cleaned (raw: $raw): ${e.message}")
+            try {
+                val firstBrace = raw.indexOf('{')
+                val lastBrace = raw.lastIndexOf('}')
+                if (firstBrace != -1 && lastBrace != -1 && lastBrace > firstBrace) {
+                    JSONObject(raw.substring(firstBrace, lastBrace + 1))
+                } else {
+                    JSONObject()
+                }
+            } catch (_: Exception) {
+                JSONObject()
+            }
         }
+    }
+
+    private fun cleanJsonString(raw: String): String {
+        var text = raw.trim()
+            .removePrefix("```json")
+            .removePrefix("```")
+            .removeSuffix("```")
+            .trim()
+
+        if (!text.contains("{")) {
+            text = "{\n$text"
+        } else {
+            val firstBrace = text.indexOf('{')
+            text = text.substring(firstBrace)
+        }
+
+        // Fix missing quote after opening brace, e.g. {tree_detected": -> {"tree_detected":
+        text = text.replace(Regex("""\{\s*([a-zA-Z0-9_]+)"\s*:"""), "{\"$1\":")
+
+        // Fix missing quote on subsequent keys, e.g. , rejection_reason": -> , "rejection_reason":
+        text = text.replace(Regex(""",\s*([a-zA-Z0-9_]+)"\s*:"""), ", \"$1\":")
+
+        // Remove trailing comma
+        text = text.replace(Regex(""",\s*$"""), "")
+
+        // If no closing brace, add it
+        if (!text.contains("}")) {
+            text = text.trimEnd().trimEnd(',') + "\n}"
+        } else {
+            val lastBrace = text.lastIndexOf('}')
+            text = text.substring(0, lastBrace + 1)
+        }
+
+        return text
     }
 
     private fun scaleBitmapForVision(src: Bitmap, maxDim: Int = 1024): Bitmap {
