@@ -160,26 +160,44 @@ class LocalGemmaEngine(private val context: Context) {
             .setMaxTokens(1024)
             .build()
 
+        android.util.Log.d("LocalGemmaEngine", "Creating LlmInference session...")
         val inference = LlmInference.createFromOptions(context, options)
+
         val prompt = """
-            You are an on-device civic arborist AI.
-            Analyze report: Category: $primaryCategory, Categories: ${selectedCategories.joinToString()}, Landmark: $addressLandmark, Notes: $citizenNotes.
-            Output JSON:
+            <start_of_turn>user
+            You are an edge AI assistant for Pune Municipal Corporation civic tree complaints.
+            Generate a formal legal grievance notice under the Maharashtra (Urban Areas) Protection and Preservation of Trees Act, 1975.
+            Complaint Details:
+            - Primary Violation: $primaryCategory
+            - All Violations: ${selectedCategories.joinToString()}
+            - Location: ${addressLandmark.ifBlank { "Pune Municipal Area" }}
+            - Citizen Observation: ${citizenNotes.ifBlank { "Physical inspection requested on site." }}
+            - Complainant: $citizenName
+            - Reference ID: $trackingId
+
+            Generate strictly valid JSON with no extra commentary:
             {
-              "tree_detected": true,
-              "detected_issue_category": "$primaryCategory",
-              "co_occurring_categories": ${selectedCategories.joinToString(prefix = "[\"", separator = "\",\"", postfix = "\"]")},
-              "estimated_tree_species": "Observed Native Tree (Azadirachta indica / Rain Tree)",
-              "visual_damage_summary": "Observed structural risk under $primaryCategory with potential co-occurring hazards at $addressLandmark.",
-              "urgency_level": "HIGH",
-              "draft_subject_en": "Statutory Notice: Tree Violation & Risk [$trackingId] at $addressLandmark",
-              "draft_body_en": "Dear Tree Officer, I am formally reporting $primaryCategory at $addressLandmark. Section 2(c) and Section 21 of Maharashtra Tree Act 1975 apply. Submitted by: $citizenName",
-              "draft_summary_mr": "झाड तक्रार: $primaryCategory बाबत तातडीने कारवाई करावी. ठिकाण: $addressLandmark."
+              "draft_subject_en": "Statutory Notice under Maharashtra Tree Act 1975: $primaryCategory at ${addressLandmark.ifBlank { "Pune" }} [$trackingId]",
+              "draft_body_en": "Formal letter body addressed to Tree Officer, PMC citing Section 2(c) and Section 21 of Maharashtra Tree Act 1975.",
+              "draft_summary_mr": "मराठी तक्रार सारांश",
+              "urgency_level": "HIGH"
             }
+            <end_of_turn>
+            <start_of_turn>model
+            {
         """.trimIndent()
 
-        val responseText = inference.generateResponse(prompt)
-        val parsed = parseJsonSafely(responseText)
+        android.util.Log.d("LocalGemmaEngine", "Generating Gemma response...")
+        val rawResponse = try {
+            inference.generateResponse(prompt)
+        } catch (e: Exception) {
+            android.util.Log.e("LocalGemmaEngine", "generateResponse error", e)
+            ""
+        }
+        val fullResponse = if (rawResponse.startsWith("{")) rawResponse else "{$rawResponse"
+        android.util.Log.d("LocalGemmaEngine", "Raw Gemma response:\n$fullResponse")
+
+        val parsed = parseJsonSafely(fullResponse)
 
         val subject = parsed.optString("draft_subject_en").ifBlank {
             "URGENT: Tree Hazard & Statutory Grievance [$trackingId] at ${addressLandmark.ifBlank { "Pune" }}"
@@ -207,8 +225,8 @@ class LocalGemmaEngine(private val context: Context) {
             mismatchReasonMr = null,
             aiAdditionalCategory = parsed.optString("ai_additional_category").takeIf { it.isNotBlank() && it != "null" && it != primaryCategory },
             aiAdditionalReasonEn = parsed.optString("ai_additional_reason_en").takeIf { it.isNotBlank() && it != "null" },
-            estimatedTreeSpecies = parsed.optString("estimated_tree_species", "Native Shade Tree (Ficus / Azadirachta)"),
-            visualDamageSummary = parsed.optString("visual_damage_summary", "On-device Gemma 3n verified structural damage and locus evidence."),
+            estimatedTreeSpecies = parsed.optString("estimated_tree_species", "Native Tree (Pending Field Inspection)"),
+            visualDamageSummary = parsed.optString("visual_damage_summary", "On-device Gemma 3n drafted statutory legal grievance for $primaryCategory under Maharashtra Tree Act 1975."),
             perpetratorObserved = perpetratorName != null || perpetratorPhone != null,
             perpetratorDescription = if (perpetratorName != null) "Accused contractor: $perpetratorName ($perpetratorPhone)" else null,
             perpetratorName = perpetratorName,
@@ -387,14 +405,19 @@ Pune Tree Rakshak (Citizen Grievance Portal)
     }
 
     private fun parseJsonSafely(raw: String): JSONObject {
+        if (raw.isBlank()) return JSONObject()
         return try {
-            val clean = raw.trim()
-                .removePrefix("```json")
-                .removePrefix("```")
-                .removeSuffix("```")
-                .trim()
-            JSONObject(clean)
+            val startIndex = raw.indexOf('{')
+            val endIndex = raw.lastIndexOf('}')
+            if (startIndex != -1 && endIndex != -1 && endIndex > startIndex) {
+                val jsonStr = raw.substring(startIndex, endIndex + 1)
+                JSONObject(jsonStr)
+            } else {
+                val clean = raw.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+                JSONObject(clean)
+            }
         } catch (e: Exception) {
+            android.util.Log.e("LocalGemmaEngine", "JSON parsing failed for text: $raw", e)
             JSONObject()
         }
     }
