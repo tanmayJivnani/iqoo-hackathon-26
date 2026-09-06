@@ -41,6 +41,27 @@ data class TreeCategory(
                 "Section 2(c) & Section 21: Damaging or sabotaging protected urban vegetation"
             )
         }
+
+    val formalSubjectName: String
+        get() = when (key) {
+            "ROOT_CONCRETIZATION" -> "Severe Root Basin Concretization"
+            "DANGEROUS_LEANING_FALL_RISK" -> "Dangerous Leaning Tree & Fall Risk"
+            "ILLEGAL_FELLING" -> "Illegal Tree Felling / Cutting"
+            "UNAUTHORIZED_PRUNING" -> "Unauthorized Excessive Tree Pruning"
+            "NAILS_BOARDS_CABLE_STRANGULATION" -> "Tree Defacement (Nails, Boards & Cable Strangulation)"
+            "HAZARDOUS_BRANCH" -> "Hazardous Overhanging Tree Limb"
+            else -> title.replace(Regex("""[\p{So}\p{Sk}\p{Cs}\p{Cn}\p{Co}]"""), "").trim()
+        }
+}
+
+fun sanitizeEmailSubject(raw: String): String {
+    return raw
+        // Remove emoji and pictographs
+        .replace(Regex("""[\p{So}\p{Sk}\p{Cs}\p{Cn}\p{Co}]"""), "")
+        // Clean up double spaces or dangling hyphens/ampersands
+        .replace(Regex("""\s+"""), " ")
+        .replace(" - & ", " & ")
+        .trim()
 }
 
 object TreeCategories {

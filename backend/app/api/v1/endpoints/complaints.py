@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 import hashlib
 import urllib.parse
@@ -414,16 +415,22 @@ async def dispatch_complaint(
 
     # 1. Email Channel
     if "EMAIL" in payload.channels:
+        raw_subject = complaint.draft_subject_en or ""
+        clean_subject = re.sub(r'[\U00010000-\U0010ffff]', '', raw_subject)
+        clean_subject = re.sub(r'[\u2600-\u27BF\u2300-\u23FF]', '', clean_subject)
+        clean_subject = re.sub(r'\s+', ' ', clean_subject).strip()
+        final_subject = clean_subject if complaint.tracking_id in clean_subject else f"[{complaint.tracking_id}] {clean_subject}"
+
         send_result = await EmailService.send_complaint_email(
             to_email=complaint.target_email,
-            subject=f"[{complaint.tracking_id}] {complaint.draft_subject_en}",
+            subject=final_subject,
             body_text=f"{complaint.draft_body_en}\n\n---\nतक्रार गोषवारा:\n{complaint.draft_summary_mr}",
             pdf_path=complaint.pdf_path
         )
         email_res = EmailDispatchResult(
             sent=send_result.get("sent", False),
             recipient=complaint.target_email,
-            subject=complaint.draft_subject_en,
+            subject=final_subject,
             pdf_attached=send_result.get("pdf_attached", False),
             error=send_result.get("error")
         )

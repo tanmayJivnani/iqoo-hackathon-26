@@ -82,7 +82,13 @@ fun DispatchScreen(
             val emailIntent = Intent(Intent.ACTION_SEND).apply {
                 type = "application/pdf"
                 putExtra(Intent.EXTRA_EMAIL, arrayOf(draft.routedAuthority.email))
-                putExtra(Intent.EXTRA_SUBJECT, "[${draft.trackingId}] ${draft.draftSubjectEn}")
+                val cleanSubject = org.punetrees.app.core.category.sanitizeEmailSubject(draft.draftSubjectEn)
+                val finalSubject = if (cleanSubject.contains(draft.trackingId)) {
+                    cleanSubject
+                } else {
+                    "[${draft.trackingId}] $cleanSubject"
+                }
+                putExtra(Intent.EXTRA_SUBJECT, finalSubject)
                 val emailBodyText = "${draft.draftBodyEn}\n\n---\nतक्रार गोषवारा (Marathi Summary):\n${draft.draftSummaryMr}\n\nStatus Tracker: https://punetrees.org/track/${draft.trackingId}"
                 putExtra(Intent.EXTRA_TEXT, emailBodyText)
 

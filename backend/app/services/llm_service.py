@@ -1,4 +1,5 @@
 import json
+import re
 import httpx
 from typing import Dict, Any, Optional, List
 from app.core.config import settings
@@ -128,7 +129,7 @@ You must output a strictly valid JSON object with the following schema:
   "felling_stage": "IN_PROGRESS" | "COMPLETED" | "NOT_APPLICABLE",
   "visual_damage_summary": "Precise factual morphological description of what is visually observed on the tree",
   "estimated_urgency": "CRITICAL_EMERGENCY" | "HIGH" | "MEDIUM" | "ROUTINE",
-  "draft_subject_en": "Formal email subject line embedding {address_landmark}, {ward_name}, and [Grievance Ref: {tracking_id}] (or null if tree_detected is false)",
+  "draft_subject_en": "Formal email subject line embedding {address_landmark}, {ward_name}, and [Grievance Ref: {tracking_id}] (strictly NO emojis or unicode symbols, or null if tree_detected is false)",
   "draft_body_en": "Formal concise first-person letter in English addressed to Tree Officer, ending with sign-off block (or null if tree_detected is false)",
   "draft_summary_mr": "A 2-3 sentence concise Marathi message for WhatsApp dispatch (or null if tree_detected is false)"
 }}
@@ -241,6 +242,9 @@ INSTRUCTIONS:
                                     for k, v in base_draft.items():
                                         if k not in parsed_json or not parsed_json[k]:
                                             parsed_json[k] = v
+
+                                if parsed_json.get("draft_subject_en"):
+                                    parsed_json["draft_subject_en"] = LlmService._clean_subject(parsed_json["draft_subject_en"])
                                             
                                 additional_cat = parsed_json.get("ai_additional_category")
                                 if additional_cat and (additional_cat == target_category or additional_cat == "null" or additional_cat == "None"):
@@ -339,6 +343,9 @@ INSTRUCTIONS:
                                         if k not in parsed_json or not parsed_json[k]:
                                             parsed_json[k] = v
 
+                                if parsed_json.get("draft_subject_en"):
+                                    parsed_json["draft_subject_en"] = LlmService._clean_subject(parsed_json["draft_subject_en"])
+
                                 parsed_json["detected_issue_category"] = target_category
                                 parsed_json["is_category_mismatch"] = False
                                 parsed_json["ai_suggested_category"] = None
@@ -399,6 +406,15 @@ INSTRUCTIONS:
                 except Exception:
                     pass
             return {}
+
+    @staticmethod
+    def _clean_subject(text: Optional[str]) -> str:
+        if not text:
+            return ""
+        clean = re.sub(r'[\U00010000-\U0010ffff]', '', text)
+        clean = re.sub(r'[\u2600-\u27BF\u2300-\u23FF]', '', clean)
+        clean = re.sub(r'\s+', ' ', clean)
+        return clean.strip()
 
     @staticmethod
     def _get_default_draft(

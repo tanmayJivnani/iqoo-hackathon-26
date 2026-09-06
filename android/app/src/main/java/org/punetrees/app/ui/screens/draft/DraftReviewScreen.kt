@@ -75,7 +75,7 @@ fun DraftReviewScreen(
     var isGeneratingPdf by remember { mutableStateOf(false) }
     var isZoomModalOpen by remember { mutableStateOf(false) }
 
-    var editableSubject by remember { mutableStateOf(draft.draftSubjectEn) }
+    var editableSubject by remember { mutableStateOf(org.punetrees.app.core.category.sanitizeEmailSubject(draft.draftSubjectEn)) }
     var editableBody by remember { mutableStateOf(draft.draftBodyEn) }
     var isEditing by remember { mutableStateOf(false) }
 
@@ -93,23 +93,37 @@ fun DraftReviewScreen(
             showAdditionalPrompt = false
             currentCitations = (currentCitations + additionalCat.statutoryGrounding).distinct()
 
-            if (!editableSubject.contains(additionalCat.title, ignoreCase = true)) {
-                editableSubject = if (editableSubject.contains("[Grievance Ref:")) {
-                    editableSubject.replace("[Grievance Ref:", "& ${additionalCat.title} [Grievance Ref:")
+            val formalAddTitle = additionalCat.formalSubjectName
+            if (!editableSubject.contains(formalAddTitle, ignoreCase = true) &&
+                !editableSubject.contains("Concretization", ignoreCase = true)) {
+
+                val cleanSubject = org.punetrees.app.core.category.sanitizeEmailSubject(editableSubject)
+                val atIdx = cleanSubject.indexOf(" at ", ignoreCase = true)
+
+                editableSubject = if (atIdx != -1) {
+                    val beforeAt = cleanSubject.substring(0, atIdx).trim()
+                    val afterAt = cleanSubject.substring(atIdx)
+                    "$beforeAt & $formalAddTitle$afterAt"
+                } else if (cleanSubject.contains("[Grievance Ref:", ignoreCase = true)) {
+                    cleanSubject.replace("[Grievance Ref:", "& $formalAddTitle [Grievance Ref:")
+                } else if (cleanSubject.contains("[")) {
+                    val bracketIdx = cleanSubject.indexOf("[")
+                    cleanSubject.substring(0, bracketIdx).trim() + " & $formalAddTitle " + cleanSubject.substring(bracketIdx)
                 } else {
-                    "$editableSubject & ${additionalCat.title}"
+                    "$cleanSubject & $formalAddTitle"
                 }
+                editableSubject = org.punetrees.app.core.category.sanitizeEmailSubject(editableSubject)
             }
 
             val additionSection = """
 
-ADDITIONAL CONCURRENT VIOLATION IDENTIFIED:
-• Category: ${additionalCat.title}
-• Visual Evidence: ${draft.aiAdditionalReasonEn ?: "Observed co-occurring defect on tree subject."}
+ADDITIONAL CONCURRENT STATUTORY VIOLATION IDENTIFIED:
+• Category: ${additionalCat.formalSubjectName}
+• Visual Evidence: ${draft.aiAdditionalReasonEn ?: "Concurrently observed root basin choking and ground-level paving."}
 • Statutory Violation: ${additionalCat.statutoryGrounding.joinToString("; ")}
 """.trimIndent()
 
-            if (!editableBody.contains(additionalCat.title, ignoreCase = true)) {
+            if (!editableBody.contains(additionalCat.formalSubjectName, ignoreCase = true)) {
                 val signoffIdx = editableBody.indexOf("If you need any more details")
                 editableBody = if (signoffIdx != -1) {
                     editableBody.substring(0, signoffIdx).trimEnd() + "\n\n" + additionSection + "\n\n" + editableBody.substring(signoffIdx)
