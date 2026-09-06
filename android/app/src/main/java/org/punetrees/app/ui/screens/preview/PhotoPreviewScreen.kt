@@ -190,9 +190,6 @@ fun PhotoPreviewScreen(
                             val thoroughfare = addr.thoroughfare ?: ""
                             resolved = line ?: listOfNotNull(thoroughfare, subLoc, loc).filter { it.isNotBlank() }.joinToString(", ")
                             geotaggedAddress = resolved
-                            if (addressLandmark.isBlank() && resolved != null) {
-                                addressLandmark = resolved!!
-                            }
                         }
                         isGeocoding = false
                     }
@@ -207,9 +204,6 @@ fun PhotoPreviewScreen(
                         val thoroughfare = addr.thoroughfare ?: ""
                         resolved = line ?: listOfNotNull(thoroughfare, subLoc, loc).filter { it.isNotBlank() }.joinToString(", ")
                         geotaggedAddress = resolved
-                        if (addressLandmark.isBlank() && resolved != null) {
-                            addressLandmark = resolved!!
-                        }
                     }
                     isGeocoding = false
                 }
@@ -227,9 +221,6 @@ fun PhotoPreviewScreen(
                 if (nearest != null) {
                     val approx = "${nearest.name}, ${nearest.ward}, Pune"
                     geotaggedAddress = approx
-                    if (addressLandmark.isBlank()) {
-                        addressLandmark = approx
-                    }
                 }
             }
         }
@@ -731,19 +722,15 @@ fun PhotoPreviewScreen(
                         minLines = 3
                     )
 
-                    // 2. Geotagged Address & Landmark
+                    // 2. Nearby Landmark (Optional)
                     OutlinedTextField(
                         value = addressLandmark,
                         onValueChange = { addressLandmark = it },
-                        label = { Text("Geotagged Address & Landmark") },
+                        label = { Text("Nearby Landmark (Optional)") },
                         placeholder = { Text("e.g. Opposite Gate 2, near Goodluck Cafe...") },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp),
-                        singleLine = false,
-                        maxLines = 2,
-                        supportingText = {
-                            Text("Auto-geotagged from evidence coordinates. Tap to edit or add landmarks.", fontSize = 10.sp, color = Color.Gray)
-                        }
+                        singleLine = true
                     )
 
                     // 3. Contractor / Cutter Info Card (if Felling or Unauthorized Pruning)
