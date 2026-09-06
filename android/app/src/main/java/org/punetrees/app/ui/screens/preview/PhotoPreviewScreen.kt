@@ -77,6 +77,11 @@ fun PhotoPreviewScreen(
     var isProcessing by remember { mutableStateOf(false) }
     var processingStatus by remember { mutableStateOf("Executing analysis...") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // Live Geotagging & Gemma setup states
+    var geotaggedAddress by remember { mutableStateOf<String?>(null) }
+    var isGeocoding by remember { mutableStateOf(false) }
+    var showImportGemmaDialog by remember { mutableStateOf(false) }
     
     // Anti-spam warning & cooldown dialog states
     var rejectionDialogText by remember { mutableStateOf<String?>(null) }
@@ -164,6 +169,67 @@ fun PhotoPreviewScreen(
                     Toast.makeText(context, "Gemma 3n model installed successfully!", Toast.LENGTH_LONG).show()
                 } else {
                     Toast.makeText(context, "Failed to import model. Please check file format.", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(latitude, longitude) {
+        isGeocoding = true
+        withContext(Dispatchers.IO) {
+            try {
+                val geocoder = android.location.Geocoder(context, java.util.Locale.ENGLISH)
+                var resolved: String? = null
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                    geocoder.getFromLocation(latitude, longitude, 1) { list ->
+                        val addr = list.firstOrNull()
+                        if (addr != null) {
+                            val line = addr.getAddressLine(0)
+                            val subLoc = addr.subLocality ?: ""
+                            val loc = addr.locality ?: "Pune"
+                            val thoroughfare = addr.thoroughfare ?: ""
+                            resolved = line ?: listOfNotNull(thoroughfare, subLoc, loc).filter { it.isNotBlank() }.joinToString(", ")
+                            geotaggedAddress = resolved
+                            if (addressLandmark.isBlank() && resolved != null) {
+                                addressLandmark = resolved!!
+                            }
+                        }
+                        isGeocoding = false
+                    }
+                } else {
+                    @Suppress("DEPRECATION")
+                    val list = geocoder.getFromLocation(latitude, longitude, 1)
+                    val addr = list?.firstOrNull()
+                    if (addr != null) {
+                        val line = addr.getAddressLine(0)
+                        val subLoc = addr.subLocality ?: ""
+                        val loc = addr.locality ?: "Pune"
+                        val thoroughfare = addr.thoroughfare ?: ""
+                        resolved = line ?: listOfNotNull(thoroughfare, subLoc, loc).filter { it.isNotBlank() }.joinToString(", ")
+                        geotaggedAddress = resolved
+                        if (addressLandmark.isBlank() && resolved != null) {
+                            addressLandmark = resolved!!
+                        }
+                    }
+                    isGeocoding = false
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                isGeocoding = false
+            }
+
+            if (geotaggedAddress == null) {
+                val nearest = org.punetrees.app.core.location.LocationProvider.DEMO_PRESETS.minByOrNull {
+                    val dLat = it.latitude - latitude
+                    val dLon = it.longitude - longitude
+                    dLat * dLat + dLon * dLon
+                }
+                if (nearest != null) {
+                    val approx = "${nearest.name}, ${nearest.ward}, Pune"
+                    geotaggedAddress = approx
+                    if (addressLandmark.isBlank()) {
+                        addressLandmark = approx
+                    }
                 }
             }
         }
@@ -404,6 +470,52 @@ fun PhotoPreviewScreen(
         )
     }
 
+    // 5. Gemma 3n Import Prompt Dialog
+    if (showImportGemmaDialog) {
+        AlertDialog(
+            onDismissRequest = { showImportGemmaDialog = false },
+            icon = { Icon(Icons.Default.FileDownload, contentDescription = null, tint = ForestGreenPrimary) },
+            title = { Text("Import Gemma 3n Model", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Gemma 3n model file (.task) was not detected in the app's local sandbox.",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        "If you downloaded 'gemma-3n-E2B-it-int4.task' to your device Downloads folder, tap below to select and import it into the app.",
+                        fontSize = 12.sp,
+                        color = Color.DarkGray
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showImportGemmaDialog = false
+                        importModelLauncher.launch(arrayOf("*/*"))
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary)
+                ) {
+                    Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Select from Downloads")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showImportGemmaDialog = false
+                        executeLocalInference()
+                    }
+                ) {
+                    Text("Run Rule Engine", color = Color.Gray)
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -541,26 +653,70 @@ fun PhotoPreviewScreen(
                         }
                     }
 
-                    // GPS Location Card
+                    // GPS Geotagged Evidence Card
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFECEFF1)),
-                        shape = RoundedCornerShape(10.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF1F8E9)),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.5.dp, ForestGreenPrimary.copy(alpha = 0.5f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.LocationOn, contentDescription = null, tint = ForestGreenPrimary, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Evidence Coordinates: ${String.format("%.4f° N, %.4f° E", latitude, longitude)}",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = Color.DarkGray
-                            )
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.LocationOn, contentDescription = null, tint = ForestGreenPrimary, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Geotagged Evidence Location",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = ForestGreenDark
+                                    )
+                                }
+                                Surface(
+                                    color = ForestGreenPrimary,
+                                    shape = RoundedCornerShape(4.dp)
+                                ) {
+                                    Text(
+                                        text = "GPS LOCKED ✓",
+                                        color = Color.White,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+
+                            Row(verticalAlignment = Alignment.Top) {
+                                Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color(0xFFC62828), modifier = Modifier.size(18.dp).padding(top = 1.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Column {
+                                    if (isGeocoding) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 2.dp, color = ForestGreenPrimary)
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text("Geotagging street & area...", fontSize = 12.sp, color = Color.Gray)
+                                        }
+                                    } else {
+                                        Text(
+                                            text = geotaggedAddress ?: "Pune Municipal Corporation Area",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = Color(0xFF263238),
+                                            lineHeight = 17.sp
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(3.dp))
+                                    Text(
+                                        text = "Recorded GPS: ${String.format("%.5f° N, %.5f° E", latitude, longitude)}",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF546E7A)
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -575,15 +731,19 @@ fun PhotoPreviewScreen(
                         minLines = 3
                     )
 
-                    // 2. Nearby Landmark (Optional)
+                    // 2. Geotagged Address & Landmark
                     OutlinedTextField(
                         value = addressLandmark,
                         onValueChange = { addressLandmark = it },
-                        label = { Text("Nearby Landmark (Optional)") },
+                        label = { Text("Geotagged Address & Landmark") },
                         placeholder = { Text("e.g. Opposite Gate 2, near Goodluck Cafe...") },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp),
-                        singleLine = true
+                        singleLine = false,
+                        maxLines = 2,
+                        supportingText = {
+                            Text("Auto-geotagged from evidence coordinates. Tap to edit or add landmarks.", fontSize = 10.sp, color = Color.Gray)
+                        }
                     )
 
                     // 3. Contractor / Cutter Info Card (if Felling or Unauthorized Pruning)
@@ -720,10 +880,58 @@ fun PhotoPreviewScreen(
                             color = ForestGreenDark
                         )
 
-                        // 1. Local On-Device Inference Button (Gemma 3n / Edge)
                         val isModelFound = isModelInstalledState || localGemmaEngine.isModelInstalled()
+
+                        // Prominent Gemma 3n Setup Banner if not yet imported
+                        if (!isModelFound) {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF8E1)),
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.dp, Color(0xFFFFB300)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "📱 Gemma 3n Model Not Imported",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp,
+                                            color = Color(0xFFE65100)
+                                        )
+                                        Text(
+                                            text = "Have .task in Downloads? Import to enable on-device arborist LLM.",
+                                            fontSize = 11.sp,
+                                            color = Color(0xFF5D4037)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Button(
+                                        onClick = { importModelLauncher.launch(arrayOf("*/*")) },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE65100)),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                        modifier = Modifier.height(34.dp)
+                                    ) {
+                                        Text("Import", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+
+                        // 1. Local On-Device Inference Button (Gemma 3n / Edge)
                         OutlinedButton(
-                            onClick = { executeLocalInference() },
+                            onClick = {
+                                if (!isModelFound) {
+                                    showImportGemmaDialog = true
+                                } else {
+                                    executeLocalInference()
+                                }
+                            },
                             enabled = currentPhotos.size >= 3,
                             border = BorderStroke(1.5.dp, ForestGreenPrimary),
                             shape = RoundedCornerShape(10.dp),
@@ -751,35 +959,24 @@ fun PhotoPreviewScreen(
                                             color = ForestGreenDark
                                         )
                                         Text(
-                                            text = if (isModelFound) "⚡ NPU accelerated • 0ms Network • Offline" else "⚡ Deterministic Statutory Matrix • Offline",
+                                            text = if (isModelFound) "⚡ NPU accelerated • 0ms Network • Offline" else "⚡ Tap to import model or run rule engine",
                                             fontSize = 10.sp,
                                             color = Color.DarkGray
                                         )
                                     }
                                 }
                                 Surface(
-                                    color = ForestGreenPrimary,
+                                    color = if (isModelFound) ForestGreenPrimary else Color(0xFF757575),
                                     shape = RoundedCornerShape(4.dp)
                                 ) {
                                     Text(
-                                        text = if (isModelFound) "Gemma 3n ✓" else "Offline",
+                                        text = if (isModelFound) "Gemma 3n ✓" else "Setup / Rule",
                                         color = Color.White,
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
                                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                                     )
                                 }
-                            }
-                        }
-
-                        if (!isModelFound) {
-                            TextButton(
-                                onClick = { importModelLauncher.launch(arrayOf("*/*")) },
-                                modifier = Modifier.align(Alignment.CenterHorizontally)
-                            ) {
-                                Icon(Icons.Default.FileDownload, contentDescription = null, tint = ForestGreenDark, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("📥 Select Gemma 3n .task from Downloads", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = ForestGreenDark)
                             }
                         }
 

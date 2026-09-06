@@ -249,6 +249,32 @@ fun CameraCaptureScreen(
                         }
                     }
 
+                    // Live Geotag GPS Status Chip
+                    Surface(
+                        color = Color(0xFFF1F8E9),
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, ForestGreenPrimary.copy(alpha = 0.4f)),
+                        modifier = Modifier.padding(vertical = 2.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Default.LocationOn, contentDescription = null, tint = ForestGreenPrimary, modifier = Modifier.size(15.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (currentCoords != null) {
+                                    "GPS Locked: ${String.format("%.4f° N, %.4f° E", currentCoords!!.first, currentCoords!!.second)}"
+                                } else {
+                                    "Acquiring high-accuracy GPS lock..."
+                                },
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = ForestGreenDark
+                            )
+                        }
+                    }
+
                     // Current shot instruction card
                     val currentIdx = capturedTreePhotos.size.coerceIn(0, 2)
                     Card(
