@@ -78,10 +78,9 @@ fun PhotoPreviewScreen(
     var processingStatus by remember { mutableStateOf("Executing analysis...") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // Live Geotagging & Gemma setup states
+    // Live Geotagging
     var geotaggedAddress by remember { mutableStateOf<String?>(null) }
     var isGeocoding by remember { mutableStateOf(false) }
-    var showImportGemmaDialog by remember { mutableStateOf(false) }
     
     // Anti-spam warning & cooldown dialog states
     var rejectionDialogText by remember { mutableStateOf<String?>(null) }
@@ -152,27 +151,6 @@ fun PhotoPreviewScreen(
     }
 
     var isModelInstalledState by remember { mutableStateOf(localGemmaEngine.isModelInstalled()) }
-
-    val importModelLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            isProcessing = true
-            processingStatus = "Importing Gemma 3n model from storage..."
-            coroutineScope.launch {
-                val success = withContext(Dispatchers.IO) {
-                    localGemmaEngine.importModelFromUri(uri)
-                }
-                isProcessing = false
-                if (success) {
-                    isModelInstalledState = true
-                    Toast.makeText(context, "Gemma 3n model installed successfully!", Toast.LENGTH_LONG).show()
-                } else {
-                    Toast.makeText(context, "Failed to import model. Please check file format.", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-    }
 
     LaunchedEffect(latitude, longitude) {
         isGeocoding = true
@@ -456,52 +434,6 @@ fun PhotoPreviewScreen(
                     Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("Gallery")
-                }
-            }
-        )
-    }
-
-    // 5. Gemma 3n Import Prompt Dialog
-    if (showImportGemmaDialog) {
-        AlertDialog(
-            onDismissRequest = { showImportGemmaDialog = false },
-            icon = { Icon(Icons.Default.FileDownload, contentDescription = null, tint = ForestGreenPrimary) },
-            title = { Text("Import Gemma 3n Model", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        "Gemma 3n model file (.task) was not detected in the app's local sandbox.",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Text(
-                        "If you downloaded 'gemma-3n-E2B-it-int4.task' to your device Downloads folder, tap below to select and import it into the app.",
-                        fontSize = 12.sp,
-                        color = Color.DarkGray
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showImportGemmaDialog = false
-                        importModelLauncher.launch(arrayOf("*/*"))
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary)
-                ) {
-                    Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Select from Downloads")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showImportGemmaDialog = false
-                        executeLocalInference()
-                    }
-                ) {
-                    Text("Run Rule Engine", color = Color.Gray)
                 }
             }
         )
@@ -869,56 +801,9 @@ fun PhotoPreviewScreen(
 
                         val isModelFound = isModelInstalledState || localGemmaEngine.isModelInstalled()
 
-                        // Prominent Gemma 3n Setup Banner if not yet imported
-                        if (!isModelFound) {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF8E1)),
-                                shape = RoundedCornerShape(10.dp),
-                                border = BorderStroke(1.dp, Color(0xFFFFB300)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(12.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "📱 Gemma 3n Model Not Imported",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 12.sp,
-                                            color = Color(0xFFE65100)
-                                        )
-                                        Text(
-                                            text = "Have .task in Downloads? Import to enable on-device arborist LLM.",
-                                            fontSize = 11.sp,
-                                            color = Color(0xFF5D4037)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Button(
-                                        onClick = { importModelLauncher.launch(arrayOf("*/*")) },
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE65100)),
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                        modifier = Modifier.height(34.dp)
-                                    ) {
-                                        Text("Import", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        }
-
                         // 1. Local On-Device Inference Button (Gemma 3n / Edge)
                         OutlinedButton(
-                            onClick = {
-                                if (!isModelFound) {
-                                    showImportGemmaDialog = true
-                                } else {
-                                    executeLocalInference()
-                                }
-                            },
+                            onClick = { executeLocalInference() },
                             enabled = currentPhotos.size >= 3,
                             border = BorderStroke(1.5.dp, ForestGreenPrimary),
                             shape = RoundedCornerShape(10.dp),
