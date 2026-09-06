@@ -160,13 +160,18 @@ class LocalGemmaEngine(private val context: Context) {
         perpetratorName: String?,
         perpetratorPhone: String?
     ): AnalyzeAndDraftResponse {
-        val options = LlmInference.LlmInferenceOptions.builder()
+        val optionsBuilder = LlmInference.LlmInferenceOptions.builder()
             .setModelPath(modelFile.absolutePath)
             .setMaxTokens(1024)
-            .build()
+            .setMaxNumImages(1)
 
-        android.util.Log.d("LocalGemmaEngine", "Creating LlmInference session for Gemma 3n...")
-        val inference = LlmInference.createFromOptions(context, options)
+        android.util.Log.d("LocalGemmaEngine", "Creating LlmInference instance for Gemma 3n (${modelFile.name})...")
+        val inference = try {
+            LlmInference.createFromOptions(context, optionsBuilder.setPreferredBackend(LlmInference.Backend.GPU).build())
+        } catch (gpuErr: Throwable) {
+            android.util.Log.w("LocalGemmaEngine", "GPU backend failed to init, falling back to DEFAULT: ${gpuErr.message}")
+            LlmInference.createFromOptions(context, optionsBuilder.setPreferredBackend(LlmInference.Backend.DEFAULT).build())
+        }
 
         val prompt = """
             <start_of_turn>user
@@ -209,13 +214,10 @@ class LocalGemmaEngine(private val context: Context) {
                 // Pass the primary captured photo to Gemma 3n multimodal vision!
                 val primaryBitmap = photos.firstOrNull()?.first
                 if (primaryBitmap != null) {
-                    try {
-                        val mpImage = BitmapImageBuilder(primaryBitmap).build()
-                        session.addImage(mpImage)
-                        android.util.Log.d("LocalGemmaEngine", "Attached photo to Gemma 3n session (${primaryBitmap.width}x${primaryBitmap.height})")
-                    } catch (imgErr: Throwable) {
-                        android.util.Log.w("LocalGemmaEngine", "Could not attach image to session: ${imgErr.message}")
-                    }
+                    val scaled = scaleBitmapForVision(primaryBitmap, 1024)
+                    val mpImage = BitmapImageBuilder(scaled).build()
+                    session.addImage(mpImage)
+                    android.util.Log.d("LocalGemmaEngine", "Attached photo to Gemma 3n session (${scaled.width}x${scaled.height})")
                 }
 
                 android.util.Log.d("LocalGemmaEngine", "Generating Gemma 3n multimodal response...")
@@ -462,5 +464,15 @@ Pune Tree Rakshak (Citizen Grievance Portal)
             android.util.Log.e("LocalGemmaEngine", "JSON parsing failed for text: $raw", e)
             JSONObject()
         }
+    }
+
+    private fun scaleBitmapForVision(src: Bitmap, maxDim: Int = 1024): Bitmap {
+        val w = src.width
+        val h = src.height
+        if (w <= maxDim && h <= maxDim) return src
+        val ratio = minOf(maxDim.toFloat() / w, maxDim.toFloat() / h)
+        val targetW = (w * ratio).toInt().coerceAtLeast(1)
+        val targetH = (h * ratio).toInt().coerceAtLeast(1)
+        return Bitmap.createScaledBitmap(src, targetW, targetH, true)
     }
 }
