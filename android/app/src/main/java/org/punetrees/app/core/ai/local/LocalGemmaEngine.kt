@@ -46,6 +46,19 @@ class LocalGemmaEngine(private val context: Context) {
             if (f.exists() && f.length() > 0) return f
         }
 
+        // Official Google MediaPipe standard test path
+        val tmpDirs = listOf(File("/data/local/tmp/llm"), File("/data/local/tmp"))
+        for (dir in tmpDirs) {
+            if (dir.exists()) {
+                for (name in candidateFilenames) {
+                    val f = File(dir, name)
+                    if (f.exists() && f.length() > 0 && f.canRead()) return f
+                }
+                val anyTask = dir.listFiles()?.firstOrNull { (it.name.endsWith(".task") || it.name.endsWith(".bin")) && it.length() > 0 }
+                if (anyTask != null) return anyTask
+            }
+        }
+
         return null
     }
 
