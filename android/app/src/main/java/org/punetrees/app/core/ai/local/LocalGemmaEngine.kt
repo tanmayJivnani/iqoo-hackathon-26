@@ -158,7 +158,6 @@ class LocalGemmaEngine(private val context: Context) {
         val options = LlmInference.LlmInferenceOptions.builder()
             .setModelPath(modelFile.absolutePath)
             .setMaxTokens(1024)
-            .setTemperature(0.2f)
             .build()
 
         val inference = LlmInference.createFromOptions(context, options)
