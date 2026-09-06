@@ -311,8 +311,19 @@ fun PhotoPreviewScreen(
                         perpetratorPhone = perpetratorPhoneInput.ifBlank { null }
                     )
                 }
-                isProcessing = false
-                onDraftReady(draft, currentPhotos[0].second)
+                if (!draft.treeDetected) {
+                    isProcessing = false
+                    val (failedCount, isNowBlocked) = antiSpamManager.recordInvalidAttempt()
+                    if (isNowBlocked) {
+                        cooldownDialogText = "🚫 Spam Protection Activated (3-Hour Cooldown)\n\nYou have exceeded 2 invalid photo attempts with no tree detected. To preserve civic resources, submission is paused for 3 hours."
+                    } else {
+                        rejectionDialogText = "⚠️ Tree Not Detected (Attempt $failedCount/2)\n\n${draft.rejectionReason ?: "On-device Gemma 3n verified that no tree, branch, or botanical subject is visible in the photos."}\n\nPlease tap any photo above to retake clear photos of the actual tree. You have 1 attempt remaining before a 3-hour cooldown."
+                    }
+                } else {
+                    antiSpamManager.reset()
+                    isProcessing = false
+                    onDraftReady(draft, currentPhotos[0].second)
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
                 isProcessing = false
