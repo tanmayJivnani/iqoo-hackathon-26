@@ -83,6 +83,7 @@ dependencies {
 
     // Google MediaPipe LLM Inference for on-device Gemma (0.10.35+ supports STABLEHLO_COMPOSITE for modern Gemma models)
     implementation("com.google.mediapipe:tasks-genai:0.10.35")
+    implementation("com.google.mediapipe:tasks-vision:0.10.14")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
