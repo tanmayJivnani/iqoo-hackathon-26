@@ -787,69 +787,21 @@ fun PhotoPreviewScreen(
                         )
                     }
 
-                    // Complaint Drafting Options
+                    // Hackathon AI Inference Engine Selection
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
-                            text = "Submit & Draft Formal Grievance",
+                            text = "🤖 Select AI Inference Engine (Hackathon Showcase)",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             color = ForestGreenDark
                         )
 
-                        // 1. Online Smart Report (Primary / Recommended)
-                        Button(
-                            onClick = { executeAnalysis() },
-                            enabled = currentPhotos.size >= 3,
-                            colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Icon(Icons.Default.Cloud, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text(
-                                            text = "✨ Online Smart Report",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp,
-                                            color = Color.White
-                                        )
-                                        Text(
-                                            text = "Checks tree photos & matches with Tree Census",
-                                            fontSize = 10.sp,
-                                            color = Color.White.copy(alpha = 0.9f)
-                                        )
-                                    }
-                                }
-                                Surface(
-                                    color = Color.White.copy(alpha = 0.25f),
-                                    shape = RoundedCornerShape(4.dp)
-                                ) {
-                                    Text(
-                                        text = "Recommended",
-                                        color = Color.White,
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                }
-                            }
-                        }
+                        val isModelFound = isModelInstalledState || localGemmaEngine.isModelInstalled()
 
-                        // 2. Offline Quick Report
+                        // 1. On-Device AI (Gemma 3n / Edge)
                         OutlinedButton(
                             onClick = { executeLocalInference() },
                             enabled = currentPhotos.size >= 3,
@@ -873,24 +825,74 @@ fun PhotoPreviewScreen(
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Column {
                                         Text(
-                                            text = "📱 Offline Quick Report",
+                                            text = if (isModelFound) "📱 On-Device Gemma 3n AI" else "📱 On-Device Edge AI",
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.sp,
                                             color = ForestGreenDark
                                         )
                                         Text(
-                                            text = "Works without internet • Instant letter draft",
+                                            text = if (isModelFound) "⚡ 100% Offline • NPU Accelerated • Edge Privacy" else "⚡ 100% Offline • Instant Rule-Based Draft",
                                             fontSize = 10.sp,
                                             color = Color.DarkGray
                                         )
                                     }
                                 }
                                 Surface(
-                                    color = ForestGreenPrimary,
+                                    color = if (isModelFound) ForestGreenPrimary else Color(0xFF757575),
                                     shape = RoundedCornerShape(4.dp)
                                 ) {
                                     Text(
-                                        text = "Offline ✓",
+                                        text = if (isModelFound) "Gemma 3n ✓" else "On-Device ✓",
+                                        color = Color.White,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // 2. Cloud Multimodal AI (Census + Vision)
+                        Button(
+                            onClick = { executeAnalysis() },
+                            enabled = currentPhotos.size >= 3,
+                            colors = ButtonDefaults.buttonColors(containerColor = ForestGreenPrimary),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(Icons.Default.Cloud, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column {
+                                        Text(
+                                            text = "☁️ Cloud Multimodal AI",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = Color.White
+                                        )
+                                        Text(
+                                            text = "🌐 Tree Census GIS Match + Vision Inspection",
+                                            fontSize = 10.sp,
+                                            color = Color.White.copy(alpha = 0.9f)
+                                        )
+                                    }
+                                }
+                                Surface(
+                                    color = Color.White.copy(alpha = 0.25f),
+                                    shape = RoundedCornerShape(4.dp)
+                                ) {
+                                    Text(
+                                        text = "Cloud AI ✓",
                                         color = Color.White,
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
