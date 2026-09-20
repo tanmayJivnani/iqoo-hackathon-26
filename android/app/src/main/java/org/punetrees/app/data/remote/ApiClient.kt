@@ -9,7 +9,7 @@ import java.util.concurrent.TimeUnit
 object ApiClient {
 
     // Live Cloudflare Tunnel URL (Works across all Wi-Fi, 4G, and 5G networks)
-    var baseUrl: String = "https://thru-philips-subsection-marketing.trycloudflare.com/"
+    var baseUrl: String = "https://iqoo-hackathon-26.onrender.com/"
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
