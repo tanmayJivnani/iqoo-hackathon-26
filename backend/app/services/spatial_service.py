@@ -7,7 +7,7 @@ PUNE_WARD_HUBS = [
     {"ward": "Kothrud - Bavdhan", "lat": 18.5074, "lon": 73.8077},
     {"ward": "Aundh - Baner", "lat": 18.5590, "lon": 73.7997},
     {"ward": "Kasba - Vishrambaug Wada", "lat": 18.5158, "lon": 73.8553},
-    {"ward": "Viman Nagar - Nagar Road", "lat": 18.5679, "lon": 73.9143},
+    {"ward": "Nagar Road - Vadgaon Sheri", "lat": 18.5679, "lon": 73.9143},
     {"ward": "Hadapsar - Mundhwa", "lat": 18.5089, "lon": 73.9259},
     {"ward": "Sinhagad Road", "lat": 18.4735, "lon": 73.8242},
     {"ward": "Bibwewadi - Dhankawadi", "lat": 18.4682, "lon": 73.8569}

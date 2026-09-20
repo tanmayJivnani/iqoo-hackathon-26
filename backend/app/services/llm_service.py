@@ -6,8 +6,8 @@ from app.core.config import settings
 
 class LlmService:
     """
-    OpenRouter client running multimodal models to perform visual scene analysis
-    and draft formal human-grounded bilingual grievance letters.
+    Multimodal AI service running Google Gemini (primary) and OpenRouter (fallback)
+    to perform visual scene analysis and draft formal human-grounded bilingual grievance letters.
     """
 
     @staticmethod
@@ -30,7 +30,7 @@ class LlmService:
         ward_name: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Calls OpenRouter multimodal models sequentially in priority order with full attempt logging.
+        Calls Google Gemini (primary) and OpenRouter (secondary) multimodal models sequentially in priority order.
         Returns visual classification, species, and drafted human-written first-person letters.
         """
         all_photos = []
@@ -86,10 +86,11 @@ CRITICAL RULES:
      Set "tree_detected": true and "rejection_reason": null, and proceed with full analysis and drafting.
 
 1. FIRST-PERSON HUMAN VOICE (MANDATORY):
-   - The letter MUST be drafted strictly from the first-person perspective of a resident citizen (e.g. "I am a resident of {ward_name}...", "I am writing to formally bring to your urgent attention...", "I observed that...").
+   - The letter MUST be drafted strictly from the first-person perspective of a resident citizen (e.g. "I am writing to formally bring to your urgent attention...", "I observed that...").
+   - When introducing residency or location, ground it in the actual locality or neighborhood from '{address_landmark}' (e.g. "I am a resident of the area...", "I am a resident of Kharadi, Pune...", or "As a resident of this locality...") rather than claiming to reside in the administrative ward office name '{ward_name}'. Mention '{ward_name}' as the administrative ward jurisdiction (e.g. "under {ward_name} Ward Office jurisdiction").
    - NEVER use robotic, passive, or automated third-person phrases such as "no contractor details have been provided" or "sensor measured". If contractor info is missing, write naturally: "I do not know the details of the contractor/party involved" or omit mentioning unobserved parties.
 2. PRE-FILLED JURISDICTION (NEVER LEAVE AS PLACEHOLDERS):
-   - You MUST insert the actual real-world values for '{address_landmark}', '{ward_name}', and GPS coordinates ({latitude:.5f}° N, {longitude:.5f}° E) directly into the text of the Subject line and Letter body. Do NOT leave '[Street Name]' or '[Ward Name]' in the output.
+   - You MUST insert the actual real-world values for '{address_landmark}', administrative ward '{ward_name}', and GPS coordinates ({latitude:.5f}° N, {longitude:.5f}° E) directly into the text of the Letter body. In the Subject line, keep it clean and concise by referencing the key locality/landmark (e.g. from '{address_landmark}') and the grievance tracking ID. Do NOT leave '[Street Name]' or '[Ward Name]' placeholders in the output.
 3. MANDATORY GRIEVANCE TRACKING ID:
    - You MUST include the tracking reference `[Grievance Ref: {tracking_id}]` in the Subject line AND cite `Grievance Reference Number: {tracking_id}` in the opening paragraph of the letter body.
 4. STANDARDIZED CITIZEN SIGN-OFF: Every drafted letter MUST conclude with:
@@ -129,7 +130,7 @@ You must output a strictly valid JSON object with the following schema:
   "felling_stage": "IN_PROGRESS" | "COMPLETED" | "NOT_APPLICABLE",
   "visual_damage_summary": "Precise factual morphological description of what is visually observed on the tree",
   "estimated_urgency": "CRITICAL_EMERGENCY" | "HIGH" | "MEDIUM" | "ROUTINE",
-  "draft_subject_en": "Formal email subject line embedding {address_landmark}, {ward_name}, and [Grievance Ref: {tracking_id}] (strictly NO emojis or unicode symbols, or null if tree_detected is false)",
+  "draft_subject_en": "Concise formal email subject line embedding key landmark/locality and [Grievance Ref: {tracking_id}] (strictly NO emojis or unicode symbols, or null if tree_detected is false)",
   "draft_body_en": "Formal concise first-person letter in English addressed to Tree Officer, ending with sign-off block (or null if tree_detected is false)",
   "draft_summary_mr": "A 2-3 sentence concise Marathi message for WhatsApp dispatch (or null if tree_detected is false)"
 }}
@@ -154,7 +155,119 @@ INSTRUCTIONS:
         user_content = [{"type": "text", "text": user_prompt_text}] + image_contents
 
         # -------------------------------------------------------------
-        # STEP 1: PRIMARY VISION PROVIDER -> OPENROUTER (OPEN SOURCE: QWEN 2.5 VL 72B)
+        # STEP 1: PRIMARY VISION PROVIDER -> GOOGLE GEMINI FLASH
+        # -------------------------------------------------------------
+        if settings.GEMINI_API_KEY:
+            gemini_candidates = ["gemini-3.6-flash"]
+            
+            gemini_parts = [{"text": system_prompt + "\n\n" + user_prompt_text}]
+            for p in all_photos[:3]:
+                clean_b64 = p.split(",")[1] if "," in p else p
+                gemini_parts.append({
+                    "inline_data": {
+                        "mime_type": "image/jpeg",
+                        "data": clean_b64
+                    }
+                })
+
+            gemini_payload = {
+                "contents": [{"parts": gemini_parts}],
+                "generationConfig": {
+                    "response_mime_type": "application/json",
+                    "temperature": 0.2
+                }
+            }
+
+            print("\n" + "="*75, flush=True)
+            print("[LLM INITIATED] Primary Vision Provider: Google Gemini Vision AI", flush=True)
+            print(f" - Tracking ID : {tracking_id}", flush=True)
+            print(f" - Category    : {target_category}", flush=True)
+            print(f" - Photos Sent : {len(all_photos[:3])} tree evidence angles", flush=True)
+            print(f" - Gemini Model: {gemini_candidates}", flush=True)
+            print("="*75, flush=True)
+
+            async with httpx.AsyncClient(timeout=90.0) as client:
+                for g_model in gemini_candidates:
+                    gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{g_model}:generateContent?key={settings.GEMINI_API_KEY}"
+                    try:
+                        print(f"\n[GEMINI ATTEMPT] Querying '{g_model}' endpoint with {len(all_photos[:3])} photos...", flush=True)
+                        resp = await client.post(gemini_url, json=gemini_payload)
+                        
+                        if resp.status_code == 200:
+                            gem_data = resp.json()
+                            cand = gem_data.get("candidates", [{}])[0]
+                            gem_content = cand.get("content", {}).get("parts", [{}])[0].get("text", "")
+                            
+                            parsed_json = LlmService._parse_lenient(gem_content)
+                            if parsed_json.get("tree_detected") is False or str(parsed_json.get("tree_detected")).lower() == "false":
+                                parsed_json["tree_detected"] = False
+                                parsed_json["rejection_reason"] = parsed_json.get("rejection_reason") or "No tree or vegetation subject detected in the submitted photos. Please provide clear photos of the actual tree."
+                                parsed_json["detected_issue_category"] = "INVALID_IMAGE"
+                                parsed_json["estimated_tree_species"] = None
+                                parsed_json["visual_damage_summary"] = "No tree detected in submitted photos."
+                                parsed_json["draft_body_en"] = None
+                                parsed_json["draft_subject_en"] = None
+                                parsed_json["draft_summary_mr"] = None
+                                parsed_json["is_fallback"] = False
+                                parsed_json["ai_provider"] = "Cloud Multimodal Arborist AI"
+
+                                print("\n" + "="*75, flush=True)
+                                print(f" [GEMINI REJECTION] NO TREE DETECTED IN EVIDENCE VIA: '{g_model}'", flush=True)
+                                print(f"   * Reason : {parsed_json.get('rejection_reason')}", flush=True)
+                                print("="*75 + "\n", flush=True)
+                                return parsed_json
+
+                            if parsed_json.get("detected_issue_category") or parsed_json.get("tree_detected") is True:
+                                parsed_json["tree_detected"] = True
+                                species = parsed_json.get("estimated_tree_species")
+                                if not parsed_json.get("draft_body_en") or not parsed_json.get("draft_subject_en"):
+                                    base_draft = LlmService._get_default_draft(
+                                        tracking_id=tracking_id,
+                                        latitude=latitude,
+                                        longitude=longitude,
+                                        citizen_notes=f"{citizen_notes or ''} [Tree Species: {species or 'Observed tree'}]",
+                                        citizen_name=citizen_name,
+                                        citizen_phone=citizen_phone,
+                                        citizen_email=citizen_email,
+                                        address_landmark=address_landmark,
+                                        ward_name=ward_name
+                                    )
+                                    for k, v in base_draft.items():
+                                        if k not in parsed_json or not parsed_json[k]:
+                                            parsed_json[k] = v
+
+                                if parsed_json.get("draft_subject_en"):
+                                    parsed_json["draft_subject_en"] = LlmService._clean_subject(parsed_json["draft_subject_en"])
+
+                                additional_cat = parsed_json.get("ai_additional_category")
+                                if additional_cat and (additional_cat == target_category or additional_cat == "null" or additional_cat == "None"):
+                                    additional_cat = None
+                                parsed_json["ai_additional_category"] = additional_cat
+                                parsed_json["ai_additional_reason_en"] = parsed_json.get("ai_additional_reason_en") if additional_cat else None
+                                parsed_json["detected_issue_category"] = target_category
+                                parsed_json["is_category_mismatch"] = False
+                                parsed_json["ai_suggested_category"] = None
+                                parsed_json["mismatch_reason_en"] = None
+                                parsed_json["is_fallback"] = False
+                                parsed_json["ai_provider"] = "Cloud Multimodal Arborist AI"
+
+                                print("\n" + "="*75, flush=True)
+                                print(f" [GEMINI SUCCESS] COMPLETED VIA: '{g_model}'", flush=True)
+                                print(f"   * Tree Detected      : True", flush=True)
+                                print(f"   * Species Identified : {parsed_json.get('estimated_tree_species')}", flush=True)
+                                print(f"   * Visual Observation : {parsed_json.get('visual_damage_summary')}", flush=True)
+                                print("="*75 + "\n", flush=True)
+                                return parsed_json
+                        else:
+                            print(f" [GEMINI FAILED] '{g_model}' HTTP {resp.status_code}:\n{resp.text}", flush=True)
+                            print(f" -> Trying next model candidate...", flush=True)
+                    except Exception as e:
+                        print(f" ❌ [GEMINI EXCEPTION] '{g_model}' error: {e}", flush=True)
+
+            print(" -> Google Gemini candidates unavailable. Cascading to secondary provider (OpenRouter)...", flush=True)
+
+        # -------------------------------------------------------------
+        # STEP 2: SECONDARY VISION PROVIDER -> OPENROUTER (OPEN SOURCE: QWEN 3 VL 32B / QWEN 2.5 VL 72B)
         # -------------------------------------------------------------
         if settings.OPENROUTER_API_KEY:
             headers = {
@@ -167,12 +280,12 @@ INSTRUCTIONS:
             candidate_models = []
             if settings.OPENROUTER_MODEL:
                 candidate_models.append(settings.OPENROUTER_MODEL)
-            for m in ["qwen/qwen2.5-vl-72b-instruct", "qwen/qwen3-vl-32b-instruct"]:
+            for m in ["qwen/qwen3-vl-32b-instruct", "qwen/qwen2.5-vl-72b-instruct"]:
                 if m not in candidate_models:
                     candidate_models.append(m)
 
             print("\n" + "="*75, flush=True)
-            print("[LLM INITIATED] Primary Vision Provider: OpenRouter Open-Source Vision AI", flush=True)
+            print("[LLM SECONDARY] Vision Provider: OpenRouter Open-Source Vision AI", flush=True)
             print(f" - Tracking ID : {tracking_id}", flush=True)
             print(f" - Category    : {target_category}", flush=True)
             print(f" - Photos Sent : {len(all_photos[:3])} tree evidence angles", flush=True)
@@ -219,8 +332,8 @@ INSTRUCTIONS:
                                 parsed_json["ai_provider"] = "Cloud Multimodal Arborist AI"
 
                                 print("\n" + "="*75, flush=True)
-                                print(f" 🚫 [OPENROUTER REJECTION] NO TREE DETECTED IN EVIDENCE VIA: '{candidate_model}'", flush=True)
-                                print(f"   • Reason : {parsed_json.get('rejection_reason')}", flush=True)
+                                print(f" [OPENROUTER REJECTION] NO TREE DETECTED IN EVIDENCE VIA: '{candidate_model}'", flush=True)
+                                print(f"   * Reason : {parsed_json.get('rejection_reason')}", flush=True)
                                 print("="*75 + "\n", flush=True)
                                 return parsed_json
 
@@ -259,102 +372,20 @@ INSTRUCTIONS:
                                 parsed_json["ai_provider"] = "Cloud Multimodal Arborist AI"
                                 
                                 print("\n" + "="*75, flush=True)
-                                print(f" ✨ [OPENROUTER SUCCESS] COMPLETED VIA: '{candidate_model}'", flush=True)
-                                print(f"   • Tree Detected      : True")
-                                print(f"   • Species Identified : {parsed_json.get('estimated_tree_species')}", flush=True)
-                                print(f"   • Visual Observation : {parsed_json.get('visual_damage_summary')}", flush=True)
+                                print(f" [OPENROUTER SUCCESS] COMPLETED VIA: '{candidate_model}'", flush=True)
+                                print(f"   * Tree Detected      : True", flush=True)
+                                print(f"   * Species Identified : {parsed_json.get('estimated_tree_species')}", flush=True)
+                                print(f"   * Visual Observation : {parsed_json.get('visual_damage_summary')}", flush=True)
                                 print("="*75 + "\n", flush=True)
 
                                 return parsed_json
                         else:
-                            print(f" ❌ [OPENROUTER FAILED] '{candidate_model}' HTTP {response.status_code}:\n{response.text}", flush=True)
-                            print(f" ➔ Trying next model candidate...", flush=True)
+                            print(f" [OPENROUTER FAILED] '{candidate_model}' HTTP {response.status_code}:\n{response.text}", flush=True)
+                            print(f" -> Trying next model candidate...", flush=True)
                     except Exception as e:
-                        print(f" ❌ [OPENROUTER EXCEPTION] '{candidate_model}' error: {e}", flush=True)
+                        print(f" [OPENROUTER EXCEPTION] '{candidate_model}' error: {e}", flush=True)
 
-            print(" ➔ OpenRouter candidates unavailable. Cascading to secondary provider...", flush=True)
-
-        # -------------------------------------------------------------
-        # STEP 2: SECONDARY FAST VISION PROVIDER -> GOOGLE GEMINI FLASH
-        # -------------------------------------------------------------
-        if settings.GEMINI_API_KEY:
-            gemini_candidates = ["gemini-2.5-flash", "gemini-1.5-flash"]
-            
-            gemini_parts = [{"text": system_prompt + "\n\n" + user_prompt_text}]
-            for p in all_photos[:3]:
-                clean_b64 = p.split(",")[1] if "," in p else p
-                gemini_parts.append({
-                    "inline_data": {
-                        "mime_type": "image/jpeg",
-                        "data": clean_b64
-                    }
-                })
-
-            gemini_payload = {
-                "contents": [{"parts": gemini_parts}],
-                "generationConfig": {
-                    "response_mime_type": "application/json",
-                    "temperature": 0.2
-                }
-            }
-
-            async with httpx.AsyncClient(timeout=90.0) as client:
-                for g_model in gemini_candidates:
-                    gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{g_model}:generateContent?key={settings.GEMINI_API_KEY}"
-                    try:
-                        print(f"[GEMINI ATTEMPT] Querying '{g_model}' endpoint with 3 photos...", flush=True)
-                        resp = await client.post(gemini_url, json=gemini_payload)
-                        
-                        if resp.status_code == 200:
-                            gem_data = resp.json()
-                            cand = gem_data.get("candidates", [{}])[0]
-                            gem_content = cand.get("content", {}).get("parts", [{}])[0].get("text", "")
-                            
-                            parsed_json = LlmService._parse_lenient(gem_content)
-                            if parsed_json.get("tree_detected") is False or str(parsed_json.get("tree_detected")).lower() == "false":
-                                parsed_json["tree_detected"] = False
-                                parsed_json["rejection_reason"] = parsed_json.get("rejection_reason") or "No tree or vegetation subject detected in the submitted photos. Please provide clear photos of the actual tree."
-                                parsed_json["detected_issue_category"] = "INVALID_IMAGE"
-                                parsed_json["estimated_tree_species"] = None
-                                parsed_json["visual_damage_summary"] = "No tree detected in submitted photos."
-                                parsed_json["draft_body_en"] = None
-                                parsed_json["draft_subject_en"] = None
-                                parsed_json["draft_summary_mr"] = None
-                                parsed_json["is_fallback"] = False
-                                parsed_json["ai_provider"] = "Cloud Multimodal Arborist AI"
-                                return parsed_json
-
-                            if parsed_json.get("detected_issue_category") or parsed_json.get("tree_detected") is True:
-                                parsed_json["tree_detected"] = True
-                                species = parsed_json.get("estimated_tree_species")
-                                if not parsed_json.get("draft_body_en") or not parsed_json.get("draft_subject_en"):
-                                    base_draft = LlmService._get_default_draft(
-                                        tracking_id=tracking_id,
-                                        latitude=latitude,
-                                        longitude=longitude,
-                                        citizen_notes=f"{citizen_notes or ''} [Tree Species: {species or 'Observed tree'}]",
-                                        citizen_name=citizen_name,
-                                        citizen_phone=citizen_phone,
-                                        citizen_email=citizen_email,
-                                        address_landmark=address_landmark,
-                                        ward_name=ward_name
-                                    )
-                                    for k, v in base_draft.items():
-                                        if k not in parsed_json or not parsed_json[k]:
-                                            parsed_json[k] = v
-
-                                if parsed_json.get("draft_subject_en"):
-                                    parsed_json["draft_subject_en"] = LlmService._clean_subject(parsed_json["draft_subject_en"])
-
-                                parsed_json["detected_issue_category"] = target_category
-                                parsed_json["is_category_mismatch"] = False
-                                parsed_json["ai_suggested_category"] = None
-                                parsed_json["mismatch_reason_en"] = None
-                                parsed_json["is_fallback"] = False
-                                parsed_json["ai_provider"] = "Cloud Multimodal Arborist AI"
-                                return parsed_json
-                    except Exception as e:
-                        print(f" ❌ [GEMINI EXCEPTION] '{g_model}' error: {e}", flush=True)
+            print(" -> OpenRouter candidates exhausted. Cascading to local fallback generator...", flush=True)
 
         # -------------------------------------------------------------
         # STEP 3: LOCAL DETERMINISTIC STATUTORY GENERATOR
@@ -377,7 +408,7 @@ INSTRUCTIONS:
         )
         fallback_draft["is_fallback"] = True
         fallback_draft["ai_provider"] = "LOCAL_DETERMINISTIC_FALLBACK"
-        fallback_draft["fallback_reason"] = "All 5 candidate OpenRouter models were busy or rate-limited."
+        fallback_draft["fallback_reason"] = "All candidate Gemini and OpenRouter models were busy or rate-limited."
         fallback_draft["is_category_mismatch"] = False
         return fallback_draft
 

@@ -1,0 +1,13 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.env
+*.db
+*.db-shm
+*.db-wal
+pune_tree_census*
+media/
+tests/
+.git
+.gitignore
