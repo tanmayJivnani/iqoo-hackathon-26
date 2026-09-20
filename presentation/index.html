@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pune Tree Rakshak — Eco-Green Hackathon Pitch Deck</title>
+  <style>
+    :root {
+      --bg-white: #ffffff;
+      --bg-slide: #ffffff;
+      --bg-card: #f4f8f5;
+      --bg-card-alt: #ebf3ee;
+      --border-card: #d1e7dd;
+      --border-accent: #86efac;
+      --text-dark-green: #0f432b;
+      --text-forest: #165b37;
+      --text-emerald: #2e7d32;
+      --text-charcoal: #2c3e50;
+      --text-muted: #5a6b63;
+      --badge-bg: #e8f5e9;
+      --badge-border: #a3d9a5;
+      --badge-text: #1b5e20;
+      --alert-red-bg: #fef2f2;
+      --alert-red-border: #fecaca;
+      --alert-red-text: #b91c1c;
+      --warn-amber-bg: #fffbeb;
+      --warn-amber-border: #fde68a;
+      --warn-amber-text: #b45309;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #e5ede8;
+      color: var(--text-charcoal);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+    #deck-container {
+      position: relative;
+      width: 100vw;
+      height: 56.25vw; /* 16:9 aspect ratio */
+      max-height: 100vh;
+      max-width: 177.78vh;
+      background: var(--bg-white);
+      box-shadow: 0 20px 40px -10px rgba(15, 67, 43, 0.15);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--border-card);
+    }
+    .slide {
+      display: none;
+      width: 100%;
+      height: 100%;
+      padding: 2.2rem 3.5rem 1.2rem 3.5rem;
+      flex-direction: column;
+      position: relative;
+      background: #ffffff;
+      overflow-y: auto;
+      animation: fadeIn 0.2s ease-out forwards;
+    }
+    .slide.active { display: flex; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: var(--badge-bg);
+      border: 1px solid var(--badge-border);
+      color: var(--badge-text);
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 0.3rem 0.8rem;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      width: fit-content;
+      margin-bottom: 0.45rem;
+    }
+    .badge.amber {
+      background: var(--warn-amber-bg);
+      border-color: var(--warn-amber-border);
+      color: var(--warn-amber-text);
+    }
+    .slide-title {
+      font-size: 2.1rem;
+      font-weight: 800;
+      color: var(--text-dark-green);
+      line-height: 1.2;
+    }
+    .slide-subtitle {
+      font-size: 1.02rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+      margin-bottom: 1.25rem;
+    }
+    .divider-line {
+      width: 100%;
+      height: 1px;
+      background: #e2ece6;
+      margin-bottom: 1.25rem;
+    }
+    .card-grid {
+      display: grid;
+      gap: 1.2rem;
+      flex: 1;
+    }
+    .grid-2 { grid-template-columns: 1fr 1fr; }
+    .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+    .grid-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 10px;
+      padding: 1.3rem;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
+    }
+    .card.alert-red {
+      background: var(--alert-red-bg);
+      border-color: var(--alert-red-border);
+    }
+    .card.highlight-green {
+      background: var(--bg-card-alt);
+      border-color: var(--border-accent);
+      border-width: 1.5px;
+    }
+    .card-title {
+      font-size: 1.12rem;
+      font-weight: 700;
+      color: var(--text-forest);
+      margin-bottom: 0.65rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .card ul {
+      list-style-type: none;
+      font-size: 0.92rem;
+      line-height: 1.55;
+      color: var(--text-charcoal);
+    }
+    .card ul li {
+      margin-bottom: 0.45rem;
+      position: relative;
+      padding-left: 1.2rem;
+    }
+    .card ul li::before {
+      content: "•";
+      color: var(--text-emerald);
+      font-weight: bold;
+      font-size: 1.2rem;
+      position: absolute;
+      left: 0;
+      top: -0.1rem;
+    }
+    .card.alert-red ul li::before { color: var(--alert-red-text); }
+    .phone-sync-banner {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      font-size: 0.85rem;
+      color: var(--text-forest);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.85rem;
+    }
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 4.5rem;
+      background: #fafcfb;
+      border-top: 1px solid var(--border-card);
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .nav-controls {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .nav-btn {
+      background: #ffffff;
+      border: 1px solid var(--border-card);
+      color: var(--text-forest);
+      padding: 0.35rem 0.85rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 600;
+      transition: all 0.15s;
+    }
+    .nav-btn:hover {
+      background: var(--text-dark-green);
+      color: #ffffff;
+      border-color: var(--text-dark-green);
+    }
+    .notes-drawer {
+      position: absolute;
+      bottom: 50px;
+      left: 4.5rem;
+      right: 4.5rem;
+      background: #ffffff;
+      border: 1.5px solid var(--border-accent);
+      border-radius: 8px;
+      padding: 0.9rem 1.3rem;
+      font-size: 0.88rem;
+      color: var(--text-dark-green);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15);
+      display: none;
+      z-index: 50;
+      line-height: 1.5;
+    }
+    .notes-drawer.open { display: block; }
+  </style>
+</head>
+<body>
+
+<div id="deck-container">
+
+  <!-- SLIDE 1: TITLE & HOOK (Minimal Eco White) -->
+  <div class="slide active">
+    <div class="badge">🏆 iQOO HACKATHON 2026 • OPEN INNOVATION TRACK</div>
+    <div class="slide-title" style="font-size: 2.6rem;">Pune Tree Rakshak</div>
+    <div class="slide-subtitle">
+      Phone-First Civic Accountability & Urban Forest Preservation Platform
+    </div>
+    <div class="divider-line"></div>
+
+    <div class="card-grid grid-2">
+      <div class="card alert-red">
+        <div class="card-title" style="color: var(--alert-red-text);">⚠️ The Problem: Broken Evidence & Ghost Closures</div>
+        <ul>
+          <li><strong>4.09M+ Pune Trees:</strong> Facing rampant illegal felling, concrete choking & monsoon decay.</li>
+          <li><strong>Dismissed as "Vague":</strong> Citizens submit un-timestamped photos with no statutory citations.</li>
+          <li><strong>"Paper Closures":</strong> Municipal portals close tickets without physical site remediation.</li>
+          <li><strong>Queue Flooding:</strong> Non-tree spam and indoor photos clog municipal emergency response.</li>
+        </ul>
+      </div>
+
+      <div class="card highlight-green">
+        <div class="card-title" style="color: var(--text-dark-green);">🌿 The Solution: Closed-Loop Statutory Platform</div>
+        <ul>
+          <li><strong>7 Statutory Categories:</strong> Grounded in Maharashtra Tree Act 1975.</li>
+          <li><strong>Hardware Sensor Telemetry:</strong> Device accelerometer measures tree tilt angle degrees.</li>
+          <li><strong>3-Layer Forensic Standard:</strong> Multi-angle capture with AI Anti-Spam Gate.</li>
+          <li><strong>PMC 4.09M Tree Census GIS:</strong> Attaches official municipal census records within 10m.</li>
+          <li><strong>Zero-Trust Re-Audit:</strong> Timelock verification + Municipal Commissioner escalation.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="phone-sync-banner">
+      <span>📱</span>
+      <strong>LIVE DEMO SYNC:</strong>
+      <span>Show App Launch / Grievance Tracker on your phone. Introduce problem & vision in 30s.</span>
+    </div>
+
+    <div class="notes-drawer" id="note-1">
+      <strong>🎙️ Speaker Note (30s):</strong> "Judges, over 4 million trees protect Pune's ecology, yet thousands are chopped down or collapse every monsoon. The root cause isn't lack of laws — it's the broken evidence loop. Citizens report vaguely, tickets get closed on paper, and officers lack forensic proof. Today, we demonstrate Pune Tree Rakshak on this iQOO flagship, delivering an end-to-end statutory evidence pipeline from physical camera capture to court-grade legal dispatch."
+    </div>
+  </div>
+
+  <!-- SLIDE 2: DEMO STEP 1 - CATEGORY & SENSOR -->
+  <div class="slide">
+    <div class="badge">LIVE DEMO • STEP 1</div>
+    <div class="slide-title">Intelligent Civic Triage & Sensor Telemetry</div>
+    <div class="slide-subtitle">App Screen: Category Selection & Real-Time Accelerometer Grounding</div>
+    <div class="divider-line"></div>
+
+    <div class="card-grid grid-3">
+      <div class="card">
+        <div class="card-title">🌳 7 Statutory Categories</div>
+        <ul>
+          <li>Hazardous Leaning / Imminent Fall</li>
+          <li>Illegal Felling (Active / Fresh Stump)</li>
+          <li>Heavy Unauthorized Pruning</li>
+          <li>Snapped / Hanging Broken Limbs</li>
+          <li>Root Concretization (NGT Violation)</li>
+          <li>Disease & Pest Infestation</li>
+          <li>Tree Vandalism (Nails/Boards)</li>
+        </ul>
+      </div>
+
+      <div class="card highlight-green">
+        <div class="card-title" style="color: var(--text-dark-green);">📐 Hardware Sensor Telemetry</div>
+        <ul>
+          <li><strong>Physics Over Guesswork:</strong> Device accelerometer samples physical tilt angle against gravity.</li>
+          <li><strong>Mathematical Proof:</strong> Embeds verified tilt degrees (e.g. <code>23.4° tilt</code>) into legal prayer.</li>
+          <li><strong>Section 7(b) Trigger:</strong> Proves imminent public safety collapse threat with device physics.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-title">📍 Automated Ward Routing</div>
+        <ul>
+          <li><strong>GPS Geocoding:</strong> Extracts precise landmark, society name, and PIN code.</li>
+          <li><strong>15 PMC Wards:</strong> Automatically maps coordinates to the responsible Ward Tree Officer.</li>
+          <li><strong>Example:</strong> Kharadi coordinates map directly to <em>Nagar Road - Vadgaon Sheri Ward Office</em>.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="phone-sync-banner">
+      <span>📱</span>
+      <strong>LIVE DEMO SYNC:</strong>
+      <span>Tap "New Grievance" &rarr; Select "Dangerous Leaning Tree" &rarr; Physically tilt phone to show live tilt reading.</span>
+    </div>
+
+    <div class="notes-drawer" id="note-2">
+      <strong>🎙️ Speaker Note (35s):</strong> "Watch step 1 on the phone. Instead of freeform text, the citizen selects from 7 strict statutory categories. Notice the live tilt sensor: our app accesses the phone's hardware accelerometer to mathematically measure the tree's lean angle against true vertical. No more subjective guessing — we hand the Tree Officer hard physical proof."
+    </div>
+  </div>
+
+  <!-- SLIDE 3: DEMO STEP 2 - 3-LAYER FORENSIC EVIDENCE & ANTI-SPAM -->
+  <div class="slide">
+    <div class="badge">LIVE DEMO • STEP 2</div>
+    <div class="slide-title">3-Layer Forensic Evidence Standard & Anti-Spam</div>
+    <div class="slide-subtitle">App Screen: CameraX Multi-Angle Guidance & Pre-Submission Quality Gate</div>
+    <div class="divider-line"></div>
+
+    <div class="card" style="margin-bottom: 0.9rem; background: var(--warn-amber-bg); border-color: var(--warn-amber-border); padding: 0.75rem 1.2rem;">
+      <strong style="color: var(--warn-amber-text);">🛡️ AI Anti-Spam Quality Gate & Municipal Quota Protection:</strong>
+      <span style="font-size: 0.9rem; color: var(--text-charcoal); margin-left: 0.4rem;">
+        Computer vision inspects photo before submission. Non-tree content (screens, keyboards, desks, selfies) is rejected instantly with a 3-hour cooldown — shielding municipal officers and LLM compute from civic junk.
+      </span>
+    </div>
+
+    <div class="card-grid grid-3">
+      <div class="card">
+        <div class="badge" style="margin-bottom: 0.4rem;">Layer 1</div>
+        <div class="card-title">Locus Context (Wide)</div>
+        <p style="font-size: 0.9rem; color: var(--text-charcoal); line-height: 1.5;">
+          Wide street shot capturing tree, footpath, roadway, and building landmark.
+          <br><br>
+          <strong style="color: var(--text-forest);">🛡️ Purpose:</strong> Eliminates "not our street / not on municipal land" dismissals.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="badge" style="margin-bottom: 0.4rem; background: #e0f2fe; border-color: #7dd3fc; color: #0369a1;">Layer 2</div>
+        <div class="card-title">Structural Frame (Mid)</div>
+        <p style="font-size: 0.9rem; color: var(--text-charcoal); line-height: 1.5;">
+          Mid-range frame showing trunk-to-crown architecture, lean trajectory, and scaffold cuts.
+          <br><br>
+          <strong style="color: #0369a1;">🛡️ Purpose:</strong> Establishes severity & pedestrian danger zone.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="badge" style="margin-bottom: 0.4rem; background: #fef3c7; border-color: #fcd34d; color: #92400e;">Layer 3</div>
+        <div class="card-title">Forensic Macro (Detail)</div>
+        <p style="font-size: 0.9rem; color: var(--text-charcoal); line-height: 1.5;">
+          Close-up macro of exact damage: fresh chainsaw teeth, iron nails in cambium bark, root concrete choke.
+          <br><br>
+          <strong style="color: #92400e;">🛡️ Purpose:</strong> Incontrovertible evidence for legal prosecution.
+        </p>
+      </div>
+    </div>
+
+    <div class="phone-sync-banner">
+      <span>📱</span>
+      <strong>LIVE DEMO SYNC:</strong>
+      <span>Show the 3-Layer CameraX overlay and capture the 3 required photos.</span>
+    </div>
+
+    <div class="notes-drawer" id="note-3">
+      <strong>🎙️ Speaker Note (35s):</strong> "Municipal officers reject over 80% of citizen complaints because single photos lack context. We solve this with our 3-Layer Forensic Standard: Locus Context proves public street location; Structural Frame shows the hazard trajectory; and Forensic Macro captures microscopic damage. Furthermore, our AI Anti-Spam Gate rejects non-tree photos on the spot, preventing municipal queue flooding."
+    </div>
+  </div>
+
+  <!-- SLIDE 4: DEMO STEP 3 - DUAL-ENGINE AI & CENSUS GIS -->
+  <div class="slide">
+    <div class="badge">LIVE DEMO • STEP 3</div>
+    <div class="slide-title">Hybrid Dual-Engine AI + PMC 4.09M Tree Census GIS</div>
+    <div class="slide-subtitle">App Screen: Photo Preview & Dual Triage Options (On-Device Edge vs Cloud)</div>
+    <div class="divider-line"></div>
+
+    <div class="card-grid grid-2">
+      <div class="card highlight-green">
+        <div class="card-title" style="color: var(--text-dark-green);">⚡ Hybrid Edge-to-Cloud AI Architecture</div>
+        <ul>
+          <li><strong>1. On-Device Edge AI (Flagship Hardware / iQOO 15):</strong>
+            <ul>
+              <li>Local <strong>Gemma 3n</strong> via MediaPipe / LiteRT.</li>
+              <li><strong>100% Offline:</strong> Instant processing even in zero-connectivity areas.</li>
+              <li><strong>Complete Edge Privacy:</strong> Photos stay on device; zero cloud cost.</li>
+            </ul>
+          </li>
+          <li style="margin-top: 0.65rem;"><strong>2. Cloud Multimodal Vision (High-Precision):</strong>
+            <ul>
+              <li>Multimodal vision via <strong>Gemini 3.6 Flash / Qwen 3</strong>.</li>
+              <li>Deep arboricultural morphology, rot assessment & statutory drafting.</li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🗺️ PMC 4.09M Tree Census GIS Correlation</div>
+        <ul>
+          <li><strong>Real Municipal Dataset Query:</strong> Backend queries Pune's official 4.09 Million Tree Census GIS database within a 10-meter radius.</li>
+          <li><strong>Official Records Attached:</strong>
+            <ul>
+              <li>Government Census Tree Tag ID (e.g. <code>#140285</code>)</li>
+              <li>Botanical species (e.g. <em>Azadirachta indica</em> / Neem)</li>
+              <li>Registered trunk girth & historic condition</li>
+            </ul>
+          </li>
+          <li style="margin-top: 0.5rem; color: var(--text-forest);">
+            <strong>Municipal Leverage:</strong> The officer cannot claim the tree is unrecorded or private property.
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="phone-sync-banner">
+      <span>📱</span>
+      <strong>LIVE DEMO SYNC:</strong>
+      <span>Show Preview Screen &rarr; Highlight 'On-Device AI' vs 'Cloud AI' buttons &rarr; Tap 'Cloud AI' to run analysis.</span>
+    </div>
+
+    <div class="notes-drawer" id="note-4">
+      <strong>🎙️ Speaker Note (35s):</strong> "On the preview screen, we give the user two powerful engines: On-Device Edge AI for 100% offline privacy on flagship devices like this iQOO 15, and Cloud Multimodal AI for deep arboricultural reasoning. As soon as we tap analyze, our backend correlates the GPS against Pune Municipal Corporation's official 4.09 Million Tree Census GIS dataset, pulling the exact government tree ID and species record."
+    </div>
+  </div>
+
+  <!-- SLIDE 5: DEMO STEP 4 - STATUTORY DRAFT & SEALED PDF (With Image!) -->
+  <div class="slide">
+    <div class="badge">LIVE DEMO • STEP 4</div>
+    <div class="slide-title">Deterministic Statutory Matrix & Sealed PDF Notice</div>
+    <div class="slide-subtitle">App Screen: Legal Notice Review, Court-Grade Sealed PDF & Multi-Channel Dispatch</div>
+    <div class="divider-line"></div>
+
+    <div style="display: grid; grid-template-columns: 1.35fr 0.85fr; gap: 1.2rem; flex: 1;">
+      <div class="card">
+        <div class="card-title">⚖️ Zero-Hallucination Statutory Routing</div>
+        <ul>
+          <li><strong>Active Illegal Cutting:</strong>
+            <span style="color: var(--alert-red-text); font-weight: 700;">Section 21 cognizable offence</span> &rarr; Dispatched to Pune Police Control (112) + Tree Authority.</li>
+          <li><strong>Dangerous Leaning Tree:</strong>
+            <span style="color: var(--warn-amber-text); font-weight: 700;">Section 7(b) public safety mandate</span> &rarr; PMC Disaster Management Cell (24h SLA).</li>
+          <li><strong>Root Concretization:</strong>
+            <span style="color: var(--text-forest); font-weight: 700;">NGT 1-meter breathing basin mandate</span> &rarr; PMC Road Dept.</li>
+          <li><strong>Tree Vandalism (Nails/Wires):</strong>
+            <span style="color: var(--text-emerald); font-weight: 700;">High Court anti-nail rulings</span> &rarr; PMC Garden Tree Ambulance.</li>
+        </ul>
+        <div style="margin-top: 1rem; padding-top: 0.8rem; border-top: 1px solid var(--border-card);">
+          <strong style="color: var(--text-dark-green);">Multi-Channel Dispatch:</strong> Pre-fills formal English legal notice with attached PDF, plus concise Marathi summary for the PMC WhatsApp citizen helpline.
+        </div>
+      </div>
+
+      <div class="card highlight-green" style="align-items: center; justify-content: center; padding: 0.8rem;">
+        <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-dark-green); margin-bottom: 0.4rem;">
+          📄 Court-Grade Sealed Statutory PDF
+        </div>
+        <img src="assets/sealed_pdf_preview.png" alt="Sealed PDF Preview" style="height: 250px; border-radius: 6px; box-shadow: 0 4px 10px rgba(0,0,0,0.15); border: 1px solid var(--border-card);">
+      </div>
+    </div>
+
+    <div class="phone-sync-banner">
+      <span>📱</span>
+      <strong>LIVE DEMO SYNC:</strong>
+      <span>Show statutory draft on phone &rarr; Tap to open the sealed PDF notice preview.</span>
+    </div>
+
+    <div class="notes-drawer" id="note-5">
+      <strong>🎙️ Speaker Note (35s):</strong> "Notice that our legal routing is completely deterministic — zero hallucinations. An active chainsaw felling routes straight to Pune Police under Section 21, while a leaning tree routes to Disaster Management. The system compiles a court-grade, sealed PDF with tamper-evident evidence stamps, and drafts both an official English email and a Marathi WhatsApp dispatch message with one tap."
+    </div>
+  </div>
+
+  <!-- SLIDE 6: DEMO STEP 5 - ZERO-TRUST RE-AUDIT -->
+  <div class="slide">
+    <div class="badge">LIVE DEMO • STEP 5</div>
+    <div class="slide-title">Zero-Trust Ground Re-Audit & Escalation</div>
+    <div class="slide-subtitle">App Screen: Timelock Countdown, Ground Re-Photography & Direct Commissioner Escalation</div>
+    <div class="divider-line"></div>
+
+    <div class="card-grid grid-2">
+      <div class="card highlight-green">
+        <div class="card-title" style="color: var(--text-dark-green);">⏱️ Ending "Closed on Paper" Resolutions</div>
+        <ul>
+          <li><strong>Statutory Timelock:</strong> Starts 24h, 48h, or 72h countdown based on statutory urgency level.</li>
+          <li><strong>Mandatory Ground Re-Photography:</strong> Ticket cannot be closed without citizen after-action photos at coordinates.</li>
+          <li><strong>Vision AI Re-Audit:</strong> Compares before-and-after photos to verify whether roots were de-concretized or the tree was stabilized.</li>
+        </ul>
+      </div>
+
+      <div class="card alert-red">
+        <div class="card-title" style="color: var(--alert-red-text);">🚨 One-Tap Commissioner Escalation</div>
+        <ul>
+          <li><strong>Dereliction of Duty Trigger:</strong> If the statutory timelock expires without physical remediation, the red Escalation Action unlocks.</li>
+          <li><strong>Dispatched Directly To:</strong>
+            <ul>
+              <li>Municipal Commissioner, PMC</li>
+              <li>Additional Municipal Commissioner (Gardens)</li>
+              <li>Superintendent of Gardens & Tree Officer</li>
+            </ul>
+          </li>
+          <li style="margin-top: 0.5rem; color: var(--warn-amber-text);">
+            <strong>Statutory Grounding:</strong> Cites administrative dereliction under Section 7 of Maharashtra Tree Act, 1975.
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="phone-sync-banner">
+      <span>📱</span>
+      <strong>LIVE DEMO SYNC:</strong>
+      <span>Show Reverification Screen on phone &rarr; Highlight active timelock counter and the Red Escalation button.</span>
+    </div>
+
+    <div class="notes-drawer" id="note-6">
+      <strong>🎙️ Speaker Note (35s):</strong> "Here is where the magic happens. In conventional portals, officers close tickets with a keystroke. With Pune Tree Rakshak, a ticket is strictly open until ground reverification. If the 48-hour statutory timelock expires without physical remediation, our app unlocks the Red Escalation button, dispatching a formal notice directly to the Pune Municipal Commissioner."
+    </div>
+  </div>
+
+  <!-- SLIDE 7: SUMMARY & IMPACT (Eco Standard) -->
+  <div class="slide">
+    <div class="badge">PITCH SUMMARY</div>
+    <div class="slide-title">Production-Ready Civic Impact for Pune City</div>
+    <div class="slide-subtitle">Why Pune Tree Rakshak Wins the Open Innovation Track</div>
+    <div class="divider-line"></div>
+
+    <div class="card-grid grid-4">
+      <div class="card">
+        <div class="card-title">📱 Flagship Mobile Tech</div>
+        <p style="font-size: 0.92rem; color: var(--text-charcoal); line-height: 1.5;">
+          Native Kotlin + Jetpack Compose with CameraX and on-device MediaPipe/LiteRT inference — optimized for next-gen devices like iQOO 15.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">⚖️ 100% Statutorily Grounded</div>
+        <p style="font-size: 0.92rem; color: var(--text-charcoal); line-height: 1.5;">
+          Deterministic statutory matrix encoding Maharashtra Tree Act 1975, NGT 1m breathing basin mandates, and High Court orders.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🗺️ 4.09M Tree Census GIS</div>
+        <p style="font-size: 0.92rem; color: var(--text-charcoal); line-height: 1.5;">
+          Real-time spatial correlation against PMC 4.09M tree dataset, connecting citizen photos to official municipal IDs.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="color: var(--alert-red-text);">🔄 Zero-Trust Re-Audit</div>
+        <p style="font-size: 0.92rem; color: var(--text-charcoal); line-height: 1.5;">
+          Guarantees physical follow-through. Ends ghost ticket closures via timelocks, AI re-audit vision, and direct Commissioner escalation.
+        </p>
+      </div>
+    </div>
+
+    <div class="phone-sync-banner" style="background: var(--badge-bg); border-color: var(--badge-border); margin-top: 0.85rem;">
+      <span>🌿</span>
+      <strong style="color: var(--text-dark-green);">PRODUCTION IMPACT:</strong>
+      <span>Fully functional & ready for immediate ward rollout across all 15 PMC Administrative Wards in Pune.</span>
+    </div>
+
+    <div class="notes-drawer" id="note-7">
+      <strong>🎙️ Speaker Note (30s):</strong> "To conclude: Pune Tree Rakshak transforms citizens from helpless bystanders into empowered, legally grounded civic guardians. By combining on-device AI on iQOO hardware, sensor telemetry, government GIS datasets, and zero-trust re-audits, we are making Pune the smartest, greenest city in India. Thank you, and we welcome your questions!"
+    </div>
+  </div>
+
+  <!-- FOOTER CONTROLS -->
+  <div class="footer">
+    <div>iQOO Hackathon 2026 • Pune City Battle | <strong>Pune Tree Rakshak</strong></div>
+    <div class="nav-controls">
+      <button class="nav-btn" onclick="toggleNotes()">🎙️ Notes (N)</button>
+      <button class="nav-btn" onclick="prevSlide()">◀ Prev</button>
+      <span id="slide-counter" style="font-weight: 700; color: var(--text-dark-green); padding: 0 0.5rem;">Slide 1 / 7</span>
+      <button class="nav-btn" onclick="nextSlide()">Next ▶</button>
+      <button class="nav-btn" onclick="toggleFullscreen()">⛶ Fullscreen</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  let currentSlide = 0;
+  const slides = document.querySelectorAll('.slide');
+  const totalSlides = slides.length;
+  const counter = document.getElementById('slide-counter');
+
+  function showSlide(idx) {
+    if (idx < 0) idx = 0;
+    if (idx >= totalSlides) idx = totalSlides - 1;
+    slides.forEach((s, i) => {
+      s.classList.toggle('active', i === idx);
+    });
+    currentSlide = idx;
+    counter.textContent = `Slide ${currentSlide + 1} / ${totalSlides}`;
+  }
+
+  function nextSlide() { showSlide(currentSlide + 1); }
+  function prevSlide() { showSlide(currentSlide - 1); }
+
+  function toggleNotes() {
+    const note = document.getElementById(`note-${currentSlide + 1}`);
+    if (note) note.classList.toggle('open');
+  }
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === 'Space' || e.key === 'PageDown') {
+      nextSlide();
+    } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+      prevSlide();
+    } else if (e.key.toLowerCase() === 'n') {
+      toggleNotes();
+    } else if (e.key.toLowerCase() === 'f') {
+      toggleFullscreen();
+    }
+  });
+</script>
+
+</body>
+</html>

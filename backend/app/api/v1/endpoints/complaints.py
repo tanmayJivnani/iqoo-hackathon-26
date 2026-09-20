@@ -8,7 +8,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+from sqlalchemy import select, update, or_
 
 from app.core.config import settings
 from app.db.database import get_db
@@ -259,6 +259,9 @@ async def analyze_and_draft(
         perpetrator_description=f"Contractor: {payload.perpetrator_name or 'Observed workers'} (Contact/Vehicle: {payload.perpetrator_phone or 'N/A'})" if (payload.perpetrator_name or payload.perpetrator_phone) else None,
         perpetrator_name=payload.perpetrator_name,
         perpetrator_phone=payload.perpetrator_phone,
+        citizen_name=payload.citizen_name,
+        citizen_phone=payload.citizen_phone,
+        citizen_email=payload.citizen_email,
         is_fallback=ai_result.get("is_fallback", False),
         ai_provider=ai_result.get("ai_provider", "LOCAL_DETERMINISTIC_FALLBACK"),
         fallback_reason=ai_result.get("fallback_reason"),
@@ -291,17 +294,85 @@ async def render_pdf(
 ):
     """
     Renders formal A4 statutory grievance PDF with PMC header, photo stamp, and legal citations.
+    Supports complaints drafted on-device (loc-*) by auto-registering if not already present.
     """
-    result = await db.execute(select(Complaint).where(Complaint.id == payload.complaint_id))
-    complaint = result.scalar_one_or_none()
-    if not complaint:
-        raise HTTPException(status_code=404, detail="Complaint not found")
+    clean_id = payload.complaint_id.replace("loc-", "")
+    target_tracking_id = payload.tracking_id or (clean_id if clean_id.startswith("PUNE-TREE") else None)
 
-    # Apply citizen draft edits if provided
-    if payload.draft_subject_en:
-        complaint.draft_subject_en = payload.draft_subject_en
-    if payload.draft_body_en:
-        complaint.draft_body_en = payload.draft_body_en
+    query_conditions = [
+        Complaint.id == payload.complaint_id,
+        Complaint.id == clean_id,
+        Complaint.tracking_id == payload.complaint_id,
+        Complaint.tracking_id == clean_id,
+    ]
+    if target_tracking_id:
+        query_conditions.append(Complaint.tracking_id == target_tracking_id)
+
+    result = await db.execute(select(Complaint).where(or_(*query_conditions)))
+    complaint = result.scalars().first()
+
+    if not complaint:
+        # Edge/local on-device complaint: auto-register in DB
+        tid = target_tracking_id or generate_tracking_number()
+        lat = payload.latitude if (payload.latitude is not None and payload.latitude != 0.0) else 18.5204
+        lon = payload.longitude if (payload.longitude is not None and payload.longitude != 0.0) else 73.8567
+        issue_type = payload.issue_type or "HAZARDOUS_BRANCH"
+        felling_stage = payload.felling_stage or "NOT_APPLICABLE"
+
+        routing = JurisdictionRulesEngine.evaluate(
+            issue_type=issue_type,
+            felling_stage=felling_stage,
+            sensor_tilt_angle=payload.sensor_tilt_angle
+        )
+
+        all_evidence_photos = []
+        if payload.photos_base64:
+            all_evidence_photos.extend(payload.photos_base64)
+        elif payload.photo_base64:
+            all_evidence_photos.append(payload.photo_base64)
+
+        due_hours = routing["reverification_due_hours"]
+        reverification_due_at = datetime.utcnow() + timedelta(hours=due_hours)
+
+        complaint = Complaint(
+            id=payload.complaint_id,
+            tracking_id=tid,
+            citizen_name=payload.citizen_name or "Pune Resident Citizen",
+            citizen_phone=payload.citizen_phone,
+            citizen_email=payload.citizen_email,
+            perpetrator_name=payload.perpetrator_name,
+            perpetrator_phone=payload.perpetrator_phone,
+            latitude=lat,
+            longitude=lon,
+            sensor_tilt_angle=payload.sensor_tilt_angle,
+            address_landmark=payload.address_landmark or "Pune Municipal Area",
+            ward_name=payload.ward_name or "Pune Municipal Corporation",
+            issue_type=issue_type,
+            urgency_level=payload.urgency_level or routing["urgency_level"],
+            felling_stage=felling_stage,
+            routed_authority=routing["routed_authority"]["name"],
+            routed_authority_role=routing["routed_authority"]["role"],
+            target_email=routing["routed_authority"]["email"],
+            target_whatsapp=routing["routed_authority"].get("whatsapp"),
+            legal_citations=payload.legal_citations if payload.legal_citations is not None else routing["legal_citations"],
+            photo_urls=all_evidence_photos,
+            draft_subject_en=payload.draft_subject_en or f"Urgent Tree Notice [{tid}]",
+            draft_body_en=payload.draft_body_en or "Statutory tree grievance notice.",
+            draft_summary_mr=payload.draft_summary_mr or routing["prayer_mr"],
+            reverification_due_at=reverification_due_at,
+            verification_status="PENDING_TIMELOCK"
+        )
+        db.add(complaint)
+        await db.commit()
+        await db.refresh(complaint)
+    else:
+        # Apply citizen draft edits if provided
+        if payload.draft_subject_en:
+            complaint.draft_subject_en = payload.draft_subject_en
+        if payload.draft_body_en:
+            complaint.draft_body_en = payload.draft_body_en
+        if (payload.photos_base64 or payload.photo_base64) and not complaint.photo_urls:
+            complaint.photo_urls = payload.photos_base64 or ([payload.photo_base64] if payload.photo_base64 else [])
 
     pdf_filename = f"{complaint.tracking_id}_Notice.pdf"
     pdf_path = os.path.join(settings.MEDIA_DIR, pdf_filename)
@@ -335,7 +406,9 @@ async def render_pdf(
         "perpetrator_name": complaint.perpetrator_name,
         "perpetrator_phone": complaint.perpetrator_phone,
         "photo_urls": complaint.photo_urls or [],
-        "census_tree": census_match
+        "census_tree": census_match,
+        "estimated_tree_species": payload.estimated_tree_species or (census_match["botanical_name"] if census_match else "Native Urban Tree Subject"),
+        "visual_damage_summary": payload.visual_damage_summary or f"Statutory grievance for {complaint.issue_type.replace('_', ' ')} under Maharashtra Tree Act 1975."
     }
 
     PdfService.generate_pdf(template_data, pdf_path)
@@ -353,8 +426,18 @@ async def render_pdf(
 
 @router.get("/{id}/download-pdf")
 async def download_pdf(id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Complaint).where(Complaint.id == id))
-    complaint = result.scalar_one_or_none()
+    clean_id = id.replace("loc-", "")
+    result = await db.execute(
+        select(Complaint).where(
+            or_(
+                Complaint.id == id,
+                Complaint.id == clean_id,
+                Complaint.tracking_id == id,
+                Complaint.tracking_id == clean_id
+            )
+        )
+    )
+    complaint = result.scalars().first()
     if not complaint or not complaint.pdf_path or not os.path.exists(complaint.pdf_path):
         raise HTTPException(status_code=404, detail="PDF not found or not yet generated")
     return FileResponse(complaint.pdf_path, media_type="application/pdf", filename=f"{complaint.tracking_id}.pdf")
@@ -364,8 +447,18 @@ async def verify_complaint_record(tracking_id: str, db: AsyncSession = Depends(g
     """
     Public evidentiary verification endpoint. Validates SHA-256 digital digest against municipal complaint record.
     """
-    result = await db.execute(select(Complaint).where(Complaint.tracking_id == tracking_id))
-    complaint = result.scalar_one_or_none()
+    clean_id = tracking_id.replace("loc-", "")
+    result = await db.execute(
+        select(Complaint).where(
+            or_(
+                Complaint.tracking_id == tracking_id,
+                Complaint.tracking_id == clean_id,
+                Complaint.id == tracking_id,
+                Complaint.id == clean_id
+            )
+        )
+    )
+    complaint = result.scalars().first()
     if not complaint:
         raise HTTPException(status_code=404, detail="Complaint record not found for verification")
 
@@ -385,7 +478,7 @@ async def verify_complaint_record(tracking_id: str, db: AsyncSession = Depends(g
             "ward": complaint.ward_name
         },
         "routed_authority": complaint.routed_authority,
-        "complaint_status": complaint.status,
+        "complaint_status": complaint.verification_status,
         "sha256_evidence_digest": computed_digest,
         "legal_admissibility": "Section 65B Indian Evidence Act compliant electronic record"
     }
@@ -404,10 +497,63 @@ async def dispatch_complaint(
     if not payload.confirmed_by_citizen:
         raise HTTPException(status_code=400, detail="Citizen confirmation is mandatory before dispatch")
 
-    result = await db.execute(select(Complaint).where(Complaint.id == payload.complaint_id))
-    complaint = result.scalar_one_or_none()
+    clean_id = payload.complaint_id.replace("loc-", "")
+    target_tracking_id = payload.tracking_id or (clean_id if clean_id.startswith("PUNE-TREE") else None)
+
+    query_conditions = [
+        Complaint.id == payload.complaint_id,
+        Complaint.id == clean_id,
+        Complaint.tracking_id == payload.complaint_id,
+        Complaint.tracking_id == clean_id,
+    ]
+    if target_tracking_id:
+        query_conditions.append(Complaint.tracking_id == target_tracking_id)
+
+    result = await db.execute(select(Complaint).where(or_(*query_conditions)))
+    complaint = result.scalars().first()
+
     if not complaint:
-        raise HTTPException(status_code=404, detail="Complaint not found")
+        tid = target_tracking_id or generate_tracking_number()
+        lat = payload.latitude if (payload.latitude is not None and payload.latitude != 0.0) else 18.5204
+        lon = payload.longitude if (payload.longitude is not None and payload.longitude != 0.0) else 73.8567
+        issue_type = payload.issue_type or "HAZARDOUS_BRANCH"
+
+        routing = JurisdictionRulesEngine.evaluate(
+            issue_type=issue_type,
+            felling_stage=payload.felling_stage or "NOT_APPLICABLE",
+            sensor_tilt_angle=None
+        )
+
+        reverification_due_at = datetime.utcnow() + timedelta(hours=routing["reverification_due_hours"])
+
+        complaint = Complaint(
+            id=payload.complaint_id,
+            tracking_id=tid,
+            citizen_name=payload.citizen_name or "Pune Resident Citizen",
+            citizen_phone=payload.citizen_phone,
+            citizen_email=payload.citizen_email,
+            latitude=lat,
+            longitude=lon,
+            address_landmark=payload.address_landmark or "Pune Municipal Area",
+            ward_name=payload.ward_name or "Pune Municipal Corporation",
+            issue_type=issue_type,
+            urgency_level=payload.urgency_level or routing["urgency_level"],
+            felling_stage=payload.felling_stage or "NOT_APPLICABLE",
+            routed_authority=routing["routed_authority"]["name"],
+            routed_authority_role=routing["routed_authority"]["role"],
+            target_email=routing["routed_authority"]["email"],
+            target_whatsapp=routing["routed_authority"].get("whatsapp"),
+            legal_citations=payload.legal_citations if payload.legal_citations is not None else routing["legal_citations"],
+            photo_urls=[],
+            draft_subject_en=payload.draft_subject_en or f"Urgent Tree Notice [{tid}]",
+            draft_body_en=payload.draft_body_en or "Statutory tree grievance notice.",
+            draft_summary_mr=payload.draft_summary_mr or routing["prayer_mr"],
+            reverification_due_at=reverification_due_at,
+            verification_status="PENDING_TIMELOCK"
+        )
+        db.add(complaint)
+        await db.commit()
+        await db.refresh(complaint)
 
     email_res = None
     whatsapp_res = None

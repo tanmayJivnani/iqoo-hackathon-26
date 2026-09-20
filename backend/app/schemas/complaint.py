@@ -99,6 +99,11 @@ class AnalyzeAndDraftResponse(BaseModel):
     perpetrator_name: Optional[str] = None
     perpetrator_phone: Optional[str] = None
     
+    # Citizen details
+    citizen_name: Optional[str] = None
+    citizen_phone: Optional[str] = None
+    citizen_email: Optional[str] = None
+
     # Transparency & AI Fallback status
     is_fallback: bool = False
     ai_provider: Optional[str] = None
@@ -132,6 +137,28 @@ class RenderPdfRequest(BaseModel):
     complaint_id: str
     draft_subject_en: Optional[str] = None
     draft_body_en: Optional[str] = None
+    
+    # Metadata for edge/local complaints when not previously registered in DB
+    tracking_id: Optional[str] = None
+    issue_type: Optional[str] = None
+    urgency_level: Optional[str] = None
+    felling_stage: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    sensor_tilt_angle: Optional[float] = None
+    address_landmark: Optional[str] = None
+    ward_name: Optional[str] = None
+    citizen_name: Optional[str] = None
+    citizen_phone: Optional[str] = None
+    citizen_email: Optional[str] = None
+    perpetrator_name: Optional[str] = None
+    perpetrator_phone: Optional[str] = None
+    legal_citations: Optional[List[str]] = None
+    draft_summary_mr: Optional[str] = None
+    photo_base64: Optional[str] = None
+    photos_base64: Optional[List[str]] = None
+    estimated_tree_species: Optional[str] = None
+    visual_damage_summary: Optional[str] = None
 
 class RenderPdfResponse(BaseModel):
     complaint_id: str
@@ -144,6 +171,23 @@ class DispatchRequest(BaseModel):
     complaint_id: str
     confirmed_by_citizen: bool = True
     channels: List[str] = Field(default_factory=lambda: ["EMAIL", "WHATSAPP"]) # EMAIL, WHATSAPP, TWITTER
+    
+    # Optional metadata if complaint wasn't pre-registered
+    tracking_id: Optional[str] = None
+    issue_type: Optional[str] = None
+    urgency_level: Optional[str] = None
+    felling_stage: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    address_landmark: Optional[str] = None
+    ward_name: Optional[str] = None
+    citizen_name: Optional[str] = None
+    citizen_phone: Optional[str] = None
+    citizen_email: Optional[str] = None
+    legal_citations: Optional[List[str]] = None
+    draft_subject_en: Optional[str] = None
+    draft_body_en: Optional[str] = None
+    draft_summary_mr: Optional[str] = None
 
 class EmailDispatchResult(BaseModel):
     sent: bool

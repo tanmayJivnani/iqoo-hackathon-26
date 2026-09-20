@@ -97,6 +97,9 @@ data class AnalyzeAndDraftResponse(
     @SerializedName("perpetrator_description") val perpetratorDescription: String? = null,
     @SerializedName("perpetrator_name") val perpetratorName: String? = null,
     @SerializedName("perpetrator_phone") val perpetratorPhone: String? = null,
+    @SerializedName("citizen_name") val citizenName: String? = null,
+    @SerializedName("citizen_phone") val citizenPhone: String? = null,
+    @SerializedName("citizen_email") val citizenEmail: String? = null,
     @SerializedName("is_fallback") val isFallback: Boolean = false,
     @SerializedName("ai_provider") val aiProvider: String? = null,
     @SerializedName("tree_detected") val treeDetected: Boolean = true,
@@ -124,7 +127,26 @@ data class AnalyzeAndDraftResponse(
 data class RenderPdfRequest(
     @SerializedName("complaint_id") val complaintId: String,
     @SerializedName("draft_subject_en") val draftSubjectEn: String? = null,
-    @SerializedName("draft_body_en") val draftBodyEn: String? = null
+    @SerializedName("draft_body_en") val draftBodyEn: String? = null,
+    @SerializedName("tracking_id") val trackingId: String? = null,
+    @SerializedName("issue_type") val issueType: String? = null,
+    @SerializedName("urgency_level") val urgencyLevel: String? = null,
+    @SerializedName("felling_stage") val fellingStage: String? = null,
+    @SerializedName("latitude") val latitude: Double? = null,
+    @SerializedName("longitude") val longitude: Double? = null,
+    @SerializedName("sensor_tilt_angle") val sensorTiltAngle: Float? = null,
+    @SerializedName("address_landmark") val addressLandmark: String? = null,
+    @SerializedName("ward_name") val wardName: String? = null,
+    @SerializedName("citizen_name") val citizenName: String? = null,
+    @SerializedName("citizen_phone") val citizenPhone: String? = null,
+    @SerializedName("citizen_email") val citizenEmail: String? = null,
+    @SerializedName("perpetrator_name") val perpetratorName: String? = null,
+    @SerializedName("perpetrator_phone") val perpetratorPhone: String? = null,
+    @SerializedName("legal_citations") val legalCitations: List<String>? = null,
+    @SerializedName("draft_summary_mr") val draftSummaryMr: String? = null,
+    @SerializedName("photo_base64") val photoBase64: String? = null,
+    @SerializedName("estimated_tree_species") val estimatedTreeSpecies: String? = null,
+    @SerializedName("visual_damage_summary") val visualDamageSummary: String? = null
 )
 
 data class RenderPdfResponse(
@@ -138,7 +160,21 @@ data class RenderPdfResponse(
 data class DispatchRequest(
     @SerializedName("complaint_id") val complaintId: String,
     @SerializedName("confirmed_by_citizen") val confirmedByCitizen: Boolean = true,
-    val channels: List<String>
+    val channels: List<String>,
+    @SerializedName("tracking_id") val trackingId: String? = null,
+    @SerializedName("issue_type") val issueType: String? = null,
+    @SerializedName("urgency_level") val urgencyLevel: String? = null,
+    @SerializedName("latitude") val latitude: Double? = null,
+    @SerializedName("longitude") val longitude: Double? = null,
+    @SerializedName("address_landmark") val addressLandmark: String? = null,
+    @SerializedName("ward_name") val wardName: String? = null,
+    @SerializedName("citizen_name") val citizenName: String? = null,
+    @SerializedName("citizen_phone") val citizenPhone: String? = null,
+    @SerializedName("citizen_email") val citizenEmail: String? = null,
+    @SerializedName("legal_citations") val legalCitations: List<String>? = null,
+    @SerializedName("draft_subject_en") val draftSubjectEn: String? = null,
+    @SerializedName("draft_body_en") val draftBodyEn: String? = null,
+    @SerializedName("draft_summary_mr") val draftSummaryMr: String? = null
 )
 
 data class EmailDispatchResult(

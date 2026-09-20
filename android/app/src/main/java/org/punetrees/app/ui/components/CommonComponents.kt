@@ -27,15 +27,36 @@ import org.punetrees.app.ui.theme.*
 
 @Composable
 fun UrgencyBadge(urgency: String, modifier: Modifier = Modifier) {
-    val (bgColor, textColor, label) = when (urgency.uppercase()) {
-        "CRITICAL_EMERGENCY" -> Triple(AlertCriticalRed.copy(alpha = 0.15f), AlertCriticalRed, "CRITICAL EMERGENCY")
-        "HIGH" -> Triple(AlertWarningOrange.copy(alpha = 0.15f), AlertWarningOrange, "HIGH HAZARD")
-        else -> Triple(ForestGreenPrimary.copy(alpha = 0.15f), ForestGreenPrimary, "ROUTINE REDRESSAL")
+    val bgColor: Color
+    val textColor: Color
+    val borderColor: Color
+    val label: String
+
+    when (urgency.uppercase()) {
+        "CRITICAL_EMERGENCY" -> {
+            bgColor = Color(0xFFFFEBEE)
+            textColor = AlertCriticalRed
+            borderColor = Color(0xFFEF5350)
+            label = "🚨 CRITICAL EMERGENCY"
+        }
+        "HIGH" -> {
+            bgColor = Color(0xFFFFF3E0)
+            textColor = Color(0xFFE65100)
+            borderColor = Color(0xFFFF9800)
+            label = "⚠️ HIGH HAZARD"
+        }
+        else -> {
+            bgColor = Color(0xFFE8F5E9)
+            textColor = ForestGreenDark
+            borderColor = Color(0xFFA5D6A7)
+            label = "🌿 ROUTINE REDRESSAL"
+        }
     }
 
     Surface(
         color = bgColor,
         shape = RoundedCornerShape(6.dp),
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, borderColor),
         modifier = modifier
     ) {
         Text(
@@ -123,7 +144,7 @@ fun DuplicateAlertBanner(
         shape = RoundedCornerShape(10.dp),
         modifier = modifier
             .fillMaxWidth()
-            .border(1.dp, AlertWarningOrange, RoundedCornerShape(10.dp))
+            .border(1.5.dp, Color(0xFFFF9800), RoundedCornerShape(10.dp))
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -286,7 +307,7 @@ fun TreeAppLogo(
 
 @Composable
 fun AppTitleWithLogo(
-    title: String = "Pune Tree Rakshak",
+    title: String = "Pune Trees",
     subtitle: String? = "Citizen Complaint App",
     modifier: Modifier = Modifier
 ) {

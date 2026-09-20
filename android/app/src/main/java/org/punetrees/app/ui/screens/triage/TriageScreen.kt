@@ -310,9 +310,9 @@ fun TriageScreen(
             // Optional Perpetrator / Equipment Photo Slot (for Illegal Felling & Unauthorized Pruning)
             if (selectedCategory == "ILLEGAL_FELLING" || selectedCategory == "UNAUTHORIZED_PRUNING") {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF8E1)),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
                     shape = RoundedCornerShape(10.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFD54F)),
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFFF9800)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

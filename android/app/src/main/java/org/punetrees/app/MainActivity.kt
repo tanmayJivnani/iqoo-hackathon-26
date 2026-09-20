@@ -7,8 +7,12 @@ import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -40,6 +44,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
         locationProvider = LocationProvider(this)
@@ -63,7 +68,10 @@ class MainActivity : ComponentActivity() {
                 }
 
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .padding(top = 10.dp),
                     color = MaterialTheme.colorScheme.background
                 ) {
                     if (!isGpsEnabled) {
@@ -117,7 +125,7 @@ fun GpsRequiredDialog(onEnableGpsClick: () -> Unit) {
         },
         text = {
             Text(
-                "Pune Tree Rakshak requires GPS enabled to capture statutory geocodes and correlate with the PMC Tree Census database.\n\nPlease enable Location/GPS in device settings to proceed."
+                "Pune Trees requires GPS enabled to capture statutory geocodes and correlate with the PMC Tree Census database.\n\nPlease enable Location/GPS in device settings to proceed."
             )
         },
         confirmButton = {

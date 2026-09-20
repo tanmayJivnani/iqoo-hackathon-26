@@ -154,10 +154,10 @@ ADDITIONAL CONCURRENT STATUTORY VIOLATION IDENTIFIED:
                     Surface(
                         color = Color(0xFFFFF3E0),
                         shape = RoundedCornerShape(8.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFCC80)),
+                        border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFFF9800)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.padding(10.dp)) {
+                        Column(modifier = Modifier.padding(12.dp)) {
                             Text(
                                 text = "⚠️ ${additionalCat.title}",
                                 fontWeight = FontWeight.Bold,
@@ -165,10 +165,11 @@ ADDITIONAL CONCURRENT STATUTORY VIOLATION IDENTIFIED:
                                 color = Color(0xFFE65100)
                             )
                             if (!draft.aiAdditionalReasonEn.isNullOrBlank()) {
-                                Spacer(modifier = Modifier.height(2.dp))
+                                Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = draft.aiAdditionalReasonEn,
                                     fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
                                     color = Color(0xFFBF360C)
                                 )
                             }
@@ -238,7 +239,11 @@ ADDITIONAL CONCURRENT STATUTORY VIOLATION IDENTIFIED:
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 10.dp)
+                ) {
                     Text(
                         text = "Ref: ${draft.trackingId}",
                         fontWeight = FontWeight.Bold,
@@ -256,6 +261,10 @@ ADDITIONAL CONCURRENT STATUTORY VIOLATION IDENTIFIED:
 
             // AI Source Engine Transparency Banner (Hackathon Showcase)
             val isLocal = draft.aiProvider?.contains("LOCAL", ignoreCase = true) == true || draft.aiProvider?.contains("ON-DEVICE", ignoreCase = true) == true || draft.isFallback
+            val cleanAiProvider = (draft.aiProvider ?: "📱 On-Device Gemma 3n AI")
+                .replace(Regex("\\s*\\([^)]*\\.task\\)"), "")
+                .trim()
+
             Surface(
                 color = if (isLocal) Color(0xFFE8F5E9) else Color(0xFFE3F2FD),
                 shape = RoundedCornerShape(8.dp),
@@ -267,7 +276,7 @@ ADDITIONAL CONCURRENT STATUTORY VIOLATION IDENTIFIED:
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "🤖 Engine: ${if (isLocal) (draft.aiProvider ?: "📱 On-Device Gemma 3n AI") else "☁️ Cloud Multimodal AI"}",
+                        text = "🤖 Engine: ${if (isLocal) cleanAiProvider else "☁️ Cloud Multimodal AI"}",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (isLocal) ForestGreenDark else Color(0xFF1565C0)
@@ -304,13 +313,13 @@ ADDITIONAL CONCURRENT STATUTORY VIOLATION IDENTIFIED:
                     }
                 } else {
                     Surface(
-                        color = Color(0xFFFFF8E1),
-                        shape = RoundedCornerShape(8.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFE082)),
+                        color = Color(0xFFFFF3E0),
+                        shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFFF9800)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
-                            modifier = Modifier.padding(10.dp),
+                            modifier = Modifier.padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
@@ -319,16 +328,24 @@ ADDITIONAL CONCURRENT STATUTORY VIOLATION IDENTIFIED:
                                     text = "💡 Extra Defect Detected: ${additionalCat.title}",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp,
-                                    color = Color(0xFFF57F17)
+                                    color = Color(0xFFE65100)
                                 )
+                                Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = "Not included yet. Tap to review and confirm.",
-                                    fontSize = 10.sp,
-                                    color = Color.DarkGray
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFFBF360C)
                                 )
                             }
-                            TextButton(onClick = { showAdditionalPrompt = true }) {
-                                Text("Review & Add", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = ForestGreenPrimary)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Button(
+                                onClick = { showAdditionalPrompt = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE65100)),
+                                shape = RoundedCornerShape(6.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Text("Review & Add", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color.White)
                             }
                         }
                     }
@@ -716,7 +733,26 @@ ADDITIONAL CONCURRENT STATUTORY VIOLATION IDENTIFIED:
                                     RenderPdfRequest(
                                         complaintId = draft.complaintId,
                                         draftSubjectEn = editableSubject,
-                                        draftBodyEn = editableBody
+                                        draftBodyEn = editableBody,
+                                        trackingId = draft.trackingId,
+                                        issueType = draft.issueType,
+                                        urgencyLevel = draft.urgencyLevel,
+                                        fellingStage = draft.fellingStage,
+                                        latitude = draft.latitude,
+                                        longitude = draft.longitude,
+                                        sensorTiltAngle = draft.sensorTiltAngle,
+                                        addressLandmark = draft.addressLandmark,
+                                        wardName = draft.wardName,
+                                        citizenName = draft.citizenName,
+                                        citizenPhone = draft.citizenPhone,
+                                        citizenEmail = draft.citizenEmail,
+                                        perpetratorName = draft.perpetratorName,
+                                        perpetratorPhone = draft.perpetratorPhone,
+                                        legalCitations = currentCitations,
+                                        draftSummaryMr = draft.draftSummaryMr,
+                                        photoBase64 = photoBase64,
+                                        estimatedTreeSpecies = draft.estimatedTreeSpecies,
+                                        visualDamageSummary = draft.visualDamageSummary
                                     )
                                 )
                                 if (res.isSuccessful && res.body() != null) {

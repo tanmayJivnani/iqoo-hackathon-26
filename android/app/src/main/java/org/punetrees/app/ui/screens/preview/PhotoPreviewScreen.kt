@@ -687,7 +687,7 @@ fun PhotoPreviewScreen(
                         Card(
                             colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
                             shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, Color(0xFFFFB74D)),
+                            border = BorderStroke(1.5.dp, Color(0xFFFF9800)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -848,7 +848,7 @@ fun PhotoPreviewScreen(
                                             color = ForestGreenDark
                                         )
                                         Text(
-                                            text = if (isModelFound) "⚡ 100% Offline • NPU Accelerated • Edge Privacy" else "⚡ 100% Offline • Instant Rule-Based Draft",
+                                            text = if (isModelFound) "⚡ 100% Offline • On-Device AI • Edge Privacy" else "⚡ 100% Offline • Instant Rule-Based Draft",
                                             fontSize = 10.sp,
                                             color = Color.DarkGray
                                         )
@@ -898,7 +898,7 @@ fun PhotoPreviewScreen(
                                             color = Color.White
                                         )
                                         Text(
-                                            text = "🌐 Tree Census GIS Match + Vision Inspection",
+                                            text = "🌐 Cloud Multimodal AI • Vision & Statutory Drafting",
                                             fontSize = 10.sp,
                                             color = Color.White.copy(alpha = 0.9f)
                                         )

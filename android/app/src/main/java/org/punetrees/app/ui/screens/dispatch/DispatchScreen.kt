@@ -113,11 +113,29 @@ fun DispatchScreen(
 
     fun launchWhatsappIntent() {
         try {
-            val summaryText = "🚨 [${draft.trackingId}] वृक्ष तक्रार / Tree Grievance Alert\n\nस्थान / Location: ${draft.addressLandmark}\nप्रकार / Category: ${draft.issueType.replace('_', ' ')}\n\n${draft.draftSummaryMr}\n\nTracking Link: https://punetrees.org/track/${draft.trackingId}"
+            val summaryText = "🚨 [${draft.trackingId}] वृक्ष तक्रार / Tree Grievance Alert\n\nस्थान / Location: ${draft.addressLandmark}\nप्रकार / Category: ${draft.issueType.replace('_', ' ')}\n\n${draft.draftSummaryMr ?: ""}\n\nTracking Link: https://punetrees.org/track/${draft.trackingId}"
             val encoded = Uri.encode(summaryText)
             val waUrl = "https://wa.me/919689900002?text=$encoded"
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(waUrl))
-            context.startActivity(intent)
+            
+            var launched = false
+            for (pkg in listOf("com.whatsapp", "com.whatsapp.w4b")) {
+                try {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(waUrl)).apply {
+                        setPackage(pkg)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent)
+                    launched = true
+                    break
+                } catch (_: Exception) {}
+            }
+
+            if (!launched) {
+                val genericIntent = Intent(Intent.ACTION_VIEW, Uri.parse(waUrl)).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(genericIntent)
+            }
             hasOpenedWhatsapp = true
             isConfirmedSent = true
         } catch (e: Exception) {
@@ -248,50 +266,67 @@ fun DispatchScreen(
                     }
                 }
 
-                // Conditional Action 2: WhatsApp Field Alert (For Fall Risk, Hazardous Branches, Illegal Felling, Emergency)
-                val isFallRiskOrEmergency = draft.issueType == "DANGEROUS_LEANING_FALL_RISK" || 
-                                           draft.issueType == "HAZARDOUS_BRANCH" || 
-                                           draft.issueType == "ILLEGAL_FELLING" || 
-                                           draft.urgencyLevel == "CRITICAL_EMERGENCY" ||
-                                           draft.urgencyLevel == "HIGH"
+                // Action 2: WhatsApp Field Alert (Available for all civic complaints, recommended for emergencies)
+                val isUrgent = draft.urgencyLevel == "CRITICAL_EMERGENCY" ||
+                               draft.urgencyLevel == "HIGH" ||
+                               draft.issueType in listOf("DANGEROUS_LEANING_FALL_RISK", "HAZARDOUS_BRANCH", "ILLEGAL_FELLING")
 
-                if (isFallRiskOrEmergency) {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = if (hasOpenedWhatsapp) ForestGreenPrimary.copy(alpha = 0.08f) else Color.White),
-                        shape = RoundedCornerShape(10.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, if (hasOpenedWhatsapp) ForestGreenPrimary else Color(0xFFE0E0E0)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = if (hasOpenedWhatsapp) ForestGreenPrimary.copy(alpha = 0.08f) else Color.White),
+                    shape = RoundedCornerShape(10.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (hasOpenedWhatsapp) ForestGreenPrimary else Color(0xFFE0E0E0)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.Share, contentDescription = null, tint = ForestGreenPrimary)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "WhatsApp Field Alert (Immediate Ground Action)",
+                                    text = "WhatsApp Field Alert",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp,
                                     color = ForestGreenDark
                                 )
                             }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Also send this alert to PMC Disaster Helpline (9689900002) on WhatsApp for fast ground dispatch.",
-                                fontSize = 11.sp,
-                                color = Color.Gray
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-                            OutlinedButton(
-                                onClick = { launchWhatsappIntent() },
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = if (hasOpenedWhatsapp) "✓ 2. WhatsApp Alert Sent (Tap to Reopen)" else "💬 2. Send WhatsApp Field Alert",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
-                                    color = ForestGreenPrimary
-                                )
+                            if (isUrgent) {
+                                Surface(
+                                    color = Color(0xFFFFF3E0),
+                                    shape = RoundedCornerShape(4.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFF9800))
+                                ) {
+                                    Text(
+                                        text = "RECOMMENDED",
+                                        color = Color(0xFFE65100),
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
                             }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Send this grievance alert to PMC Disaster Helpline (9689900002) on WhatsApp for fast ground team dispatch.",
+                            fontSize = 11.sp,
+                            color = Color.Gray
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        OutlinedButton(
+                            onClick = { launchWhatsappIntent() },
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = if (hasOpenedWhatsapp) "✓ 2. WhatsApp Alert Sent (Tap to Reopen)" else "💬 2. Send WhatsApp Field Alert",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = ForestGreenPrimary
+                            )
                         }
                     }
                 }
@@ -341,7 +376,21 @@ fun DispatchScreen(
                                     DispatchRequest(
                                         complaintId = draft.complaintId,
                                         confirmedByCitizen = true,
-                                        channels = channels
+                                        channels = channels,
+                                        trackingId = draft.trackingId,
+                                        issueType = draft.issueType,
+                                        urgencyLevel = draft.urgencyLevel,
+                                        latitude = draft.latitude,
+                                        longitude = draft.longitude,
+                                        addressLandmark = draft.addressLandmark,
+                                        wardName = draft.wardName,
+                                        citizenName = draft.citizenName,
+                                        citizenPhone = draft.citizenPhone,
+                                        citizenEmail = draft.citizenEmail,
+                                        legalCitations = draft.legalCitations,
+                                        draftSubjectEn = draft.draftSubjectEn,
+                                        draftBodyEn = draft.draftBodyEn,
+                                        draftSummaryMr = draft.draftSummaryMr
                                     )
                                 )
                                 if (res.isSuccessful) {

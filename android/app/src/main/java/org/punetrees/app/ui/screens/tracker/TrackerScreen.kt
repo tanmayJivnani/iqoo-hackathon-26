@@ -148,7 +148,7 @@ fun TrackerScreen(
             TopAppBar(
                 title = {
                     org.punetrees.app.ui.components.AppTitleWithLogo(
-                        title = "Pune Tree Rakshak",
+                        title = "Pune Trees",
                         subtitle = "Citizen Complaint App"
                     )
                 },
