@@ -1,0 +1,15 @@
+android/
+.gradle/
+build/
+*.db
+*.db-shm
+*.db-wal
+pune_tree_census*
+backend/media/
+media/
+backend/__pycache__/
+__pycache__/
+*.pptx
+*.pdf
+.git
+.gitignore
