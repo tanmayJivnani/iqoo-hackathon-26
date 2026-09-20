@@ -32,6 +32,7 @@ async def on_startup():
 app.include_router(complaints_router, prefix=settings.API_V1_STR)
 
 @app.get("/health")
+@app.get("/healthz")
 async def health_check():
     return {
         "status": "healthy",
