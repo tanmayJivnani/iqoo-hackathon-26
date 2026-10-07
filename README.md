@@ -39,7 +39,7 @@ A phone-first civic accountability and tree preservation platform empowering Pun
 
 ```mermaid
 flowchart TD
-    A["📱 Mobile Client (CameraX 3-Layer + GPS)"] --> B{"🛡️ AI Anti-Spam Gate"}
+    A["📱 Expo Mobile Client (3-Layer Camera + GPS)"] --> B{"🛡️ AI Anti-Spam Gate"}
     B -- "No Tree / Indoor Spam" --> B1["🚫 Reject (2 Attempts) + 3h Cooldown"]
     B -- "Tree Verified" --> C["🌿 AI Vision Analyzer (Species & Damage)"]
     C --> D["📍 GIS Spatial Matcher (PMC 4.09M Census within 10m)"]
@@ -93,10 +93,18 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 * Swagger API Documentation: `http://localhost:8000/docs`
 
-### 2. Android App (Kotlin + Jetpack Compose)
+### 2. Expo Android App (React Native)
 
 ```bash
-cd android
-# Build debug APK
-./gradlew assembleDebug
+cd mobile
+npm install
+npm run android
 ```
+
+The Expo app uses Expo Router, Expo Camera, foreground location, gallery selection, and a local Android Expo module for on-device MediaPipe Gemma photo verification. It produces a native development build, so it is not run inside Expo Go.
+
+To use the on-device Gemma path, import a compatible MediaPipe `.task` model from the tracker screen. The model is not bundled because it is several gigabytes. The app still uses the hosted FastAPI service for tree census lookup, statutory routing, PDF generation, dispatch, and reverification when connected. When offline, the local model prepares a draft for review and the citizen can share it through installed mail/WhatsApp apps.
+
+Set `EXPO_PUBLIC_API_URL` to override the hosted API URL. See [mobile/README.md](mobile/README.md) for Expo development build and module notes.
+
+The previous native Kotlin client remains under `android/` during the migration.
