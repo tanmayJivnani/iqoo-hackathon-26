@@ -8,14 +8,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tanmayJivnani/hackathon-final-prep.git"
+    "url": "git+https://github.com/tanmayJivnani/iqoo-hackathon-26.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/tanmayJivnani/hackathon-final-prep/issues"
+    "url": "https://github.com/tanmayJivnani/iqoo-hackathon-26/issues"
   },
-  "homepage": "https://github.com/tanmayJivnani/hackathon-final-prep#readme"
+  "homepage": "https://github.com/tanmayJivnani/iqoo-hackathon-26#readme"
 }
