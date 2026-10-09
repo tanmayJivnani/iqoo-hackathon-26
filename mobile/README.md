@@ -9,7 +9,7 @@ npm install
 npm run android
 ```
 
-`npm run android` creates and launches a native Expo development build. Expo Go is not supported because the app includes a local Android Expo module for MediaPipe Gemma inference.
+`npm run android` selects an Android SDK containing NDK `27.1.12297006` and launches a native Expo development build. On Linux it uses JDK 17 when available. Expo Go is not supported because the app includes a local Android Expo module for MediaPipe Gemma inference. If the required NDK is not installed, install it from Android Studio's SDK Manager or set `ANDROID_HOME` to an SDK that contains it.
 
 The Android package id remains `org.punetrees.app`, so a signed release can retain the existing app identity. The generated `android/` directory is ignored; change native configuration in `app.json` or `modules/local-tree-ai` and regenerate it with `npm run prebuild:android`.
 
