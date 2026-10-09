@@ -27,6 +27,10 @@ This is a local hackathon backend. API authentication and per-citizen record vis
 
 ## API compatibility
 
+`POST /api/v1/complaints/fast-draft` prepares notices for Trees, Roads, Garbage and Noise without a cloud AI request. Physical reports require a photo and GPS; noise reports require an M4A sample, relative dBFS metadata and GPS. Evidence remains citizen-reported. The PDF embeds audio and the email payload also supplies an M4A attachment URL. Photo follow-up is enabled only for trees, potholes, open drains and waste dumps.
+
+Configure verified department contacts through the civic email settings in `.env.example`. Unconfigured municipal categories use PMC central reception; noise uses Pune Police commissioner reception and requests forwarding. Read the [legal reference notes](../docs/civic-legal-references.md) for limitations and sources.
+
 Existing `/api/v1/complaints` URLs are retained: analyze-and-draft, check-duplicate, upvote-witness, render-pdf, dispatch, list, details, download-pdf, record digest, and photo verification. JPEG/PNG evidence is validated and stored as actual files. API timestamps are UTC with `Z`.
 
 `dispatch` prepares an email composer payload and WhatsApp/X links. It returns `PREPARED` and `email.sent=false`; it never sends mail or claims external delivery. Expo downloads the PDF and attaches it to the phone's email composer. The user completes sending.

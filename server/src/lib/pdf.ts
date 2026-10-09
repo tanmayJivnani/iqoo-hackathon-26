@@ -4,11 +4,11 @@ import path from 'node:path';
 import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
 import { config } from './config';
-import { photoBytes } from './media';
+import { photoBytes, mediaPath } from './media';
 import type { Complaint } from './types';
 
 export function evidenceDigest(c: Complaint) {
-  return createHash('sha256').update(JSON.stringify({ tracking_id: c.tracking_id, latitude: c.latitude, longitude: c.longitude, created_at: c.created_at, draft_body_en: c.draft_body_en, draft_summary_mr: c.draft_summary_mr, photo_urls: c.photo_urls })).digest('hex');
+  return createHash('sha256').update(JSON.stringify({ tracking_id: c.tracking_id, latitude: c.latitude, longitude: c.longitude, created_at: c.created_at, draft_body_en: c.draft_body_en, draft_summary_mr: c.draft_summary_mr, photo_urls: c.photo_urls, captured_at: c.captured_at, audio_sha256: c.audio_sha256, noise_evidence: c.noise_evidence })).digest('hex');
 }
 export function pdfPath(c: Complaint) { return path.join(config.mediaDir, `${c.id.replace(/[^a-zA-Z0-9-]/g, '_')}_Notice.pdf`); }
 export async function generatePdf(c: Complaint) {
@@ -20,12 +20,17 @@ export async function generatePdf(c: Complaint) {
   doc.registerFont('Marathi', font);
   const heading = (text: string) => { doc.moveDown(0.6).font('Helvetica-Bold').fontSize(13).fillColor('#185b38').text(text).moveDown(0.3); };
   const body = (text: string) => doc.font('Helvetica').fontSize(10).fillColor('#202b24').text(text, { lineGap: 3 });
-  doc.font('Helvetica-Bold').fontSize(22).fillColor('#185b38').text('Pune Tree Rakshak');
+  doc.font('Helvetica-Bold').fontSize(22).fillColor('#185b38').text('Pune Fast Complaint');
   body(`Citizen complaint | ${c.tracking_id}\nCreated: ${new Date(c.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST`);
   heading('Complaint details');
   body(`Category: ${c.issue_type.replaceAll('_', ' ')}\nUrgency: ${c.urgency_level.replaceAll('_', ' ')}\nLocation: ${c.address_landmark}\nGPS: ${c.latitude.toFixed(5)}, ${c.longitude.toFixed(5)}\nWard (approximate): ${c.ward_name}\nTo: ${c.routed_authority.name}\nEmail: ${c.target_email}`);
   heading('Subject'); body(c.draft_subject_en);
   heading('Citizen statement'); body(c.draft_body_en);
+  if (c.noise_evidence && c.audio_url) {
+    heading('Audio evidence');
+    body(`Recording: ${c.noise_evidence.duration_ms / 1000} seconds\nCaptured (device-reported): ${c.captured_at}\nUncalibrated digital level: ${c.noise_evidence.average_dbfs.toFixed(1)} dBFS average / ${c.noise_evidence.peak_dbfs.toFixed(1)} dBFS peak\nNot a calibrated dB(A) measurement.\nSHA-256 audio digest: ${c.audio_sha256}\nThe M4A recording is embedded as a file attachment in this PDF.`);
+    doc.file(await readFile(mediaPath(c.audio_url.split('/').at(-1)!)), { name: `${c.tracking_id}.m4a`, description: 'Citizen-recorded ambient audio; uncalibrated microphone evidence.' });
+  }
   heading('Routing references'); c.legal_citations.forEach(citation => body(citation));
   heading('Marathi summary'); doc.font('Marathi').fontSize(11).fillColor('#202b24').text(c.draft_summary_mr, { lineGap: 4 });
   doc.addPage(); heading('Evidence record');

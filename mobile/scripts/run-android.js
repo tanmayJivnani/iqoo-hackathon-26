@@ -38,7 +38,13 @@ const availableNdkVersions = installedNdkVersions(sdkRoot);
 const ndkVersion = requestedNdkVersion || (availableNdkVersions.includes(preferredNdkVersion)
   ? preferredNdkVersion : availableNdkVersions[0]);
 const env = { ...process.env, ANDROID_HOME: sdkRoot, ANDROID_SDK_ROOT: sdkRoot, ORG_GRADLE_PROJECT_ndkVersion: ndkVersion };
-env.PATH = `${path.join(sdkRoot, 'platform-tools')}${path.delimiter}${env.PATH || ''}`;
+// Windows exposes Path with mixed casing; Node keeps only one case-insensitive
+// entry when spawning. Preserve it and make the current Node runtime explicit.
+const originalPath = env.PATH || env.Path || '';
+if (process.platform === 'win32') {
+  for (const key of Object.keys(env)) if (key.toLowerCase() === 'path') delete env[key];
+}
+env.PATH = [path.dirname(process.execPath), path.join(sdkRoot, 'platform-tools'), originalPath].join(path.delimiter);
 
 // React Native's Gradle plugins request a Java 17 toolchain.
 const java17Candidates = [

@@ -6,21 +6,24 @@ import * as Location from 'expo-location';
 import * as MailComposer from 'expo-mail-composer';
 import * as SecureStore from 'expo-secure-store';
 import { Accelerometer } from 'expo-sensors';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, BackHandler, Image, KeyboardAvoidingView, Linking, Modal, Platform,
+  ActivityIndicator, Alert, BackHandler, Image, Keyboard, KeyboardAvoidingView, Linking, Platform,
   Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LocalTreeAI from '../../modules/local-tree-ai/src/LocalTreeAIModule';
 import { apiDate, canUseLocalAnalysis, isResolved, isTimelocked, nextPhotoRejection } from '../lib/complaint-flow';
-import { categories, categoryLabel, legalGrounding } from '../data/categories';
+import { categoriesByDomain, allCategories, tabs, domainFor, categoryLabel, legalGrounding, type CivicDomain } from '../data/civic';
+import { NoiseCapture } from '../components/NoiseCapture';
+import { ProfileSheet } from '../components/ProfileSheet';
+import type { NoiseEvidence } from '../lib/noise';
 import { API_BASE, api, asDataUri, type Complaint, type ComplaintDetail, type Draft } from '../lib/api';
 
-type Page = 'tracker' | 'category' | 'guidance' | 'camera' | 'review' | 'draft' | 'dispatch' | 'verify';
+type Page = 'tracker' | 'category' | 'guidance' | 'camera' | 'review' | 'noise' | 'draft' | 'dispatch' | 'verify';
 type Profile = { name: string; phone: string; email: string };
 type Photo = { uri: string; base64: string };
-type EvidenceLocation = { latitude: number; longitude: number; address: string };
+type EvidenceLocation = { latitude: number; longitude: number; address: string; accuracy?: number | null };
 type LocalAnalysis = { available: boolean; treeDetected: boolean; visualDamageSummary?: string | null; estimatedTreeSpecies?: string | null; urgencyLevel?: string | null };
 const blankProfile: Profile = { name: '', phone: '', email: '' };
 const green = '#246B45';
@@ -72,6 +75,10 @@ function localDraft(category: string, latitude: number, longitude: number, addre
 
 export default function HomeScreen() {
   const [page, setPage] = useState<Page>('tracker');
+  const [domain, setDomain] = useState<CivicDomain>('TREES');
+  const [photoTarget, setPhotoTarget] = useState(1);
+  const [capturedAt, setCapturedAt] = useState('');
+  const [noiseEvidence, setNoiseEvidence] = useState<NoiseEvidence | null>(null);
   const [profile, setProfile] = useState<Profile>(blankProfile);
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileDraft, setProfileDraft] = useState<Profile>(blankProfile);
@@ -94,6 +101,9 @@ export default function HomeScreen() {
   const [tilt, setTilt] = useState(0);
   const [busy, setBusy] = useState(false);
   const [pendingProfileStart, setPendingProfileStart] = useState(false);
+  const closeProfile = useCallback(() => {
+    Keyboard.dismiss(); setPendingProfileStart(false); setProfileOpen(false);
+  }, []);
   const [detail, setDetail] = useState<ComplaintDetail | null>(null);
   const [verificationPhoto, setVerificationPhoto] = useState<Photo | null>(null);
   const [verificationResult, setVerificationResult] = useState<{ ai_verdict: string; ai_confidence: number; ai_notes_en: string; ai_notes_mr: string; final_status: string; gps_valid: boolean; distance_from_original_m: number; reopen_count: number } | null>(null);
@@ -101,6 +111,8 @@ export default function HomeScreen() {
   const cameraRef = useRef<CameraView>(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const category = selectedCategories[0] ?? 'DANGEROUS_LEANING_FALL_RISK';
+  const categories = categoriesByDomain[domain];
+  const visibleComplaints = complaints.filter(item => (item.domain || domainFor(item.issue_type)) === domain);
 
   const refresh = async () => {
     setLoading(true);
@@ -130,8 +142,8 @@ export default function HomeScreen() {
   useEffect(() => {
     if (page === 'tracker') return;
     const backTargets: Record<Page, Page> = {
-      tracker: 'tracker', category: 'tracker', guidance: 'category', camera: retakeIndex !== null ? 'review' : 'guidance',
-      review: 'guidance', draft: detail ? 'tracker' : 'review', dispatch: 'draft', verify: detail ? 'draft' : 'tracker',
+      tracker: 'tracker', category: 'tracker', guidance: 'category', noise: 'category', camera: retakeIndex !== null ? 'review' : 'guidance',
+      review: 'guidance', draft: detail ? 'tracker' : domain === 'NOISE' ? 'noise' : 'review', dispatch: 'draft', verify: detail ? 'draft' : 'tracker',
     };
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (page === 'camera' && retakeIndex !== null) setRetakeIndex(null);
@@ -140,7 +152,7 @@ export default function HomeScreen() {
       return true;
     });
     return () => subscription.remove();
-  }, [page, retakeIndex, detail]);
+  }, [page, retakeIndex, detail, domain]);
 
   const saveProfile = async () => {
     if (!profileDraft.name.trim() || !profileDraft.phone.trim()) {
@@ -154,12 +166,10 @@ export default function HomeScreen() {
   };
 
   const startComplaint = () => {
+    setPhotoTarget(1); setNoiseEvidence(null); setCapturedAt('');
     setSelectedCategories([]); setPhotos([]); setRetakeIndex(null); setNearbyComplaints([]); setNotes(''); setDraft(null); setDetail(null);
     setPerpetratorName(''); setPerpetratorPhone(''); setPerpetratorPhotos([]); setLocation(null); setTilt(0);
     setVerificationPhoto(null); setVerificationResult(null); setVerificationNote('');
-    if (!profile.name || !profile.phone) {
-      setPendingProfileStart(true); setProfileDraft(profile); setProfileOpen(true); return;
-    }
     setPage('category');
   };
 
@@ -167,21 +177,22 @@ export default function HomeScreen() {
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (permission.status !== 'granted') throw new Error('Allow location access to attach the actual evidence location.');
-      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      let address = `${current.coords.latitude.toFixed(5)}, ${current.coords.longitude.toFixed(5)}, Pune`;
-      try {
-        const result = await Location.reverseGeocodeAsync(current.coords);
-        const first = result[0];
-        if (first) address = [first.name, first.street, first.subregion, first.city].filter(Boolean).join(', ');
-      } catch { /* coordinate address is still useful */ }
-      const evidenceLocation = { latitude: current.coords.latitude, longitude: current.coords.longitude, address };
+      const recent = await Location.getLastKnownPositionAsync({ maxAge: 15_000, requiredAccuracy: 50 });
+      let gpsTimeout: ReturnType<typeof setTimeout> | undefined;
+      const current = recent || await Promise.race([
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
+        new Promise<never>((_, reject) => { gpsTimeout = setTimeout(() => reject(new Error('GPS is taking too long. Move to an open location and retry.')), 15_000); }),
+      ]).finally(() => clearTimeout(gpsTimeout));
+      const address = `${current.coords.latitude.toFixed(5)}, ${current.coords.longitude.toFixed(5)}`;
+      const evidenceLocation = { latitude: current.coords.latitude, longitude: current.coords.longitude, address, accuracy: current.coords.accuracy };
       setLocation(evidenceLocation);
-      try {
-        const duplicates = await api<{ nearby_complaints: typeof nearbyComplaints }>('/api/v1/complaints/check-duplicate', {
-          method: 'POST', body: JSON.stringify({ latitude: current.coords.latitude, longitude: current.coords.longitude, radius_meters: 30 }),
-        });
-        setNearbyComplaints(duplicates.nearby_complaints ?? []);
-      } catch { setNearbyComplaints([]); }
+      void Location.reverseGeocodeAsync(current.coords).then(result => {
+        const first = result[0];
+        if (first) setLocation(previous => previous?.latitude === evidenceLocation.latitude && previous.longitude === evidenceLocation.longitude ? { ...previous, address: [first.name, first.street, first.subregion, first.city].filter(Boolean).join(', ') || previous.address } : previous);
+      }).catch(() => undefined);
+      void api<{ nearby_complaints: typeof nearbyComplaints }>('/api/v1/complaints/check-duplicate', {
+        method: 'POST', body: JSON.stringify({ latitude: current.coords.latitude, longitude: current.coords.longitude, radius_meters: 30, domain }),
+      }).then(duplicates => setNearbyComplaints(duplicates.nearby_complaints ?? [])).catch(() => setNearbyComplaints([]));
       return evidenceLocation;
     } catch (error) { Alert.alert('Location unavailable', error instanceof Error ? error.message : 'Could not get a GPS fix. Please retry.'); return null; }
   };
@@ -189,7 +200,7 @@ export default function HomeScreen() {
   const openCamera = async (replaceIndex: number | null = null) => {
     if (!cameraPermission?.granted) {
       const result = await requestCameraPermission();
-      if (!result.granted) { Alert.alert('Camera access needed', 'Allow camera access to take the three evidence photos.'); return; }
+      if (!result.granted) { Alert.alert('Camera access needed', 'Allow camera access to capture evidence.'); return; }
     }
     setRetakeIndex(replaceIndex);
     if (replaceIndex === null && photos.length === 0 && !await getLocation()) return;
@@ -203,6 +214,7 @@ export default function HomeScreen() {
       const image = await cameraRef.current.takePictureAsync({ quality: 0.68, base64: true });
       if (!image?.uri || !image.base64) throw new Error('The photo could not be read. Try again.');
       const newPhoto = { uri: image.uri, base64: image.base64 };
+      setCapturedAt(new Date().toISOString());
       if (retakeIndex !== null) {
         setPhotos((current) => current.map((photo, index) => index === retakeIndex ? newPhoto : photo));
         setRetakeIndex(null);
@@ -210,7 +222,7 @@ export default function HomeScreen() {
       } else {
         const next = [...photos, newPhoto];
         setPhotos(next);
-        if (next.length === 3) setPage('review');
+        if (next.length >= photoTarget) setPage('review');
       }
     } catch (error) { Alert.alert('Could not capture photo', error instanceof Error ? error.message : 'Try again.'); }
     finally { captureRef.current = false; }
@@ -220,13 +232,13 @@ export default function HomeScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, selectionLimit: 3, quality: 0.68, base64: true });
     if (result.canceled) return;
     const chosen = result.assets.slice(0, 3).filter((asset) => asset.base64).map((asset) => ({ uri: asset.uri, base64: asset.base64! }));
-    if (chosen.length < 3) { Alert.alert('Choose three photos', 'Please select three photos so the context, structure, and detail are all documented.'); return; }
+    if (!chosen.length) { Alert.alert('Photo required', 'Please select at least one readable photo.'); return; }
     if (!await getLocation()) return;
-    setPhotos(chosen); setRetakeIndex(null); setPage('review');
+    setCapturedAt(new Date().toISOString()); setPhotos(chosen); setRetakeIndex(null); setPage('review');
   };
 
   const attachOffenderPhoto = async () => {
-    if (perpetratorPhotos.length >= 4) { Alert.alert('Photo limit', 'You can attach up to four optional photos.'); return; }
+    if (perpetratorPhotos.length >= 3) { Alert.alert('Photo limit', 'You can attach up to three optional photos.'); return; }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.68, base64: true });
     const asset = result.assets?.[0];
     if (!result.canceled && asset?.base64) setPerpetratorPhotos((previous) => [...previous, { uri: asset.uri, base64: asset.base64! }]);
@@ -287,6 +299,24 @@ export default function HomeScreen() {
     finally { operationRef.current = false; setBusy(false); }
   };
 
+  const prepareFastDraft = async () => {
+    if (operationRef.current) return;
+    if (!location || (domain === 'NOISE' ? !noiseEvidence : !photos.length)) { Alert.alert('Evidence required', 'Capture evidence and GPS before preparing the notice.'); return; }
+    operationRef.current = true; setBusy(true);
+    try {
+      const audioBase64 = noiseEvidence ? await new File(noiseEvidence.uri).base64() : undefined;
+      const response = await api<Draft>('/api/v1/complaints/fast-draft', { method: 'POST', signal: AbortSignal.timeout(20_000), body: JSON.stringify({
+        issue_type: category, latitude: location.latitude, longitude: location.longitude, gps_accuracy_m: location.accuracy,
+        captured_at: noiseEvidence?.captured_at || capturedAt, photos_base64: [...photos, ...perpetratorPhotos].map(photoBase64),
+        audio_base64: audioBase64, noise_evidence: noiseEvidence || undefined,
+        citizen_notes: notes || null, citizen_name: profile.name || null, citizen_phone: profile.phone || null, citizen_email: profile.email || null,
+        address_landmark: location.address, perpetrator_name: perpetratorName || null, perpetrator_phone: perpetratorPhone || null,
+      }) });
+      setDraft(response); setPage('draft'); void refresh();
+    } catch (error) { Alert.alert('Notice not prepared', error instanceof Error ? error.message : 'Reconnect to the local backend and retry. Your captured evidence is still available.'); }
+    finally { operationRef.current = false; setBusy(false); }
+  };
+
   const importGemma = async () => {
     try {
       const picked = await DocumentPicker.getDocumentAsync({ type: ['application/octet-stream', 'application/*', '*/*'], copyToCacheDirectory: true });
@@ -328,7 +358,7 @@ export default function HomeScreen() {
       });
       // Keep the registered ID for retrying a failed dispatch without creating another report.
       setDraft({ ...draft, complaint_id: pdf.complaint_id });
-      const result = await api<{ email?: { ready: boolean; recipient: string; subject: string; body: string; attachment_url: string }; whatsapp?: { deep_link_url: string } }>(
+      const result = await api<{ email?: { ready: boolean; recipient: string; subject: string; body: string; attachment_url: string; audio_attachment_url?: string | null }; whatsapp?: { deep_link_url: string } }>(
         '/api/v1/complaints/dispatch', { method: 'POST', body: JSON.stringify({
           complaint_id: pdf.complaint_id, confirmed_by_citizen: true, channels: [channel],
         }) },
@@ -340,9 +370,10 @@ export default function HomeScreen() {
           new File(Paths.cache, `${draft.tracking_id}.pdf`),
           { idempotent: true, signal: AbortSignal.timeout(60_000) },
         );
+        const audioAttachment = result.email.audio_attachment_url ? await File.downloadFileAsync(`${API_BASE}${result.email.audio_attachment_url}`, new File(Paths.cache, `${draft.tracking_id}.m4a`), { idempotent: true, signal: AbortSignal.timeout(30_000) }) : null;
         await MailComposer.composeAsync({
           recipients: [result.email.recipient], subject: result.email.subject,
-          body: result.email.body, attachments: [attachment.uri],
+          body: result.email.body, attachments: [attachment.uri, ...(audioAttachment ? [audioAttachment.uri] : [])],
         });
       } else {
         if (!result.whatsapp?.deep_link_url) throw new Error('The WhatsApp summary could not be prepared.');
@@ -394,57 +425,57 @@ export default function HomeScreen() {
       {page === 'tracker' && <>
         <View style={styles.homeHeader}>
           <View style={styles.brandMark}><Text style={{ fontSize: 22 }}>🌳</Text></View>
-          <View style={{ flex: 1 }}><Text style={styles.brand}>Pune Tree Rakshak</Text><Text style={styles.subtle}>Citizen complaint tracker</Text></View>
+          <View style={{ flex: 1 }}><Text style={styles.brand}>Pune Fast Complaint</Text><Text style={styles.subtle}>{tabs.find(tab => tab.key === domain)?.caption}</Text></View>
           <Pressable onPress={() => { setPendingProfileStart(false); setProfileDraft(profile); setProfileOpen(true); }} style={styles.avatar}><Text style={styles.avatarText}>{profile.name ? profile.name[0].toUpperCase() : '👤'}</Text></Pressable>
           <Pressable onPress={() => void refresh()} style={styles.refresh}><Text style={{ color: green, fontSize: 22 }}>⟳</Text></Pressable>
         </View>
         <ScrollView contentContainerStyle={styles.scroll} refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} tintColor={green} />}>
-          <View style={styles.hero}><Text style={styles.eyebrow}>PUNE • CITIZEN ACTION</Text><Text style={styles.heroTitle}>Protect the trees{ '\n' }that protect us.</Text><Text style={styles.heroCopy}>Document a concern, create a statutory notice, and follow progress from one place.</Text>
-            <Button title="＋  Report a tree concern" onPress={startComplaint} /></View>
-          <View style={styles.sectionTitleRow}><Text style={styles.sectionTitle}>Your reports</Text><Text style={styles.count}>{complaints.length} {complaints.length === 1 ? 'report' : 'reports'}</Text></View>
+          <View style={styles.hero}><Text style={styles.eyebrow}>PUNE • {domain}</Text><Text style={styles.heroTitle}>Capture it.{ '\n' }Make it count.</Text><Text style={styles.heroCopy}>{domain === 'NOISE' ? 'A short audio sample, GPS and a ready-to-send police complaint.' : 'One photo, GPS and a ready-to-send civic notice. No legal writing required.'}</Text>
+            <Button title="＋  Report a concern" onPress={startComplaint} /></View>
+          <View style={styles.sectionTitleRow}><Text style={styles.sectionTitle}>Your reports</Text><Text style={styles.count}>{visibleComplaints.length} {visibleComplaints.length === 1 ? 'report' : 'reports'}</Text></View>
           {trackerError && <Card style={styles.warningCard}><Text style={styles.warningTitle}>Reports unavailable</Text><Text style={styles.bodyText}>{trackerError}</Text><Button title="Retry" onPress={() => void refresh()} secondary /></Card>}
-          {loading && complaints.length === 0 ? <ActivityIndicator color={green} style={{ marginTop: 30 }} /> : complaints.length === 0 && !trackerError ? <Card style={styles.emptyCard}><Text style={styles.emptyIcon}>🌱</Text><Text style={styles.cardTitle}>No reports yet</Text><Text style={styles.subtleCenter}>Your tree complaints will appear here with their status and follow-up timeline.</Text><Button title="Start your first report" onPress={startComplaint} secondary /></Card> : complaints.map((item) => <Pressable key={item.id} onPress={() => void openDetail(item.id)}><Card style={styles.reportCard}>
-            <View style={styles.reportTop}><Text style={styles.reportIcon}>{categories.find((c) => item.issue_type.includes(c.key))?.emoji ?? '🌿'}</Text><View style={{ flex: 1 }}><Text style={styles.cardTitle}>{categoryLabel(item.issue_type)}</Text><Text style={styles.reportMeta}>{item.tracking_id} · {apiDate(item.created_at).toLocaleDateString()}</Text></View><Text style={styles.chevron}>›</Text></View>
+          {loading && !visibleComplaints.length ? <ActivityIndicator color={green} style={{ marginTop: 30 }} /> : !visibleComplaints.length && !trackerError ? <Card style={styles.emptyCard}><Text style={styles.emptyIcon}>{tabs.find(tab => tab.key === domain)?.emoji}</Text><Text style={styles.cardTitle}>No reports yet</Text><Text style={styles.subtleCenter}>Reports in this tab will appear here with their status.</Text><Button title="Start your first report" onPress={startComplaint} secondary /></Card> : visibleComplaints.map((item) => <Pressable key={item.id} onPress={() => void openDetail(item.id)}><Card style={styles.reportCard}>
+            <View style={styles.reportTop}><Text style={styles.reportIcon}>{allCategories.find((c) => item.issue_type.includes(c.key))?.emoji ?? '🌿'}</Text><View style={{ flex: 1 }}><Text style={styles.cardTitle}>{categoryLabel(item.issue_type)}</Text><Text style={styles.reportMeta}>{item.tracking_id} · {apiDate(item.created_at).toLocaleDateString()}</Text></View><Text style={styles.chevron}>›</Text></View>
             <Text style={styles.reportAddress}>📍 {item.address_landmark}</Text><View style={styles.reportBottom}><Text style={[styles.statusPill, isResolved(item.verification_status) ? styles.statusGreen : styles.statusAmber]}>{item.verification_status.replaceAll('_', ' ')}</Text><Text style={styles.reportMeta}>Urgency: {item.urgency_level.replaceAll('_', ' ')}</Text></View>
             {item.reverification_due_at && <Text style={styles.reportMeta}>Ground check due {apiDate(item.reverification_due_at).toLocaleString()}</Text>}
           </Card></Pressable>)}
-          <Card style={styles.aiCard}><View style={styles.aiRow}><Text style={{ fontSize: 24 }}>🤖</Text><View style={{ flex: 1 }}><Text style={styles.cardTitle}>On-device Gemma AI</Text><Text style={styles.subtle}>{modelInstalled ? 'Model ready · Photo checks run on this phone' : 'Optional · Import a MediaPipe Gemma model'}</Text></View></View><Button title={modelInstalled ? 'Replace local AI model' : 'Import local AI model'} onPress={() => void importGemma()} secondary disabled={busy} /></Card>
-          <Text style={styles.footer}>Maharashtra Trees Act, 1975 · Built for Pune</Text>
+          {domain === 'TREES' && <Card style={styles.aiCard}><View style={styles.aiRow}><Text style={{ fontSize: 24 }}>🤖</Text><View style={{ flex: 1 }}><Text style={styles.cardTitle}>Optional tree AI review</Text><Text style={styles.subtle}>{modelInstalled ? 'Model ready · Photo checks run on this phone' : 'Import a MediaPipe Gemma model for tree photo checks'}</Text></View></View><Button title={modelInstalled ? 'Replace local AI model' : 'Import local AI model'} onPress={() => void importGemma()} secondary disabled={busy} /></Card>}
+          <Text style={styles.footer}>Capture · Review · Send from your email app</Text>
         </ScrollView>
       </>}
 
       {page === 'category' && <>
-        <PageHeader title="Select tree issues" subtitle="Step 1 of 5 · Choose all that apply" onBack={() => setPage('tracker')} />
+        <PageHeader title={`Report ${tabs.find(tab => tab.key === domain)?.title.toLowerCase()}`} subtitle="Choose the issue you observed" onBack={() => setPage('tracker')} />
         <ScrollView contentContainerStyle={styles.scroll}>
-          <Card style={styles.noteCard}><Text style={styles.noteText}>Choose the issue that best describes what you observed. The first selection guides the photo instructions and local AI check.</Text></Card>
+          <Card style={styles.noteCard}><Text style={styles.noteText}>Choose one concern. The app prepares the recipient, legal references and notice text for you.</Text></Card>
           {categories.map((item) => {
             const selected = selectedCategories.includes(item.key);
-            return <Pressable key={item.key} onPress={() => setSelectedCategories((current) => selected ? current.filter((key) => key !== item.key) : [...current, item.key])}>
+            return <Pressable key={item.key} onPress={() => setSelectedCategories([item.key])}>
               <Card style={[styles.categoryCard, selected && styles.categorySelected]}><View style={styles.categoryTop}><Text style={styles.categoryEmoji}>{item.emoji}</Text><View style={{ flex: 1 }}><Text style={styles.cardTitle}>{item.title}</Text><Text style={styles.categoryDesc}>{item.description}</Text></View><Text style={[styles.checkbox, selected && styles.checkboxSelected]}>{selected ? '✓' : ''}</Text></View></Card>
             </Pressable>;
           })}
-          <Card style={styles.legalCard}><Text style={styles.legalTitle}>⚖️  Statutory grounding</Text><Text style={styles.subtle}>Reports are prepared under the Maharashtra (Urban Areas) Protection and Preservation of Trees Act, 1975.</Text></Card>
-          <Button title="Continue to photo guide  →" onPress={() => { if (!selectedCategories.length) setSelectedCategories(['DANGEROUS_LEANING_FALL_RISK']); setPage('guidance'); }} />
+          <Card style={styles.legalCard}><Text style={styles.legalTitle}>⚖️  Legal references</Text><Text style={styles.subtle}>{(legalGrounding[selectedCategories[0] || categories[0].key] || []).join('\n')}</Text></Card>
+          <Button title={domain === 'NOISE' ? 'Continue to audio capture →' : 'Continue to camera →'} onPress={() => { if (!selectedCategories.length) setSelectedCategories([categories[0].key]); setPage(domain === 'NOISE' ? 'noise' : 'guidance'); }} />
         </ScrollView>
       </>}
 
       {page === 'guidance' && <>
-        <PageHeader title="Photo guide" subtitle="Step 2 of 5 · Three views help verify the location and damage" onBack={() => setPage('category')} />
+        <PageHeader title="Capture evidence" subtitle="One clear photo is enough to prepare a notice" onBack={() => setPage('category')} />
         <ScrollView contentContainerStyle={styles.scroll}>
-          <Card style={styles.locationCard}><Text style={styles.locationLabel}>ISSUE SELECTED</Text><Text style={styles.locationTitle}>{categoryLabel(category)}</Text><Text style={styles.subtle}>{selectedCategories.length > 1 ? `Plus ${selectedCategories.length - 1} additional selected issue(s)` : 'Take three clear photos of the same tree.'}</Text></Card>
-          {(categories.find((item) => item.key === category)?.guides ?? categories[0].guides).map((guide, index) => <Card key={guide.badge} style={styles.guideCard}><View style={styles.stepNumber}><Text style={styles.stepNumberText}>{index + 1}</Text></View><View style={{ flex: 1 }}><Text style={styles.guideBadge}>{guide.badge.toUpperCase()}</Text><Text style={styles.cardTitle}>{guide.title}</Text><Text style={styles.categoryDesc}>{guide.instruction}</Text></View></Card>)}
+          <Card style={styles.locationCard}><Text style={styles.locationLabel}>ISSUE SELECTED</Text><Text style={styles.locationTitle}>{categoryLabel(category)}</Text><Text style={styles.subtle}>Capture the concern and a nearby landmark from a safe place.</Text></Card>
+          {(categories.find((item) => item.key === category)?.guides ?? categories[0].guides).slice(0, 1).map((guide, index) => <Card key={guide.badge} style={styles.guideCard}><View style={styles.stepNumber}><Text style={styles.stepNumberText}>{index + 1}</Text></View><View style={{ flex: 1 }}><Text style={styles.guideBadge}>{guide.badge.toUpperCase()}</Text><Text style={styles.cardTitle}>{guide.title}</Text><Text style={styles.categoryDesc}>{guide.instruction}</Text></View></Card>)}
           <Card style={styles.infoCard}><Text style={styles.infoTitle}>📍  Location is attached</Text><Text style={styles.subtle}>Allow foreground location access so your report includes GPS coordinates and a nearby address.</Text></Card>
           <Button title="Open camera" onPress={() => void openCamera()} />
-          <Button title="Choose three photos from gallery" onPress={() => void choosePhotos()} secondary />
+          <Button title="Choose existing photos" onPress={() => void choosePhotos()} secondary />
         </ScrollView>
       </>}
 
       {page === 'camera' && <View style={styles.cameraPage}>
-        <PageHeader title={`Photo ${(retakeIndex ?? photos.length) + 1} of 3`} subtitle={`${(categories.find((item) => item.key === category)?.guides ?? categories[0].guides)[retakeIndex ?? photos.length]?.badge ?? ''} · ${categoryLabel(category)}`} onBack={() => { if (retakeIndex !== null) { setRetakeIndex(null); setPage('review'); } else setPage('guidance'); }} />
+        <PageHeader title={`Photo ${(retakeIndex ?? photos.length) + 1} of ${photoTarget}`} subtitle={categoryLabel(category)} onBack={() => { if (retakeIndex !== null) { setRetakeIndex(null); setPage('review'); } else setPage('guidance'); }} />
         <View style={styles.cameraFrame}>{cameraPermission?.granted ? <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" /> : <View style={styles.cameraFallback}><Text style={styles.emptyIcon}>📷</Text><Text style={styles.cardTitle}>Camera permission is required</Text></View>}
           <View style={styles.cameraOverlay}><Text style={styles.cameraTip}>{(categories.find((item) => item.key === category)?.guides ?? categories[0].guides)[photos.length]?.instruction}</Text><Text style={styles.tilt}>Device tilt {Math.abs(tilt).toFixed(0)}°</Text></View>
         </View>
-        <View style={styles.cameraFooter}><View style={styles.photoDots}>{[0, 1, 2].map((index) => <View key={index} style={[styles.dot, index < photos.length && styles.dotDone, index === (retakeIndex ?? photos.length) && styles.dotCurrent]} />)}</View><Button title={retakeIndex === null ? '●  Capture evidence' : '●  Retake this photo'} onPress={() => void takePhoto()} /><Button title="Choose from gallery" onPress={() => void choosePhotos()} secondary /></View>
+        <View style={styles.cameraFooter}><View style={styles.photoDots}>{Array.from({ length: photoTarget }, (_, index) => <View key={index} style={[styles.dot, index < photos.length && styles.dotDone, index === (retakeIndex ?? photos.length) && styles.dotCurrent]} />)}</View><Button title={retakeIndex === null ? '●  Capture evidence' : '●  Retake this photo'} onPress={() => void takePhoto()} /><Button title="Choose from gallery" onPress={() => void choosePhotos()} secondary /></View>
       </View>}
 
       {page === 'review' && <>
@@ -457,10 +488,11 @@ export default function HomeScreen() {
           <Card style={styles.optionalCard}><View style={styles.aiRow}><Text style={{ fontSize: 21 }}>👷</Text><View><Text style={styles.cardTitle}>Offender or equipment evidence</Text><Text style={styles.subtle}>Optional · Do not approach unsafe activity</Text></View></View>
             <Field label="Person or contractor (optional)" value={perpetratorName} onChangeText={setPerpetratorName} placeholder="Name or identifying details" />
             <Field label="Phone or vehicle registration (optional)" value={perpetratorPhone} onChangeText={setPerpetratorPhone} placeholder="Phone / vehicle number" />
-            <Button title={`＋  Add evidence photo (${perpetratorPhotos.length}/4)`} onPress={() => void attachOffenderPhoto()} secondary />
+            <Button title={`＋  Add evidence photo (${perpetratorPhotos.length}/3)`} onPress={() => void attachOffenderPhoto()} secondary />
           </Card>
-          {modelInstalled ? <Card style={styles.aiCard}><Text style={styles.cardTitle}>✓  On-device photo check is ready</Text><Text style={styles.subtle}>The selected image is checked on your device before any server analysis.</Text></Card> : <Card style={styles.noteCard}><Text style={styles.noteText}>Cloud photo analysis requires an internet connection. You can add the local Gemma model from the tracker screen for an on-device photo check.</Text></Card>}
-          <Button title={busy ? 'Analyzing photos…' : '🤖  Analyze and prepare draft'} onPress={() => void analyze()} disabled={busy || photos.length !== 3} />
+          <Card style={styles.noteCard}><Text style={styles.noteText}>A notice is generated from your selected issue and evidence. It requests authority inspection; it does not certify a violation.</Text></Card>
+          <Button title={busy ? 'Preparing notice…' : 'Prepare notice →'} onPress={() => void prepareFastDraft()} disabled={busy || !photos.length} />
+          {domain === 'TREES' && (photos.length < 3 ? <Button title={`Add ${3 - photos.length} context photo(s) for optional AI review`} onPress={() => { setPhotoTarget(3); void openCamera(); }} disabled={busy} secondary /> : <Button title={busy ? 'Analyzing…' : 'Optional AI tree review'} onPress={() => void analyze()} disabled={busy} secondary />)}
           {busy && <ActivityIndicator color={green} />}
         </ScrollView>
       </>}
@@ -473,17 +505,18 @@ export default function HomeScreen() {
           <Card><Text style={styles.legalTitle}>Formal grievance</Text><Text style={styles.cardTitle}>{detail.draft_subject_en}</Text><Text style={styles.bodyText}>{detail.draft_body_en}</Text></Card>
           {detail.pdf_path && <Button title="Open statutory PDF" onPress={() => void Linking.openURL(`${API_BASE}/api/v1/complaints/${encodeURIComponent(detail.id)}/download-pdf`)} secondary />}
           <Card><Text style={styles.legalTitle}>तक्रार गोषवारा</Text><Text style={styles.bodyText}>{detail.draft_summary_mr}</Text></Card>
-          <Button disabled={isTimelocked(detail.verification_status, detail.reverification_due_at)} title={isTimelocked(detail.verification_status, detail.reverification_due_at) ? "Re-audit locked until follow-up deadline" : "📸  Submit ground re-audit"} onPress={() => { setVerificationPhoto(null); setVerificationResult(null); setVerificationNote(''); setPage('verify'); }} />
+          {detail.reverification_required !== false && <Button disabled={isTimelocked(detail.verification_status, detail.reverification_due_at)} title={isTimelocked(detail.verification_status, detail.reverification_due_at) ? "Photo check available after the reminder" : "📸  Submit ground re-audit"} onPress={() => { setVerificationPhoto(null); setVerificationResult(null); setVerificationNote(''); setPage('verify'); }} />}
+          {detail.audio_url && <Button title="Open audio evidence" onPress={() => void Linking.openURL(`${API_BASE}${detail.audio_url}`)} secondary />}
           <Button title="Back to tracker" onPress={() => { setDetail(null); setPage('tracker'); }} secondary />
         </ScrollView>
       </> : draft ? <>
-        <PageHeader title="Review your grievance" subtitle="Step 4 of 5 · AI prepared a formal notice" onBack={() => setPage('review')} />
+        <PageHeader title="Review your notice" subtitle="Check the recipient and statement before sharing" onBack={() => setPage(domain === 'NOISE' ? 'noise' : 'review')} />
         <ScrollView contentContainerStyle={styles.scroll}>
-          <View style={styles.trackingBanner}><Text style={styles.locationLabel}>TRACKING NUMBER</Text><Text style={styles.trackingId}>{draft.tracking_id}</Text><Text style={styles.subtle}>{draft.ai_provider ? `Prepared with ${draft.ai_provider.replaceAll('_', ' ')}` : 'AI-assisted draft'}{draft.is_fallback ? ' · Offline draft' : ''}</Text></View>
+          <View style={styles.trackingBanner}><Text style={styles.locationLabel}>TRACKING NUMBER</Text><Text style={styles.trackingId}>{draft.tracking_id}</Text><Text style={styles.subtle}>{draft.ai_provider === 'FAST_TEMPLATE' ? 'Prepared from your evidence and observations' : draft.ai_provider ? `Prepared with ${draft.ai_provider.replaceAll('_', ' ')}` : 'AI-assisted draft'}{draft.is_fallback ? ' · Offline draft' : ''}</Text></View>
           {!draft.complaint_id && <Card style={styles.warningCard}><Text style={styles.warningTitle}>⚠️ Local draft</Text><Text style={styles.subtle}>This draft is not yet saved on the server. Connect to the internet before expecting a server tracking record or PDF.</Text></Card>}
           {draft.is_category_mismatch && <Card style={styles.infoCard}><Text style={styles.legalTitle}>AI issue suggestion</Text><Text style={styles.cardTitle}>{categoryLabel(draft.ai_suggested_category ?? undefined)}</Text><Text style={styles.subtle}>{draft.mismatch_reason_en}</Text></Card>}
           {draft.ai_additional_category && <Card style={styles.infoCard}><Text style={styles.legalTitle}>Additional issue noticed</Text><Text style={styles.subtle}>{categoryLabel(draft.ai_additional_category)} · {draft.ai_additional_reason_en}</Text></Card>}
-          <Card style={styles.locationCard}><Text style={styles.locationLabel}>ANALYSIS</Text><Text style={styles.cardTitle}>{categoryLabel(draft.issue_type)}</Text><Text style={styles.subtle}>Urgency: {draft.urgency_level.replaceAll('_', ' ')}{draft.estimated_tree_species ? `  ·  ${draft.estimated_tree_species}` : ''}</Text><Text style={styles.bodyText}>{draft.visual_damage_summary}</Text></Card>
+          <Card style={styles.locationCard}><Text style={styles.locationLabel}>{draft.ai_provider === 'FAST_TEMPLATE' ? 'REPORTED ISSUE' : 'ANALYSIS'}</Text><Text style={styles.cardTitle}>{categoryLabel(draft.issue_type)}</Text><Text style={styles.subtle}>Urgency: {draft.urgency_level.replaceAll('_', ' ')}{draft.estimated_tree_species ? `  ·  ${draft.estimated_tree_species}` : ''}</Text><Text style={styles.bodyText}>{draft.visual_damage_summary}</Text></Card>
           <Card><Text style={styles.legalTitle}>📍  Location and statutory route</Text><Text style={styles.cardTitle}>{draft.address_landmark}</Text><Text style={styles.subtle}>{draft.latitude.toFixed(5)}, {draft.longitude.toFixed(5)} · {draft.ward_name}</Text><View style={styles.divider} /><Text style={styles.cardTitle}>{draft.routed_authority?.name ?? 'PMC Tree Authority'}</Text><Text style={styles.subtle}>{draft.routed_authority?.role}</Text><Text style={styles.reportMeta}>{draft.routed_authority?.email}</Text></Card>
           <Card><Text style={styles.legalTitle}>Formal notice (English)</Text>
             <Field label="Subject" value={draft.draft_subject_en} onChangeText={(value) => setDraft((current) => current ? { ...current, draft_subject_en: value } : current)} />
@@ -496,14 +529,15 @@ export default function HomeScreen() {
       </> : null)}
 
       {page === 'dispatch' && draft && <>
-        <PageHeader title="Dispatch grievance" subtitle="Step 5 of 5 · Confirm the official notice" onBack={() => setPage('draft')} />
+        <PageHeader title="Share your complaint" subtitle="Review the notice and choose how to share" onBack={() => setPage('draft')} />
         <ScrollView contentContainerStyle={styles.scroll}>
-          <View style={styles.successIcon}><Text style={{ fontSize: 30 }}>📨</Text></View><Text style={styles.centerTitle}>Ready to share</Text><Text style={styles.subtleCenter}>Email opens your mail app with the PDF attached. WhatsApp opens with a summary. Review and send from the selected app.</Text>
+          <View style={styles.successIcon}><Text style={{ fontSize: 30 }}>📨</Text></View><Text style={styles.centerTitle}>Ready to share</Text><Text style={styles.subtleCenter}>Email opens your mail app with the PDF{draft.audio_url ? ' and audio recording' : ''} attached. Review and send there.{draft.routed_authority?.whatsapp ? ' WhatsApp sharing opens separately with a summary.' : ''}</Text>
           <Card><Text style={styles.legalTitle}>EMAIL RECIPIENT</Text><Text style={styles.cardTitle}>{draft.routed_authority?.name ?? 'PMC Tree Authority'}</Text><Text style={styles.subtle}>{draft.routed_authority?.email}</Text></Card>
-          <Card><Text style={styles.legalTitle}>WHATSAPP SUMMARY</Text><Text style={styles.bodyText}>{draft.draft_summary_mr}</Text><Text style={styles.subtle}>Tracking: {draft.tracking_id}</Text></Card>
-          <Card style={styles.infoCard}><Text style={styles.infoTitle}>🔒  Review before sharing</Text><Text style={styles.subtle}>Your report includes your name, contact details, GPS coordinates, photos, and complaint text.</Text></Card>
-          <Button title={busy ? 'Preparing…' : 'Open email with PDF'} onPress={() => void sendDispatch('EMAIL')} disabled={busy} />
-          <Button title="Open WhatsApp summary" onPress={() => void sendDispatch('WHATSAPP')} disabled={busy} secondary />
+          {draft.routed_authority?.whatsapp && <Card><Text style={styles.legalTitle}>WHATSAPP SUMMARY</Text><Text style={styles.bodyText}>{draft.draft_summary_mr}</Text><Text style={styles.subtle}>Tracking: {draft.tracking_id}</Text></Card>}
+          <Card style={styles.infoCard}><Text style={styles.infoTitle}>🔒  Review before sharing</Text><Text style={styles.subtle}>Your report includes GPS coordinates, your evidence, complaint text and any contact details you provided.</Text></Card>
+          <Button title={busy ? 'Preparing…' : 'Open email with evidence'} onPress={() => void sendDispatch('EMAIL')} disabled={busy} />
+          {draft.routed_authority?.whatsapp && <Button title="Open WhatsApp summary" onPress={() => void sendDispatch('WHATSAPP')} disabled={busy} secondary />}
+          {draft.domain === 'NOISE' && <Button title="Open police dialler · 112" onPress={() => void Linking.openURL('tel:112')} secondary />}
           {busy && <ActivityIndicator color={green} />}
           <Button title="Back to draft" onPress={() => setPage('draft')} secondary />
           <Button title="Back to tracker" onPress={() => { setPage('tracker'); setDraft(null); }} disabled={busy} secondary />
@@ -522,20 +556,30 @@ export default function HomeScreen() {
           {verificationResult && <Card style={styles.aiCard}><Text style={styles.legalTitle}>🤖  AI comparative review</Text><Text style={styles.cardTitle}>{verificationResult.ai_verdict.replaceAll('_', ' ')} · {(verificationResult.ai_confidence * 100).toFixed(0)}%</Text><Text style={styles.bodyText}>{verificationResult.ai_notes_en}</Text><Text style={styles.bodyText}>{verificationResult.ai_notes_mr}</Text><Text style={styles.reportMeta}>{verificationResult.gps_valid ? `GPS confirmed · ${verificationResult.distance_from_original_m.toFixed(0)} m from the report` : 'GPS validation failed'} · {(verificationResult.final_status ?? '').replaceAll('_', ' ')}</Text><Button title="Back to tracker" onPress={() => { setPage('tracker'); setVerificationPhoto(null); setVerificationResult(null); setDetail(null); }} secondary /></Card>}
         </ScrollView>
       </>}
+      {page === 'noise' && <>
+        <PageHeader title="Noise evidence" subtitle={categoryLabel(category)} onBack={() => setPage('category')} />
+        <ScrollView contentContainerStyle={styles.scroll}>
+          <NoiseCapture prepareLocation={getLocation} onCaptured={setNoiseEvidence} initialEvidence={noiseEvidence} />
+          {location && <Card><Text style={styles.cardTitle}>📍 {location.address}</Text><Text style={styles.subtle}>Location recorded by this phone</Text></Card>}
+          <Field label="What you observed (optional)" value={notes} onChangeText={setNotes} placeholder="Sound system, landmark or disturbance…" />
+          <Card style={styles.noteCard}><Text style={styles.noteText}>Police determine permissions, valid festival exemptions and notified silence-zone status. This report is sent to police, with a separate dialler shortcut for 112.</Text></Card>
+          <Button title={busy ? 'Preparing…' : 'Prepare police notice →'} disabled={busy || !noiseEvidence} onPress={() => void prepareFastDraft()} />
+        </ScrollView>
+      </>}
     </KeyboardAvoidingView>
+    <View style={styles.tabBar}>{tabs.map(tab => <Pressable key={tab.key} accessibilityRole="tab" accessibilityLabel={tab.title} accessibilityState={{ selected: domain === tab.key }} disabled={busy} onPress={() => { setDomain(tab.key); setPage('tracker'); setDetail(null); setDraft(null); setNoiseEvidence(null); }} style={[styles.tab, domain === tab.key && styles.tabSelected]}><Text style={styles.tabIcon}>{tab.emoji}</Text><Text style={[styles.tabLabel, domain === tab.key && styles.tabLabelSelected]}>{tab.title}</Text></Pressable>)}</View>
 
-    <Modal visible={profileOpen} transparent animationType="slide" onRequestClose={() => { setPendingProfileStart(false); setProfileOpen(false); }}>
-      <View style={styles.modalShade}><View style={styles.modalCard}><View style={styles.modalHandle} /><Text style={styles.pageTitle}>Citizen profile</Text><Text style={styles.subtle}>Used to prepare and track your grievance.</Text>
+    <ProfileSheet visible={profileOpen} onClose={closeProfile}>
         <Field label="Full name" value={profileDraft.name} onChangeText={(name) => setProfileDraft((p) => ({ ...p, name }))} placeholder="Your name" />
         <Field label="Phone number" value={profileDraft.phone} onChangeText={(phone) => setProfileDraft((p) => ({ ...p, phone }))} placeholder="10-digit mobile number" keyboardType="phone-pad" />
         <Field label="Email (optional)" value={profileDraft.email} onChangeText={(email) => setProfileDraft((p) => ({ ...p, email }))} placeholder="you@example.com" keyboardType="email-address" />
-        <Button title="Save profile" onPress={() => void saveProfile()} /><Button title="Cancel" onPress={() => { setPendingProfileStart(false); setProfileOpen(false); }} secondary />
-      </View></View>
-    </Modal>
+        <Button title="Save profile" onPress={() => void saveProfile()} /><Button title="Cancel" onPress={closeProfile} secondary />
+    </ProfileSheet>
   </SafeAreaView>;
 }
 
 const styles = StyleSheet.create({
+  tabBar: { flexDirection: 'row', backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#E0E8E2', padding: 8, gap: 4 }, tab: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 14, gap: 3 }, tabSelected: { backgroundColor: '#E4F1E8' }, tabIcon: { fontSize: 21 }, tabLabel: { fontSize: 11, fontWeight: '700', color: '#738078' }, tabLabelSelected: { color: green },
   safe: { flex: 1, backgroundColor: '#F6F8F4' }, scroll: { padding: 20, paddingBottom: 36, gap: 13 },
   homeHeader: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 20, paddingVertical: 12, backgroundColor: '#F6F8F4' },
   brandMark: { width: 42, height: 42, borderRadius: 14, backgroundColor: '#E5F1E8', alignItems: 'center', justifyContent: 'center' },
@@ -555,5 +599,4 @@ const styles = StyleSheet.create({
   photoGrid: { flexDirection: 'row', gap: 8 }, photoItem: { flex: 1, gap: 4 }, photoThumb: { width: '100%', height: 102, borderRadius: 13, backgroundColor: '#E5EAE5' }, photoCaption: { color: '#516157', fontSize: 10, fontWeight: '700' }, removeText: { color: '#B84D40', fontSize: 10, fontWeight: '700' }, duplicateRow: { flexDirection: 'row', alignItems: 'center', borderTopColor: '#F0E3C5', borderTopWidth: 1, paddingTop: 9 }, witnessButton: { color: green, fontWeight: '800', fontSize: 12, paddingHorizontal: 9, paddingVertical: 7, backgroundColor: '#E8F0EA', borderRadius: 9 }, fieldWrap: { gap: 6, marginTop: 4 }, fieldLabel: { color: '#52635A', fontSize: 12, fontWeight: '700' }, input: { backgroundColor: '#FBFCFA', borderColor: '#DDE4DD', borderWidth: 1, minHeight: 47, borderRadius: 12, paddingHorizontal: 12, color: dark, fontSize: 14 }, inputMultiline: { minHeight: 92, paddingTop: 12 }, optionalCard: { backgroundColor: '#FFFAF3', borderColor: '#F3EAD8' },
   trackingBanner: { backgroundColor: dark, borderRadius: 20, padding: 20, gap: 5 }, trackingId: { fontSize: 21, color: 'white', fontWeight: '900', letterSpacing: 0.5 }, warningCard: { backgroundColor: '#FFF8EA', borderColor: '#F0DFB8' }, warningTitle: { color: '#9C6A17', fontWeight: '800' }, bodyText: { color: '#3E4D43', fontSize: 13, lineHeight: 20 }, divider: { height: 1, backgroundColor: '#E7ECE7', marginVertical: 3 }, subject: { color: dark, fontWeight: '800', fontSize: 14, lineHeight: 20 },
   successIcon: { alignSelf: 'center', width: 70, height: 70, alignItems: 'center', justifyContent: 'center', borderRadius: 24, backgroundColor: '#E6F2E8', marginTop: 10 }, centerTitle: { textAlign: 'center', color: dark, fontSize: 22, fontWeight: '900' }, verifyPlaceholder: { minHeight: 180, borderStyle: 'dashed', borderWidth: 1.5, borderColor: '#CBD8CD', borderRadius: 18, alignItems: 'center', justifyContent: 'center', gap: 9, backgroundColor: '#F0F5EF', padding: 15 }, verifyPhoto: { height: 240, borderRadius: 18, backgroundColor: '#E3E8E3' },
-  modalShade: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(14,31,21,0.38)' }, modalCard: { borderTopLeftRadius: 25, borderTopRightRadius: 25, backgroundColor: '#FFF', padding: 22, paddingBottom: 32, gap: 10 }, modalHandle: { height: 4, width: 42, backgroundColor: '#D8DFD8', borderRadius: 4, alignSelf: 'center', marginBottom: 4 },
 });

@@ -2,11 +2,12 @@ import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import { stat } from 'node:fs/promises';
 import { analyzePhotos, comparePhotos } from './ai';
 import { ApiError } from './http';
-import { decodePhoto, savePhoto } from './media';
+import { decodePhoto, savePhoto, decodeAudio, saveAudio } from './media';
 import { generatePdf } from './pdf';
 import { repository } from './repository';
 import { routeIssue } from './routing';
-import { coordinates, type AnalyzeInput, type RenderInput, dispatchSchema, duplicateSchema, witnessSchema, verifySchema } from './schemas';
+import { coordinates, type AnalyzeInput, type RenderInput, dispatchSchema, duplicateSchema, witnessSchema, verifySchema, fastDraftSchema } from './schemas';
+import { domainFor, isNightTime, issueTitles, requiresReverification } from './civic';
 import { distanceMeters, locate } from './spatial';
 import type { Complaint, Audit } from './types';
 import type { z } from 'zod';
@@ -17,7 +18,7 @@ export function getComplaint(id: string) {
   return c;
 }
 export function complaintSummary(c: Complaint) {
-  return { id: c.id, tracking_id: c.tracking_id, issue_type: c.issue_type, urgency_level: c.urgency_level, address_landmark: c.address_landmark, verification_status: c.verification_status, reverification_due_at: c.reverification_due_at, created_at: c.created_at };
+  return { id: c.id, tracking_id: c.tracking_id, domain: c.domain || domainFor(c.issue_type), reverification_required: c.reverification_required ?? requiresReverification(c.issue_type), issue_type: c.issue_type, urgency_level: c.urgency_level, address_landmark: c.address_landmark, verification_status: c.verification_status, reverification_due_at: c.reverification_due_at, created_at: c.created_at };
 }
 export function draftResponse(c: Complaint) {
   return { ...c, pdf_path: c.pdf_path ? `/api/v1/complaints/${encodeURIComponent(c.id)}/download-pdf` : null, is_category_mismatch: false, ai_suggested_category: null, mismatch_reason_en: null, mismatch_reason_mr: null, rejection_reason: null, perpetrator_observed: Boolean(c.perpetrator_name || c.perpetrator_phone), reverification_due_date: c.reverification_due_at };
@@ -29,6 +30,7 @@ function buildComplaint(input: RenderInput, id: string, trackingId: string): Com
   const now = new Date().toISOString();
   const place = locate(gps.data.latitude, gps.data.longitude);
   return {
+    domain: domainFor(route.issue_type), reverification_required: requiresReverification(route.issue_type),
     id, complaint_id: id, tracking_id: trackingId, citizen_name: input.citizen_name || 'Concerned Pune Citizen', citizen_phone: input.citizen_phone || null, citizen_email: input.citizen_email || null,
     perpetrator_name: input.perpetrator_name || null, perpetrator_phone: input.perpetrator_phone || null,
     ...gps.data, sensor_tilt_angle: input.sensor_tilt_angle ?? null, address_landmark: input.address_landmark || place.address_landmark, ward_name: place.ward_name, land_ownership: 'UNKNOWN',
@@ -43,7 +45,46 @@ function buildComplaint(input: RenderInput, id: string, trackingId: string): Com
     pdf_path: null, dispatch_status: 'DRAFT', dispatched_channels: [], dispatched_at: null, verification_status: 'PENDING_TIMELOCK', reverification_due_at: new Date(Date.now() + route.reverification_due_hours * 3600_000).toISOString(), reverification_due_hours: route.reverification_due_hours, witness_count: 1, reopen_count: 0, created_at: now, updated_at: now,
   };
 }
-function trackingId() { return `PUNE-TREE-${new Date().getFullYear()}-${randomBytes(6).toString('hex').toUpperCase()}`; }
+function trackingId(prefix = 'TREE') { return `PUNE-${prefix}-${new Date().getFullYear()}-${randomBytes(6).toString('hex').toUpperCase()}`; }
+export async function fastDraft(input: z.infer<typeof fastDraftSchema>) {
+  const domain = domainFor(input.issue_type), isNoise = domain === 'NOISE';
+  const capturedAt = new Date(input.captured_at).getTime();
+  if (capturedAt > Date.now() + 60_000 || capturedAt < Date.now() - 24 * 3600_000) throw new ApiError(422, 'Capture fresh evidence before preparing this report.');
+  if (isNoise) {
+    if (!input.audio_base64 || !input.noise_evidence) throw new ApiError(422, 'Noise reports require an audio recording and microphone readings.');
+    decodeAudio(input.audio_base64);
+    if (input.noise_evidence.average_dbfs > input.noise_evidence.peak_dbfs) throw new ApiError(422, 'Average audio level cannot exceed its peak.');
+  } else {
+    if (!input.photos_base64.length) throw new ApiError(422, 'A photo of the concern is required.');
+    if (input.audio_base64 || input.noise_evidence) throw new ApiError(422, 'Use a noise category for microphone evidence.');
+  }
+  input.photos_base64.forEach(decodePhoto);
+  const route = routeIssue(input.issue_type), tracking = trackingId('FAST');
+  if (domain === 'TREES') {
+    // Fast reports have no verified permit status or legal finding. Keep inherited
+    // tree AI rules from asserting an offence or an unverified statutory duty.
+    route.legal_citations = ['Maharashtra (Urban Areas) Protection and Preservation of Trees Act, 1975'];
+    if (['ILLEGAL_FELLING', 'UNAUTHORIZED_PRUNING'].includes(input.issue_type)) route.legal_citations.push('Sections 8 and 21 — permissions and applicable enforcement, subject to inspection');
+    route.prayer_en = 'Please inspect the reported tree condition, check any required permissions, and take appropriate safety, preservation and enforcement action under applicable law.';
+    route.prayer_mr = 'कृपया नमूद वृक्षाची व जोडलेल्या पुराव्यांची पाहणी करून आवश्यक परवानग्या तपासाव्यात आणि वृक्ष संरक्षण व नागरिकांच्या सुरक्षेसाठी योग्य कार्यवाही करावी.';
+    route.routed_authority.role = 'Tree-related inspection and appropriate safety or preservation action';
+  }
+  const title = issueTitles[input.issue_type] || input.issue_type.replaceAll('_', ' ').toLowerCase();
+  const landmark = input.address_landmark || locate(input.latitude, input.longitude).address_landmark;
+  const recording = input.noise_evidence;
+  const evidenceText = recording ? `Audio recording: ${recording.duration_ms / 1000} seconds. Uncalibrated microphone readings: average ${recording.average_dbfs.toFixed(1)} dBFS, peak ${recording.peak_dbfs.toFixed(1)} dBFS. These are digital levels, not calibrated dB(A) sound-pressure measurements and do not establish a legal threshold breach.\nDevice-reported capture time: ${input.captured_at}; ${isNightTime(input.captured_at) ? 'within' : 'outside'} the usual 22:00–06:00 IST night period.\n${recording.near_sensitive_site ? `Citizen reports a nearby sensitive site: ${recording.site_label || 'hospital, school or similar site'}. Please verify the location and whether it is a notified silence zone.` : 'Silence-zone status has not been verified.'}` : `${input.photos_base64.length} photograph(s) attached. Evidence intake (device-reported): ${input.captured_at}. GPS is the phone location at intake; original timestamps and locations of imported photos have not been verified. The selected issue and observations are citizen-reported; please verify on site.`;
+  const c = buildComplaint({ ...input, complaint_id: '', draft_subject_en: `${title} — request for action [${tracking}]`, draft_body_en: `To ${route.routed_authority.name},\n\nI report a ${title.toLowerCase()} at ${landmark}.\nGPS: ${input.latitude.toFixed(5)}, ${input.longitude.toFixed(5)}${input.gps_accuracy_m != null ? ` (device-reported accuracy ±${input.gps_accuracy_m.toFixed(0)} m)` : ''}.\n\n${evidenceText}\n${input.citizen_notes ? `\nMy observations: ${input.citizen_notes}\n` : ''}\nApplicable references: ${route.legal_citations.join('; ')}.\n${route.prayer_en}\n\nPlease acknowledge receipt, confirm jurisdiction and provide an action-taken response and expected timeline. The app's follow-up reminder is not a statutory deadline.\n\nSincerely,\n${input.citizen_name || 'Concerned Pune Citizen'}${input.citizen_phone ? `\nPhone: ${input.citizen_phone}` : ''}\nReference: ${tracking}`, draft_summary_mr: route.prayer_mr }, randomUUID(), tracking);
+  c.tree_detected = false; c.is_cognizable_offence = false; c.evidence_classification = 'CITIZEN_REPORTED'; c.is_fallback = false; c.ai_provider = 'FAST_TEMPLATE';
+  c.legal_citations = route.legal_citations; c.routed_authority = route.routed_authority; c.routed_authority_role = route.routed_authority.role;
+  c.citizen_selected_category = input.issue_type; c.captured_at = input.captured_at; c.gps_accuracy_m = input.gps_accuracy_m ?? null;
+  c.photo_urls = await Promise.all(input.photos_base64.map(savePhoto));
+  if (isNoise && input.audio_base64 && recording) {
+    const audio = await saveAudio(input.audio_base64); c.audio_url = audio.url; c.audio_sha256 = audio.sha256;
+    c.noise_evidence = { ...recording, night_time: isNightTime(input.captured_at) };
+  }
+  if (!c.reverification_required) { c.reverification_due_at = null; c.verification_status = 'REPORTED'; }
+  repository().save(c); return draftResponse(c);
+}
 export async function analyze(input: AnalyzeInput) {
   const treePhotos = input.photos_base64?.length ? input.photos_base64 : [input.photo_base64];
   const allPhotos = [...treePhotos, ...(input.perpetrator_photos_base64 || [])];
@@ -65,6 +106,7 @@ export async function renderPdf(input: RenderInput) {
   const photoInputs = input.photos_base64?.length ? input.photos_base64 : input.photo_base64 ? [input.photo_base64] : [];
   photoInputs.forEach(decodePhoto);
   if (!c) {
+    if (input.issue_type && domainFor(input.issue_type) !== 'TREES') throw new ApiError(422, 'Register civic evidence through fast-draft before rendering its PDF.');
     if (!input.complaint_id.startsWith('loc-')) throw new ApiError(404, 'Complaint not found. Register or analyze a complaint first.');
     if (!photoInputs.length) throw new ApiError(422, 'Photo evidence is required to register a local draft.');
     c = buildComplaint(input, input.complaint_id, input.tracking_id || trackingId());
@@ -89,9 +131,10 @@ export async function prepareDispatch(input: z.infer<typeof dispatchSchema>) {
   const subject = c.draft_subject_en.includes(c.tracking_id) ? c.draft_subject_en : `[${c.tracking_id}] ${c.draft_subject_en}`;
   const body = `${c.draft_body_en}\n\nतक्रार गोषवारा:\n${c.draft_summary_mr}`;
   const pdfUrl = `/api/v1/complaints/${encodeURIComponent(c.id)}/download-pdf`;
-  const email = input.channels.includes('EMAIL') ? { ready: true, sent: false, recipient: c.target_email, subject, body, pdf_attached: false, attachment_url: pdfUrl, deep_link_url: `mailto:${encodeURIComponent(c.target_email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}` } : null;
-  const waText = `PUNE TREE CIVIC GRIEVANCE\nRef: ${c.tracking_id}\nCategory: ${c.issue_type}\nLocation: ${c.address_landmark}\nGPS: ${c.latitude.toFixed(5)}, ${c.longitude.toFixed(5)}\n\n${c.draft_summary_mr}`;
-  const tweet = `Tree concern: ${c.issue_type.replaceAll('_', ' ')} at ${c.address_landmark}. Ref: ${c.tracking_id}. @PMCPune #SavePuneTrees`.slice(0, 280);
+  const email = input.channels.includes('EMAIL') ? { ready: true, sent: false, recipient: c.target_email, subject, body, pdf_attached: false, attachment_url: pdfUrl, audio_attachment_url: c.audio_url || null, deep_link_url: `mailto:${encodeURIComponent(c.target_email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}` } : null;
+  if (input.channels.includes('WHATSAPP') && !c.target_whatsapp) throw new ApiError(422, 'A WhatsApp contact is not configured for this authority. Use email or the police phone shortcut.');
+  const waText = `PUNE FAST COMPLAINT\nRef: ${c.tracking_id}\nCategory: ${c.issue_type}\nLocation: ${c.address_landmark}\nGPS: ${c.latitude.toFixed(5)}, ${c.longitude.toFixed(5)}\n\n${c.draft_summary_mr}`;
+  const tweet = `Civic concern: ${c.issue_type.replaceAll('_', ' ')} at ${c.address_landmark}. Ref: ${c.tracking_id}. #PuneFastComplaint`.slice(0, 280);
   c.dispatch_status = 'PREPARED'; c.dispatched_channels = [...new Set([...c.dispatched_channels, ...input.channels])]; c.dispatched_at = null; c.updated_at = new Date().toISOString(); repository().save(c);
   return { complaint_id: c.id, tracking_id: c.tracking_id, status: 'PREPARED', prepared_at: c.updated_at, dispatched_at: null, email,
     whatsapp: input.channels.includes('WHATSAPP') ? { ready: true, phone_number: c.target_whatsapp, deep_link_url: `https://wa.me/${c.target_whatsapp}?text=${encodeURIComponent(waText)}`, message_text: waText } : null,
@@ -99,7 +142,7 @@ export async function prepareDispatch(input: z.infer<typeof dispatchSchema>) {
   };
 }
 export function duplicates(input: z.infer<typeof duplicateSchema>) {
-  const nearby = repository().list().filter(c => c.verification_status !== 'VERIFIED_RESOLVED').map(c => ({ c, distance: distanceMeters(input.latitude, input.longitude, c.latitude, c.longitude) })).filter(v => v.distance <= input.radius_meters).sort((a, b) => a.distance - b.distance).map(({ c, distance }) => ({ ...complaintSummary(c), distance_meters: Math.round(distance * 10) / 10, witness_count: c.witness_count, photo_urls: c.photo_urls }));
+  const nearby = repository().list().filter(c => c.verification_status !== 'VERIFIED_RESOLVED' && (!input.domain || domainFor(c.issue_type) === input.domain)).map(c => ({ c, distance: distanceMeters(input.latitude, input.longitude, c.latitude, c.longitude) })).filter(v => v.distance <= input.radius_meters).sort((a, b) => a.distance - b.distance).map(({ c, distance }) => ({ ...complaintSummary(c), distance_meters: Math.round(distance * 10) / 10, witness_count: c.witness_count, photo_urls: c.photo_urls }));
   return { has_duplicates: nearby.length > 0, duplicate_count: nearby.length, nearby_complaints: nearby };
 }
 export async function upvote(input: z.infer<typeof witnessSchema>) {
@@ -121,8 +164,9 @@ export function auditStatus(audit: Audit, citizenVerdict?: string | null) {
 }
 export async function verify(id: string, input: z.infer<typeof verifySchema>) {
   const c = getComplaint(id);
+  if (!(c.reverification_required ?? requiresReverification(c.issue_type))) throw new ApiError(409, 'Photo re-verification is not enabled for this incident type.');
   if (input.complaint_id !== c.id) throw new ApiError(422, 'Complaint ID does not match the requested record.');
-  if (Date.now() < new Date(c.reverification_due_at).getTime()) throw new ApiError(409, `Follow-up is locked until ${c.reverification_due_at}.`);
+  if (c.reverification_due_at && Date.now() < new Date(c.reverification_due_at).getTime()) throw new ApiError(409, `Follow-up is locked until ${c.reverification_due_at}.`);
   const distance = distanceMeters(input.latitude, input.longitude, c.latitude, c.longitude);
   if (distance > 50) throw new ApiError(422, 'Capture the follow-up photo within 50 metres of the original location.');
   decodePhoto(input.photo_base64);
@@ -134,7 +178,7 @@ export async function verify(id: string, input: z.infer<typeof verifySchema>) {
     const escalated = current.verification_status === 'VERIFIED_UNRESOLVED_ESCALATED';
     if (escalated) current.reopen_count += 1;
     current.updated_at = new Date().toISOString();
-    const result = { verification_id: verificationId, complaint_id: current.id, tracking_id: current.tracking_id, gps_valid: true, distance_from_original_m: Math.round(distance * 10) / 10, ...audit, final_status: current.verification_status, reopen_count: current.reopen_count, escalation_draft: escalated ? { escalation_subject: `Follow-up [${current.tracking_id}]: unresolved tree concern`, escalation_body: `I request another on-site inspection at ${current.address_landmark}. ${audit.ai_notes_en}` } : null };
+    const result = { verification_id: verificationId, complaint_id: current.id, tracking_id: current.tracking_id, gps_valid: true, distance_from_original_m: Math.round(distance * 10) / 10, ...audit, final_status: current.verification_status, reopen_count: current.reopen_count, escalation_draft: escalated ? { escalation_subject: `Follow-up [${current.tracking_id}]: unresolved ${issueTitles[current.issue_type] || 'tree concern'}`, escalation_body: `I request another on-site inspection at ${current.address_landmark}. ${audit.ai_notes_en}` } : null };
     repository().saveVerification(verificationId, current.id, { ...result, photo_url: image, latitude: input.latitude, longitude: input.longitude, citizen_verdict: input.citizen_verdict });
     repository().save(current); return result;
   });

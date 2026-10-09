@@ -1,9 +1,9 @@
 import { readFile } from 'node:fs/promises';
-import { analyze, complaintSummary, draftResponse, duplicates, getComplaint, prepareDispatch, renderPdf, upvote, verify } from '../../../../../lib/complaints';
+import { analyze, fastDraft, complaintSummary, draftResponse, duplicates, getComplaint, prepareDispatch, renderPdf, upvote, verify } from '../../../../../lib/complaints';
 import { ApiError, corsHeaders, handle, parseBody } from '../../../../../lib/http';
 import { evidenceDigest, pdfPath } from '../../../../../lib/pdf';
 import { repository } from '../../../../../lib/repository';
-import { analyzeSchema, dispatchSchema, duplicateSchema, renderSchema, verifySchema, witnessSchema } from '../../../../../lib/schemas';
+import { analyzeSchema, fastDraftSchema, dispatchSchema, duplicateSchema, renderSchema, verifySchema, witnessSchema } from '../../../../../lib/schemas';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,6 +36,7 @@ export async function POST(request: Request, context: Context) {
         case 'check-duplicate': return duplicates(await parseBody(request, duplicateSchema));
         case 'upvote-witness': return upvote(await parseBody(request, witnessSchema));
         case 'analyze-and-draft': return analyze(await parseBody(request, analyzeSchema));
+        case 'fast-draft': return fastDraft(await parseBody(request, fastDraftSchema));
         case 'render-pdf': return renderPdf(await parseBody(request, renderSchema));
         case 'dispatch': return prepareDispatch(await parseBody(request, dispatchSchema));
       }

@@ -1,9 +1,11 @@
 {
   "expo": {
-    "name": "Pune Tree Rakshak",
+    "name": "Pune Fast Complaint",
     "slug": "pune-tree-rakshak",
     "version": "1.0.0",
-    "platforms": ["android"],
+    "platforms": [
+      "android"
+    ],
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "punetrees",
@@ -27,9 +29,27 @@
     },
     "plugins": [
       "expo-router",
-      ["expo-camera", { "cameraPermission": "Pune Tree Rakshak uses the camera to document tree concerns.", "recordAudioAndroid": false }],
-      ["expo-location", { "locationWhenInUsePermission": "Pune Tree Rakshak uses your location to attach GPS coordinates to a tree report." }],
-      ["expo-image-picker", { "photosPermission": "Pune Tree Rakshak uses selected photos as tree evidence.", "cameraPermission": "Pune Tree Rakshak uses the camera to capture evidence.", "microphonePermission": false }],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Pune Tree Rakshak uses the camera to document tree concerns.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Pune Tree Rakshak uses your location to attach GPS coordinates to a tree report."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Pune Tree Rakshak uses selected photos as tree evidence.",
+          "cameraPermission": "Pune Tree Rakshak uses the camera to capture evidence.",
+          "microphonePermission": "Pune Fast Complaint records short audio samples for noise complaints."
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -40,7 +60,8 @@
       ],
       "expo-sharing",
       "expo-mail-composer",
-      "expo-secure-store"
+      "expo-secure-store",
+      ["expo-audio", { "microphonePermission": "Pune Fast Complaint records short audio samples for noise complaints.", "recordAudioAndroid": true, "enableBackgroundRecording": false, "enableBackgroundPlayback": false }]
     ],
     "experiments": {
       "typedRoutes": true,

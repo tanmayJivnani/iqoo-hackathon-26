@@ -15,6 +15,8 @@ The Android package id remains `org.punetrees.app`, so a signed release can reta
 
 ## Local Gemma model
 
+Trees, Roads, Garbage and Noise have separate tracker tabs. The primary physical flow requires one photo and GPS and prepares a notice without AI. Optional tree AI review still uses three photos. Noise uses `expo-audio` for a ten-second foreground recording and relative dBFS readings, which are not calibrated sound-pressure measurements. Rebuild the native app after installing the audio module; an old APK cannot load it. Noise email drafts attach both the PDF and M4A recording.
+
 From the tracker, choose **Import local AI model** and select a compatible MediaPipe multimodal Gemma `.task` file (the default expected filename is `gemma-3n-E2B-it-int4.task`). The model is copied into app-private storage and never added to the repository or bundled APK. The model can occupy several gigabytes, so allow enough free device storage. The native module runs an on-device photo check and damage summary. Backend connectivity is used for routing, PDF rendering, saving reports, and follow-up verification. When the API is unreachable and local inference successfully verifies a tree, the app prepares a draft for review. Reconnect before sharing: the backend registers the draft, routes it, and generates its PDF with all evidence. A failed or malformed local assessment cannot create an AI draft. Census is excluded.
 
 ## API endpoint

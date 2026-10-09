@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { config } from './config';
@@ -26,8 +26,22 @@ export async function photoBytes(value: string) {
   return decodePhoto(value).bytes;
 }
 export function mediaPath(name: string) {
-  if (!/^[a-f0-9-]{36}\.(jpg|png)$/.test(name)) throw new ApiError(404, 'Photo not found.');
+  if (!/^[a-f0-9-]{36}\.(jpg|png|m4a)$/.test(name)) throw new ApiError(404, 'Evidence not found.');
   return path.join(config.mediaDir, name);
+}
+export function decodeAudio(value: string) {
+  const match = /^(?:data:audio\/(?:mp4|m4a);base64,)?([A-Za-z0-9+/]+={0,2})$/.exec(value);
+  if (!match) throw new ApiError(422, 'Audio must be an M4A recording encoded as base64.');
+  const bytes = Buffer.from(match[1], 'base64');
+  if (bytes.length < 32 || bytes.length > 1024 * 1024 || bytes.toString('ascii', 4, 8) !== 'ftyp') throw new ApiError(422, 'Provide a valid M4A recording smaller than 1 MB.');
+  return bytes;
+}
+export async function saveAudio(value: string) {
+  const bytes = decodeAudio(value);
+  await mkdir(config.mediaDir, { recursive: true });
+  const name = `${randomUUID()}.m4a`;
+  await writeFile(path.join(/* turbopackIgnore: true */ config.mediaDir, name), bytes, { flag: 'wx' });
+  return { url: `/api/v1/media/${name}`, sha256: createHash('sha256').update(bytes).digest('hex') };
 }
 export async function photoDataUri(value: string) {
   const image = decodePhoto((await photoBytes(value)).toString('base64'));

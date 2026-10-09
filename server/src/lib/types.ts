@@ -5,6 +5,14 @@ export type Routing = {
   legal_citations: string[]; prayer_en: string; prayer_mr: string;
 };
 export type Complaint = {
+  domain?: 'TREES' | 'ROADS' | 'GARBAGE' | 'NOISE';
+  reverification_required?: boolean;
+  evidence_classification?: 'CITIZEN_REPORTED';
+  captured_at?: string;
+  gps_accuracy_m?: number | null;
+  audio_url?: string | null;
+  audio_sha256?: string | null;
+  noise_evidence?: { duration_ms: number; average_dbfs: number; peak_dbfs: number; sample_count: number; unit: 'dBFS'; near_sensitive_site: boolean; site_label?: string; night_time: boolean } | null;
   id: string; complaint_id: string; tracking_id: string;
   citizen_name: string | null; citizen_phone: string | null; citizen_email: string | null;
   perpetrator_name: string | null; perpetrator_phone: string | null;
@@ -20,7 +28,7 @@ export type Complaint = {
   ai_additional_reason_en: string | null; tree_detected: boolean;
   is_fallback: boolean; ai_provider: string; fallback_reason: string | null;
   pdf_path: string | null; dispatch_status: string; dispatched_channels: string[];
-  dispatched_at: string | null; verification_status: string; reverification_due_at: string;
+  dispatched_at: string | null; verification_status: string; reverification_due_at: string | null;
   reverification_due_hours: number; witness_count: number; reopen_count: number;
   created_at: string; updated_at: string;
 };

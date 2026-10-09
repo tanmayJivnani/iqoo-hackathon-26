@@ -1,9 +1,12 @@
 import rules from './routing-rules.json';
 import { config } from './config';
 import type { Routing } from './types';
+import { civicRoute } from './civic';
 
 export const categories = ['DANGEROUS_LEANING_FALL_RISK', 'ILLEGAL_FELLING', 'UNAUTHORIZED_PRUNING', 'HAZARDOUS_BRANCH', 'ROOT_CONCRETIZATION', 'DISEASE_PEST', 'NAILS_BOARDS_CABLE_STRANGULATION'] as const;
 export function routeIssue(issue: string, stage = 'NOT_APPLICABLE'): Routing {
+  const civic = civicRoute(issue);
+  if (civic) return civic;
   const normalized = issue.toUpperCase();
   let key: keyof typeof rules;
   if (/LEANING|FALL/.test(normalized)) key = 'DANGEROUS_LEANING_FALL_RISK';
