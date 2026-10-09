@@ -1,12 +1,10 @@
 {
-  "name": "pune-tree-rakshak",
+  "name": "automated-tree-complaint",
   "version": "1.0.0",
-  "description": "Pune Tree Rakshak mobile client and backend",
+  "description": "> **iQOO Hackathon 2026 — Pune City Battle (Open Innovation Track)**",
+  "main": "index.js",
   "scripts": {
-    "mobile:start": "npm --prefix mobile start",
-    "android": "npm --prefix mobile run android",
-    "mobile:lint": "npm --prefix mobile run lint",
-    "mobile:typecheck": "npm --prefix mobile run typecheck"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
@@ -15,7 +13,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "private": true,
+  "type": "commonjs",
   "bugs": {
     "url": "https://github.com/tanmayJivnani/hackathon-final-prep/issues"
   },
