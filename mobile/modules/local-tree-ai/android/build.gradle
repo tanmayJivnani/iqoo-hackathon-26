@@ -1,0 +1,26 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.localtreeai'
+version = '0.1.0'
+
+android {
+  namespace "expo.modules.localtreeai"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  // The model is user-imported because its size makes bundling it with the app impractical.
+  implementation 'com.google.mediapipe:tasks-genai:0.10.35'
+  // tasks-genai omits this compile dependency from its published POM, even though
+  // the Kotlin API exposes MediaPipe's MPImage classes.
+  implementation 'com.google.mediapipe:tasks-core:0.10.14'
+}
