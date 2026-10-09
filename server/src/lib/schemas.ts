@@ -39,8 +39,10 @@ export const fastDraftSchema = metadata.extend({
   noise_evidence: z.object({
     duration_ms: z.number().int().min(5000).max(30_000),
     average_dbfs: z.number().finite().min(-160).max(0), peak_dbfs: z.number().finite().min(-160).max(0),
-    sample_count: z.number().int().min(2).max(300), unit: z.literal('dBFS'),
+    average_dba: z.number().finite().min(0).max(160).optional(), peak_dba: z.number().finite().min(0).max(160).optional(),
+    sample_count: z.number().int().min(2).max(10_000_000), unit: z.literal('dBFS'),
     near_sensitive_site: z.boolean().default(false), site_label: z.string().trim().max(150).optional(),
+    measurement_method: z.string().max(50).optional(),
   }).optional(),
 });
 export const dispatchSchema = z.object({

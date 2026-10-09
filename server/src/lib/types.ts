@@ -12,7 +12,7 @@ export type Complaint = {
   gps_accuracy_m?: number | null;
   audio_url?: string | null;
   audio_sha256?: string | null;
-  noise_evidence?: { duration_ms: number; average_dbfs: number; peak_dbfs: number; sample_count: number; unit: 'dBFS'; near_sensitive_site: boolean; site_label?: string; night_time: boolean } | null;
+  noise_evidence?: { duration_ms: number; average_dbfs: number; peak_dbfs: number; average_dba?: number; peak_dba?: number; sample_count: number; unit: 'dBFS'; near_sensitive_site: boolean; site_label?: string; measurement_method?: string; night_time: boolean } | null;
   id: string; complaint_id: string; tracking_id: string;
   citizen_name: string | null; citizen_phone: string | null; citizen_email: string | null;
   perpetrator_name: string | null; perpetrator_phone: string | null;

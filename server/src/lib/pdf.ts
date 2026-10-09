@@ -28,8 +28,13 @@ export async function generatePdf(c: Complaint) {
   heading('Citizen statement'); body(c.draft_body_en);
   if (c.noise_evidence && c.audio_url) {
     heading('Audio evidence');
-    body(`Recording: ${c.noise_evidence.duration_ms / 1000} seconds\nCaptured (device-reported): ${c.captured_at}\nUncalibrated digital level: ${c.noise_evidence.average_dbfs.toFixed(1)} dBFS average / ${c.noise_evidence.peak_dbfs.toFixed(1)} dBFS peak\nNot a calibrated dB(A) measurement.\nSHA-256 audio digest: ${c.audio_sha256}\nThe M4A recording is embedded as a file attachment in this PDF.`);
-    doc.file(await readFile(mediaPath(c.audio_url.split('/').at(-1)!)), { name: `${c.tracking_id}.m4a`, description: 'Citizen-recorded ambient audio; uncalibrated microphone evidence.' });
+    const audioFileName = c.audio_url.split('/').at(-1)!;
+    const audioExt = audioFileName.endsWith('.wav') ? 'wav' : 'm4a';
+    const dbaText = c.noise_evidence.average_dba != null
+      ? `Estimated A-weighted sound level: ${c.noise_evidence.average_dba.toFixed(1)} dB(A) average / ${(c.noise_evidence.peak_dba ?? (c.noise_evidence.peak_dbfs + 96)).toFixed(1)} dB(A) peak.\n`
+      : '';
+    body(`Recording: ${c.noise_evidence.duration_ms / 1000} seconds\nCaptured (device-reported): ${c.captured_at}\n${dbaText}Digital microphone level: ${c.noise_evidence.average_dbfs.toFixed(1)} dBFS average / ${c.noise_evidence.peak_dbfs.toFixed(1)} dBFS peak\nMeasurement method: ${c.noise_evidence.measurement_method === 'KOTLIN_AUDIO_RECORD_A_WEIGHTED' ? 'IEC 61672 A-weighted digital filter (Android AudioRecord)' : 'Uncalibrated mobile sensor'}\nSHA-256 audio digest: ${c.audio_sha256}\nThe audio recording is embedded as a file attachment in this PDF.`);
+    doc.file(await readFile(mediaPath(audioFileName)), { name: `${c.tracking_id}.${audioExt}`, description: 'Citizen-recorded ambient audio evidence.' });
   }
   heading('Routing references'); c.legal_citations.forEach(citation => body(citation));
   heading('Marathi summary'); doc.font('Marathi').fontSize(11).fillColor('#202b24').text(c.draft_summary_mr, { lineGap: 4 });

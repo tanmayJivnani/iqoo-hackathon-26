@@ -17,7 +17,7 @@ import { apiDate, canUseLocalAnalysis, isResolved, isTimelocked, nextPhotoReject
 import { categoriesByDomain, allCategories, tabs, domainFor, categoryLabel, legalGrounding, type CivicDomain } from '../data/civic';
 import { NoiseCapture } from '../components/NoiseCapture';
 import { ProfileSheet } from '../components/ProfileSheet';
-import { isUsableNoiseRecording, QUIET_RECORDING_MESSAGE, type NoiseEvidence } from '../lib/noise';
+import { isUsableNoiseRecording, evaluateNoiseActionability, QUIET_RECORDING_MESSAGE, type NoiseEvidence } from '../lib/noise';
 import { API_BASE, api, asDataUri, type Complaint, type ComplaintDetail, type Draft } from '../lib/api';
 
 type Page = 'tracker' | 'category' | 'guidance' | 'camera' | 'review' | 'noise' | 'draft' | 'dispatch' | 'verify';
@@ -302,7 +302,16 @@ export default function HomeScreen() {
   const prepareFastDraft = async () => {
     if (operationRef.current) return;
     if (!location || (domain === 'NOISE' ? !noiseEvidence : !photos.length)) { Alert.alert('Evidence required', 'Capture evidence and GPS before preparing the notice.'); return; }
-    if (domain === 'NOISE' && noiseEvidence && !isUsableNoiseRecording(noiseEvidence)) { setNoiseEvidence(null); Alert.alert('Please re-record', QUIET_RECORDING_MESSAGE); return; }
+    if (domain === 'NOISE' && noiseEvidence) {
+      const hourStr = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', hourCycle: 'h23' }).format(new Date(noiseEvidence.captured_at));
+      const isNight = Number(hourStr) >= 22 || Number(hourStr) < 6;
+      const actionCheck = evaluateNoiseActionability(noiseEvidence, isNight, Boolean(noiseEvidence.near_sensitive_site));
+      if (!actionCheck.actionable) {
+        setNoiseEvidence(null);
+        Alert.alert('Noise below actionable threshold', actionCheck.reason || QUIET_RECORDING_MESSAGE);
+        return;
+      }
+    }
     operationRef.current = true; setBusy(true);
     try {
       const audioBase64 = noiseEvidence ? await new File(noiseEvidence.uri).base64() : undefined;
