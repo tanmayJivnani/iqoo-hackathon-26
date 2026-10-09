@@ -3,45 +3,69 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
-const ndkVersion = '27.1.12297006';
+const preferredNdkVersion = '27.1.12297006';
+const requestedNdkVersion = process.env.ANDROID_NDK_VERSION;
+const directories = (root) => fs.existsSync(root)
+  ? fs.readdirSync(root, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => path.join(root, entry.name))
+  : [];
+const installedNdkVersions = (sdk) => directories(path.join(sdk, 'ndk'))
+  .filter((candidate) => fs.existsSync(path.join(candidate, 'source.properties')))
+  .map((candidate) => path.basename(candidate))
+  .filter((version) => /^\d+\.\d+\.\d+$/.test(version))
+  .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
 const sdkCandidates = [
   process.env.ANDROID_HOME,
   process.env.ANDROID_SDK_ROOT,
+  process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Android', 'Sdk'),
   path.join(os.homedir(), 'Android', 'Sdk'),
+  path.join(os.homedir(), 'Library', 'Android', 'sdk'),
   '/opt/android-sdk',
 ].filter(Boolean);
 
 const sdkRoot = [...new Set(sdkCandidates)].find((candidate) =>
-  fs.existsSync(path.join(candidate, 'ndk', ndkVersion, 'source.properties')),
+  requestedNdkVersion
+    ? installedNdkVersions(candidate).includes(requestedNdkVersion)
+    : installedNdkVersions(candidate).length > 0,
 );
 
 if (!sdkRoot) {
-  console.error(`Could not find an Android SDK with NDK ${ndkVersion}.`);
-  console.error('Install that NDK in Android Studio, or set ANDROID_HOME to an SDK that contains it.');
+  console.error(`Could not find an Android SDK with ${requestedNdkVersion ? `NDK ${requestedNdkVersion}` : 'an installed NDK'}.`);
+  console.error('Install the NDK in Android Studio, or set ANDROID_HOME to an SDK that contains it.');
   process.exit(1);
 }
 
-const env = { ...process.env, ANDROID_HOME: sdkRoot, ANDROID_SDK_ROOT: sdkRoot };
+const availableNdkVersions = installedNdkVersions(sdkRoot);
+const ndkVersion = requestedNdkVersion || (availableNdkVersions.includes(preferredNdkVersion)
+  ? preferredNdkVersion : availableNdkVersions[0]);
+const env = { ...process.env, ANDROID_HOME: sdkRoot, ANDROID_SDK_ROOT: sdkRoot, ORG_GRADLE_PROJECT_ndkVersion: ndkVersion };
 env.PATH = `${path.join(sdkRoot, 'platform-tools')}${path.delimiter}${env.PATH || ''}`;
 
-// The installed Gradle/Android toolchain in this environment builds with JDK 17.
-if (process.platform === 'linux') {
-  const java17Candidates = [
-    '/usr/lib/jvm/java-17-openjdk',
-    '/usr/lib/jvm/java-17-openjdk-amd64',
-    '/usr/lib/jvm/temurin-17-jdk-amd64',
-  ];
-  const java17Home = java17Candidates.find((candidate) =>
-    fs.existsSync(path.join(candidate, 'bin', 'java')),
-  );
-  if (java17Home) env.JAVA_HOME = java17Home;
+// React Native's Gradle plugins request a Java 17 toolchain.
+const java17Candidates = [
+  process.env.JAVA_HOME,
+  ...directories(path.join(__dirname, '..', '..', 'tools', 'jdk17')),
+  ...directories(path.join(os.homedir(), '.jdks')),
+  ...(process.platform === 'win32' ? directories(path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Java')) : []),
+  '/usr/lib/jvm/java-17-openjdk',
+  '/usr/lib/jvm/java-17-openjdk-amd64',
+  '/usr/lib/jvm/temurin-17-jdk-amd64',
+].filter(Boolean);
+const java17Home = java17Candidates.find((candidate) => {
+  const release = path.join(candidate, 'release');
+  return fs.existsSync(path.join(candidate, 'bin', process.platform === 'win32' ? 'java.exe' : 'java'))
+    && fs.existsSync(release) && /^JAVA_VERSION="17[."]/m.test(fs.readFileSync(release, 'utf8'));
+});
+if (java17Home) {
+  env.JAVA_HOME = java17Home;
+  env.PATH = `${path.join(java17Home, 'bin')}${path.delimiter}${env.PATH}`;
 }
 
 console.log(`Using Android SDK: ${sdkRoot}`);
+console.log(`Using NDK: ${ndkVersion}`);
 if (env.JAVA_HOME) console.log(`Using Java: ${env.JAVA_HOME}`);
 
 const expoCli = path.join(__dirname, '..', 'node_modules', 'expo', 'bin', 'cli');
-const result = spawnSync(process.execPath, [expoCli, 'run:android'], {
+const result = spawnSync(process.execPath, [expoCli, 'run:android', ...process.argv.slice(2)], {
   cwd: path.join(__dirname, '..'),
   env,
   stdio: 'inherit',

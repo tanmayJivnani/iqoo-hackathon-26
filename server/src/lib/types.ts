@@ -1,0 +1,27 @@
+export type Authority = { name: string; role: string; email: string; whatsapp: string; emergency_phone: string | null };
+export type Routing = {
+  issue_type: string; urgency_level: string; is_cognizable_offence: boolean;
+  reverification_due_hours: number; routed_authority: Authority;
+  legal_citations: string[]; prayer_en: string; prayer_mr: string;
+};
+export type Complaint = {
+  id: string; complaint_id: string; tracking_id: string;
+  citizen_name: string | null; citizen_phone: string | null; citizen_email: string | null;
+  perpetrator_name: string | null; perpetrator_phone: string | null;
+  latitude: number; longitude: number; sensor_tilt_angle: number | null;
+  address_landmark: string; ward_name: string; land_ownership: string;
+  issue_type: string; urgency_level: string; felling_stage: string;
+  is_cognizable_offence: boolean; routed_authority: Authority;
+  routed_authority_role: string; target_email: string; target_whatsapp: string;
+  legal_citations: string[]; photo_urls: string[];
+  draft_subject_en: string; draft_body_en: string; draft_summary_mr: string;
+  estimated_tree_species: string | null; visual_damage_summary: string | null;
+  citizen_selected_category: string | null; ai_additional_category: string | null;
+  ai_additional_reason_en: string | null; tree_detected: boolean;
+  is_fallback: boolean; ai_provider: string; fallback_reason: string | null;
+  pdf_path: string | null; dispatch_status: string; dispatched_channels: string[];
+  dispatched_at: string | null; verification_status: string; reverification_due_at: string;
+  reverification_due_hours: number; witness_count: number; reopen_count: number;
+  created_at: string; updated_at: string;
+};
+export type Audit = { ai_verdict: 'RESOLVED_CLEARED' | 'STILL_DAMAGED' | 'INCONCLUSIVE'; ai_confidence: number; ai_notes_en: string; ai_notes_mr: string; is_fallback: boolean; ai_provider: string };

@@ -1,0 +1,151 @@
+{
+  "DANGEROUS_LEANING_FALL_RISK": {
+    "issue_type": "DANGEROUS_LEANING_FALL_RISK",
+    "urgency_level": "CRITICAL_EMERGENCY",
+    "is_cognizable_offence": false,
+    "reverification_due_hours": 24,
+    "routed_authority": {
+      "name": "PMC Disaster Management Cell & Ward Tree Officer",
+      "role": "Emergency public safety response, road barricading, and stabilization/tree felling hazard mitigation",
+      "email": "ganesh.sonune@punecorporation.org",
+      "whatsapp": "919689900002",
+      "emergency_phone": "020-25501269 / 112"
+    },
+    "legal_citations": [
+      "Maharashtra (Urban Areas) Protection & Preservation of Trees Act, 1975: Section 7(b) (Mandatory preservation of public safety and prevention of hazardous tree collapse)",
+      "Disaster Management Act, 2005: Section 30 & 34 (Emergency mitigation of imminent structural threats to life and property)"
+    ],
+    "prayer_en": "Dispatch emergency response team immediately to inspect structural stability, secure pedestrian perimeter, and take preventive arboricultural action before collapse.",
+    "prayer_mr": "धोकादायक झुकलेल्या झाडाची तात्काळ पाहणी करून आपत्ती व्यवस्थापन पथकामार्फत योग्य ती सुरक्षा उपाययोजना व कारवाई करावी."
+  },
+  "ILLEGAL_FELLING_IN_PROGRESS": {
+    "issue_type": "ILLEGAL_FELLING_IN_PROGRESS",
+    "urgency_level": "CRITICAL_EMERGENCY",
+    "is_cognizable_offence": true,
+    "reverification_due_hours": 24,
+    "routed_authority": {
+      "name": "Pune City Police Control & PMC Tree Officer",
+      "role": "Immediate physical intervention to stop active tree destruction; seizure of cutting equipment under Section 21",
+      "email": "ashok.ghorpade@punecorporation.org",
+      "whatsapp": "919689900002",
+      "emergency_phone": "112"
+    },
+    "legal_citations": [
+      "Maharashtra (Urban Areas) Protection & Preservation of Trees Act, 1975: Section 8(1) (Absolute statutory prohibition on tree felling without prior Tree Authority sanction)",
+      "Maharashtra Tree Act 1975: Section 21 (Cognizable offence punishable with fine and imprisonment; mandatory police intervention for in-progress felling)"
+    ],
+    "prayer_en": "Dispatch immediate police and Tree Officer patrol to halt ongoing tree cutting, demand production of statutory Form C Tree Authority permit, and register FIR under Section 21 if unauthorized.",
+    "prayer_mr": "सुरू असलेली बेकायदेशीर वृक्षतोड तात्काळ थांबवून संबंधितांवर वृक्ष संरक्षण कायद्याच्या कलम २१ अन्वये गुन्हा नोंदवावा."
+  },
+  "ILLEGAL_FELLING_COMPLETED": {
+    "issue_type": "ILLEGAL_FELLING_COMPLETED",
+    "urgency_level": "HIGH",
+    "is_cognizable_offence": true,
+    "reverification_due_hours": 48,
+    "routed_authority": {
+      "name": "Tree Officer & PMC Tree Authority (Ghole Road)",
+      "role": "Post-facto inspection, inquiry on Form C permit validity, compounding/legal prosecution",
+      "email": "ashok.ghorpade@punecorporation.org",
+      "whatsapp": "919689900002",
+      "emergency_phone": null
+    },
+    "legal_citations": [
+      "Maharashtra (Urban Areas) Protection & Preservation of Trees Act, 1975: Section 8(1) & Section 8(3) (Statutory public notice mandate)",
+      "Maharashtra Tree Act 1975: Section 21 (Penalties for unauthorized felling and mandatory compensatory afforestation)"
+    ],
+    "prayer_en": "Conduct on-site investigation of fresh tree stump, verify whether Form C felling permit was legally sanctioned with mandatory public objection window, and initiate penal action under Section 21 if illegal.",
+    "prayer_mr": "तोडलेल्या झाडाच्या जागेची पाहणी करून अधिकृत परवानगी नसलेवर संबंधितांवर कायदेशीर दंडात्मक कारवाई करावी."
+  },
+  "HAZARDOUS_BRANCH": {
+    "issue_type": "HAZARDOUS_BRANCH",
+    "urgency_level": "HIGH",
+    "is_cognizable_offence": false,
+    "reverification_due_hours": 48,
+    "routed_authority": {
+      "name": "PMC Ward Garden / Horticulture Department",
+      "role": "Trimming/removal of dangerously suspended branches obstructing traffic or high-tension power lines",
+      "email": "info@punecorporation.org",
+      "whatsapp": "919689900002",
+      "emergency_phone": null
+    },
+    "legal_citations": [
+      "Maharashtra (Urban Areas) Protection & Preservation of Trees Act, 1975: Section 7(b) (Maintenance and removal of hazardous limbs to ensure public transit safety)"
+    ],
+    "prayer_en": "Deploy hydraulic skylift / pruning van to trim and remove the suspended broken limbs posing immediate hazard to pedestrians and vehicles.",
+    "prayer_mr": "नागरिकांच्या सुरक्षेसाठी लटकलेली व तुटलेली धोकादायक फांदी तातडीने कापून रस्ता मोकळा करावा."
+  },
+  "DISEASE_PEST": {
+    "issue_type": "DISEASE_PEST",
+    "urgency_level": "MEDIUM",
+    "is_cognizable_offence": false,
+    "reverification_due_hours": 168,
+    "routed_authority": {
+      "name": "Superintendent of Gardens & Tree Authority PMC",
+      "role": "Arboricultural disease inspection, anti-termite treatment, and scientific tree conservation",
+      "email": "ashok.ghorpade@punecorporation.org",
+      "whatsapp": "919689900002",
+      "emergency_phone": null
+    },
+    "legal_citations": [
+      "Maharashtra (Urban Areas) Protection & Preservation of Trees Act, 1975: Section 7(d) (Statutory duty of the Tree Authority to treat and restore diseased or pest-infested trees)"
+    ],
+    "prayer_en": "Direct horticulture specialist to inspect pest/fungal infection, apply necessary biocides/treatment, and restore tree health under Section 7(d).",
+    "prayer_mr": "झाडाला लागलेली कीड व रोगावर उद्यान विभागामार्फत औषध फवारणी व योग्य ते उपचार करण्यात यावेत."
+  },
+  "ROOT_CONCRETIZATION": {
+    "issue_type": "ROOT_CONCRETIZATION",
+    "urgency_level": "MEDIUM",
+    "is_cognizable_offence": false,
+    "reverification_due_hours": 168,
+    "routed_authority": {
+      "name": "PMC Road Department & Ward Tree Officer (Garden Dept)",
+      "role": "De-concretization of suffocated tree bases and restoring mandatory unpaved breathing basins",
+      "email": "info@punecorporation.org",
+      "whatsapp": "919689900002",
+      "emergency_phone": null
+    },
+    "legal_citations": [
+      "National Green Tribunal (NGT) Principal Bench Directives: Mandatory 1-meter radius de-concretized soil basin around all urban tree bases",
+      "Maharashtra (Urban Areas) Protection & Preservation of Trees Act, 1975: Section 7(a) (Preservation of tree root ecosystem)"
+    ],
+    "prayer_en": "Excavate concrete/asphalt within 1-meter radius of the tree base in compliance with NGT guidelines to prevent root suffocation and eventual collapse.",
+    "prayer_mr": "झाडाच्या बुंध्याभोवती घातलेले सिमेंट काँक्रीट हटवून एनजीटीच्या नियमानुसार १ मीटर जागा मातीसाठी मोकळी करावी."
+  },
+  "NAILS_BOARDS_CABLE_STRANGULATION": {
+    "issue_type": "NAILS_BOARDS_CABLE_STRANGULATION",
+    "urgency_level": "MEDIUM",
+    "is_cognizable_offence": false,
+    "reverification_due_hours": 96,
+    "routed_authority": {
+      "name": "PMC Garden Department (Tree Ambulance) & Ward Encroachment",
+      "role": "Extraction of hammered nails, removal of advertising boards, freeing strangled cambium layer",
+      "email": "ashok.ghorpade@punecorporation.org",
+      "whatsapp": "919689900002",
+      "emergency_phone": null
+    },
+    "legal_citations": [
+      "Maharashtra (Urban Areas) Protection & Preservation of Trees Act, 1975: Section 2(c) ('to fell a tree' includes in any way damaging a tree) read with Section 8",
+      "High Court of Bombay Orders & PMC Public Directives: Hammering nails, metal brackets, and commercial hoarding defacement on trees is a punishable offense"
+    ],
+    "prayer_en": "Deploy Tree Ambulance / Garden team to extract all hammered iron nails, remove illegal advertising hoardings, detach tight cables strangling the cambium, and initiate penal action against advertisers.",
+    "prayer_mr": "झाडावर ठोकलेले खिळे, जाहिरात फलक व बांधलेल्या तारा तात्काळ काढून झाडाची हानी करणाऱ्या संबंधितांवर कारवाई करावी."
+  },
+  "UNAUTHORIZED_PRUNING": {
+    "issue_type": "UNAUTHORIZED_PRUNING",
+    "urgency_level": "MEDIUM",
+    "is_cognizable_offence": false,
+    "reverification_due_hours": 72,
+    "routed_authority": {
+      "name": "PMC Tree Authority (Ghole Road)",
+      "role": "Verification of pruning permission and canopy restoration inspection",
+      "email": "ashok.ghorpade@punecorporation.org",
+      "whatsapp": "919689900002",
+      "emergency_phone": null
+    },
+    "legal_citations": [
+      "Maharashtra (Urban Areas) Protection & Preservation of Trees Act, 1975: Section 8(1) (Prohibition on heavy crown mutilation without sanction)"
+    ],
+    "prayer_en": "Verify whether pruning activity was conducted in accordance with scientific guidelines and Tree Authority sanction.",
+    "prayer_mr": "झाडाच्या फांद्यांची अवाजवी छाटणी नियमानुसार झाली आहे का याची पाहणी करावी."
+  }
+}

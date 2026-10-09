@@ -37,13 +37,20 @@ class LocalTreeAIModule : Module() {
       val target = File(context.filesDir, modelName)
       val source = context.contentResolver.openInputStream(Uri.parse(uriString))
         ?: throw IllegalArgumentException("Could not read the selected model file")
-      source.use { input -> target.outputStream().use { output -> input.copyTo(output) } }
+      val temporary = File(context.filesDir, "$modelName.importing")
+      try {
+        source.use { input -> temporary.outputStream().use { output -> input.copyTo(output) } }
+        require(temporary.length() > 0L) { "The selected model file is empty" }
+        check(temporary.renameTo(target)) { "Could not save the imported model" }
+      } finally {
+        temporary.delete()
+      }
       mapOf("installed" to (target.exists() && target.length() > 0L), "modelPath" to target.absolutePath)
     }
 
     AsyncFunction("analyzePhoto") { photoUri: String, category: String, address: String ->
       val context = appContext.reactContext ?: throw IllegalStateException("App context is unavailable")
-      val model = modelFile() ?: return@AsyncFunction mapOf("available" to false, "treeDetected" to true)
+      val model = modelFile() ?: return@AsyncFunction mapOf("available" to false, "treeDetected" to false)
       val bitmap = context.contentResolver.openInputStream(Uri.parse(photoUri))?.use {
         BitmapFactory.decodeStream(it)
       } ?: throw IllegalArgumentException("Could not read the evidence photo")
@@ -67,6 +74,7 @@ class LocalTreeAIModule : Module() {
         } catch (_: Throwable) {
           LlmInference.createFromOptions(context, options.setPreferredBackend(LlmInference.Backend.DEFAULT).build())
         }
+        val scaled = scaleBitmap(bitmap, 1024)
         val raw = try {
           val session = LlmInferenceSession.createFromOptions(
             inference,
@@ -76,7 +84,6 @@ class LocalTreeAIModule : Module() {
           )
           try {
             session.addQueryChunk(prompt)
-            val scaled = scaleBitmap(bitmap, 1024)
             session.addImage(BitmapImageBuilder(scaled).build())
             session.generateResponse()
           } finally {
@@ -84,12 +91,15 @@ class LocalTreeAIModule : Module() {
           }
         } finally {
           inference.close()
+          if (scaled !== bitmap && !scaled.isRecycled) scaled.recycle()
         }
-        val jsonText = raw.substringAfter('{', "").let { if (it.isEmpty()) "" else "{$it" }
+        val start = raw.indexOf('{')
+        val end = raw.lastIndexOf('}')
+        val jsonText = if (start >= 0 && end > start) raw.substring(start, end + 1) else ""
         val result = runCatching { JSONObject(jsonText) }.getOrNull()
-        if (result == null) {
-          mapOf("available" to true, "treeDetected" to true, "rawResponse" to raw)
-        } else {
+        require(result != null && result.opt("tree_detected") is Boolean) {
+          "The local model did not return a valid tree assessment. Try server analysis."
+        }
           mapOf(
             "available" to true,
             "treeDetected" to result.optBoolean("tree_detected", true),
@@ -98,7 +108,6 @@ class LocalTreeAIModule : Module() {
             "visualDamageSummary" to result.optString("visual_damage_summary").takeIf { it.isNotBlank() },
             "urgencyLevel" to result.optString("urgency_level").takeIf { it.isNotBlank() }
           )
-        }
       } finally {
         if (!bitmap.isRecycled) bitmap.recycle()
       }

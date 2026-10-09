@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "Pune Tree Rakshak mobile client and backend",
   "scripts": {
+    "backend:dev": "npm --prefix server run dev",
+    "backend:build": "npm --prefix server run build",
+    "backend:start": "npm --prefix server start",
+    "backend:test": "npm --prefix server test",
     "mobile:start": "npm --prefix mobile start",
     "android": "npm --prefix mobile run android",
     "mobile:lint": "npm --prefix mobile run lint",

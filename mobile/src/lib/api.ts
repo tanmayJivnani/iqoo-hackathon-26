@@ -1,4 +1,4 @@
-export const API_BASE = (process.env.EXPO_PUBLIC_API_URL || 'https://iqoo-hackathon-26.onrender.com').replace(/\/$/, '');
+export const API_BASE = (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000').replace(/\/$/, '');
 
 export type Complaint = {
   id: string; tracking_id: string; issue_type: string; urgency_level: string;
@@ -21,6 +21,7 @@ export type Draft = {
 export type ComplaintDetail = Omit<Draft, 'routed_authority'> & {
   routed_authority?: RoutingAuthority | string | null;
   id: string; verification_status?: string; photo_urls?: string[]; target_email?: string;
+  reverification_due_at?: string | null;
   pdf_path?: string | null;
 };
 export type LocalAnalysis = {
@@ -29,21 +30,30 @@ export type LocalAnalysis = {
 };
 
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...options.headers },
-  });
-  const text = await response.text();
-  let payload: unknown;
-  try { payload = text ? JSON.parse(text) : undefined; } catch { payload = text; }
-  if (!response.ok) {
-    const message = typeof payload === 'object' && payload && 'detail' in payload
-      ? String((payload as { detail: unknown }).detail) : `Request failed (${response.status})`;
-    throw new Error(message);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 120_000);
+  try {
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      signal: options.signal ?? controller.signal,
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...options.headers },
+    });
+    const text = await response.text();
+    let payload: unknown;
+    try { payload = text ? JSON.parse(text) : undefined; } catch { payload = text; }
+    if (!response.ok) {
+      const message = typeof payload === 'object' && payload && 'detail' in payload
+        ? String((payload as { detail: unknown }).detail) : `Request failed (${response.status})`;
+      throw new Error(message);
+    }
+    return payload as T;
+  } finally {
+    clearTimeout(timeout);
   }
-  return payload as T;
 }
 
 export function asDataUri(base64: string, mime = 'image/jpeg') {
+  if (base64.startsWith('/api/')) return `${API_BASE}${base64}`;
+  if (/^https?:\/\//.test(base64)) return base64;
   return base64.startsWith('data:') ? base64 : `data:${mime};base64,${base64}`;
 }

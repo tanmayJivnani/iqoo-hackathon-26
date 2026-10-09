@@ -49,7 +49,11 @@
     "prebuild:android": "expo prebuild --platform android",
     "typecheck": "tsc --noEmit",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "test": "node --experimental-strip-types --test tests/*.test.ts"
   },
-  "private": true
+  "private": true,
+  "engines": {
+    "node": ">=22.13.0"
+  }
 }

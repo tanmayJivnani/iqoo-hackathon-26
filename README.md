@@ -1,110 +1,59 @@
-# 🌳 Pune Tree Rakshak (Citizen Complaint App)
-> **iQOO Hackathon 2026 — Pune City Battle (Open Innovation Track)**
+# Pune Tree Rakshak
 
-A phone-first civic accountability and tree preservation platform empowering Pune citizens to document, legally ground, dispatch, and independently verify tree emergencies and environmental violations under the **Maharashtra (Urban Areas) Protection & Preservation of Trees Act, 1975**.
+An Expo Android app for Pune tree complaints, backed by Next.js. Citizens capture tree evidence and GPS, review a bilingual complaint, share it through their email app or WhatsApp, and return for photo verification.
 
----
+## Run locally
 
-## 🌟 Key Innovations & Technical Highlights
+Use Node.js 24 or later for the backend.
 
-1. **7-Category Statutory Civic Taxonomy**:
-   * Covers all major urban tree violations: Leaning Trees, Illegal Felling & Sabotage, Heavy Pruning, Hazardous Branches, Root Concretization, Disease/Pest, and Tree Vandalism (Nails/Banners/Cables).
-2. **3-Layer Forensic Evidence Standard (Locus $\rightarrow$ Structure $\rightarrow$ Detail)**:
-   * Dynamically guides citizens through 3 standardized angles:
-     * **Layer 1 (Locus Context)**: Wide shot of tree and street setting (eliminates "not from this street" municipal pushback).
-     * **Layer 2 (Structural Frame)**: Mid-range frame connecting the issue to the tree's main architecture (lean vector, severed limbs, trunk clutter).
-     * **Layer 3 (Forensic Macro)**: Close-up evidence of the exact violation (fresh chainsaw tooth marks, iron nails in cambium bark, cracked limb joint, choked root collar).
-3. **AI Anti-Spam Gate & Quota Protection**:
-   * Computer vision verifies genuine tree presence before processing, rejecting non-tree/indoor photos with a strict 3-attempt quota and a 3-hour cooldown to protect civic and AI resources.
-4. **Government GIS Tree Census Integration (4.09M Trees)**:
-   * Spatially queries Pune Municipal Corporation's official 4.09-Million Tree Census GIS dataset within a 10-meter radius to attach the government-verified Census Tree ID, botanical name, and girth record.
-5. **Deterministic Legal Routing Engine**:
-   * Replaces hallucination-prone black-box LLMs with an explainable statutory engine encoding the Maharashtra Tree Act, 1975:
-     * **Active Cutting** $\rightarrow$ Pune Police (112) + Tree Officer (Section 21 cognizable offense).
-     * **Stumps / Sabotage** $\rightarrow$ PMC Tree Authority (Ghole Road) + Local Police Station (FIR trail).
-     * **Tree Vandalism (Nails/Wires)** $\rightarrow$ PMC Garden Department (Tree Ambulance) + Ward Encroachment.
-     * **Root Concretization** $\rightarrow$ PMC Road Department & Ward Tree Officer (NGT 1-meter basin mandate).
-     * **Leaning Hazards** $\rightarrow$ PMC Disaster Management Cell & Ward Tree Officer.
-6. **Sealed Statutory PDF & Bilingual Dispatch**:
-   * Automatically compiles timestamped, tamper-evident PDF evidence documents complete with GPS coordinates, photos, and legal citations.
-   * Generates formal English email (with attached PDF) + Marathi summary for WhatsApp dispatch.
-7. **Zero-Trust Timelock Re-Audit & Escalation**:
-   * Replaces fake municipal ticket closures with an independent citizen re-photography timelock (24h to 72h) and one-tap escalation to the Municipal Commissioner if unresolved.
-8. **Hybrid Edge-to-Cloud AI Architecture**:
-   * On-device NPU/GPU execution (via Google MediaPipe / LiteRT) for instant, offline, zero-cost analysis on flagship hardware like **iQOO 15**, backed by cloud vision AI (**Google Gemini 3.6 Flash**) for universal accessibility.
-
----
-
-## 🏗️ Architecture
-
-```mermaid
-flowchart TD
-    A["📱 Expo Mobile Client (3-Layer Camera + GPS)"] --> B{"🛡️ AI Anti-Spam Gate"}
-    B -- "No Tree / Indoor Spam" --> B1["🚫 Reject (2 Attempts) + 3h Cooldown"]
-    B -- "Tree Verified" --> C["🌿 AI Vision Analyzer (Species & Damage)"]
-    C --> D["📍 GIS Spatial Matcher (PMC 4.09M Census within 10m)"]
-    D --> E["⚖️ Deterministic Statutory Engine (Maharashtra Tree Act 1975)"]
-    E --> F["📄 Sealed Legal PDF Generator (ReportLab)"]
-    F --> G["🚀 Bilingual Dispatch (Email with PDF + WhatsApp)"]
-    G --> H["⏱️ Timelock Tracker & Independent Ground Re-Audit"]
+```powershell
+npm --prefix server install
+npm run backend:dev
 ```
 
----
+The backend runs at **http://localhost:3000**. It stores SQLite records, photos, and PDFs in `server/data/`, which survives restarts and is excluded from Git. Back up this folder separately. No Render or Vercel deployment is required.
 
-## 📋 The 7 Statutory Categories & Photo Guidance
+For a USB-connected Android phone:
 
-| # | Category | Core Focus | 3-Layer Photo Sequence | Primary Authority |
-|---|---|---|---|---|
-| 1 | `DANGEROUS_LEANING_FALL_RISK` | Uprooting, tilt hazard | Wide street $\rightarrow$ Trunk angle $\rightarrow$ Root plate heave | PMC Disaster Cell & Ward Tree Officer |
-| 2 | `ILLEGAL_FELLING` | Severing, chopping, poisoning | Avenue gap $\rightarrow$ Felled timber $\rightarrow$ Sawn stump/base | Active: Police 112 + Tree Officer<br>Stump: Tree Authority (Ghole Rd) |
-| 3 | `UNAUTHORIZED_PRUNING` | Canopy decapitation | Ruined crown $\rightarrow$ Scaffold cuts $\rightarrow$ Severed branch stubs | PMC Tree Authority (Ghole Road) |
-| 4 | `HAZARDOUS_BRANCH` | Snapped hanging limbs | Traffic clearance $\rightarrow$ Limb joint $\rightarrow$ Fracture split | Ward Tree Officer (Garden Dept) |
-| 5 | `ROOT_CONCRETIZATION` | Suffocated root collar | Footpath setting $\rightarrow$ Paving extent $\rightarrow$ Concrete touching bark | PMC Road Dept & Ward Tree Officer |
-| 6 | `DISEASE_PEST` | Rot, cavities, termites | Canopy vigour $\rightarrow$ Affected trunk $\rightarrow$ Fungal conk / termite mud | Ward Tree Officer & Tree Authority |
-| 7 | `NAILS_BOARDS_CABLE_STRANGULATION` | Cambium strangulation | Street defacement $\rightarrow$ Trunk clutter $\rightarrow$ Nails/cables in bark | PMC Garden Dept (Tree Ambulance) |
-
----
-
-## ⚖️ Statutory Legal Grounding
-* **Section 2(c)**: *"to fell a tree" includes burning or cutting or in any way damaging a tree.*
-* **Section 7(b)**: Duty to remove dangerous or leaning trees to protect human life and property.
-* **Section 8(1)**: Absolute statutory prohibition on felling, lopping, or girdling without Tree Authority sanction.
-* **Section 21**: Cognizable criminal offence punishable with fine and imprisonment; mandatory police intervention for in-progress felling.
-* **NGT Principal Bench Directives**: Mandatory 1-meter unpaved green basin around all urban tree bases.
-* **High Court of Bombay Orders**: Hammering iron nails, driving screws, and fixing commercial boards on trees is a punishable offense.
-
----
-
-## 🚀 Getting Started
-
-### 1. Backend Service (FastAPI)
-
-```bash
-cd backend
-
-# Create virtual environment & install dependencies
-python -m venv venv
-source venv/bin/activate # or venv\Scripts\activate on Windows
-pip install -r requirements.txt
-
-# Start backend server
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-* Swagger API Documentation: `http://localhost:8000/docs`
-
-### 2. Expo Android App (React Native)
-
-```bash
-cd mobile
-npm install
+```powershell
+& "$env:LOCALAPPDATA/Android/Sdk/platform-tools/adb.exe" reverse tcp:3000 tcp:3000
+npm --prefix mobile install
 npm run android
 ```
 
-The Expo app uses Expo Router, Expo Camera, foreground location, gallery selection, and a local Android Expo module for on-device MediaPipe Gemma photo verification. It produces a native development build, so it is not run inside Expo Go.
+The Expo app defaults to this local backend. `EXPO_PUBLIC_API_URL` selects another address for Wi-Fi or an HTTPS tunnel. The laptop must remain awake with the server running. The native app requires Android SDK/NDK installation; Expo Go cannot load the custom MediaPipe module.
 
-To use the on-device Gemma path, import a compatible MediaPipe `.task` model from the tracker screen. The model is not bundled because it is several gigabytes. The app still uses the hosted FastAPI service for tree census lookup, statutory routing, PDF generation, dispatch, and reverification when connected. When offline, the local model prepares a draft for review and the citizen can share it through installed mail/WhatsApp apps.
+## Project layout
 
-Set `EXPO_PUBLIC_API_URL` to override the hosted API URL. See [mobile/README.md](mobile/README.md) for Expo development build and module notes.
+- `mobile/`: Expo/React Native client and on-device Gemma module.
+- `server/`: Next.js API routes, deterministic routing rules, SQLite repository, AI providers, evidence storage, bilingual PDFs and re-audits.
+- `backend/`: prior FastAPI implementation, retained as a migration reference and source for existing local records.
+- `android/`: prior Kotlin/Compose client.
 
-The previous native Kotlin client remains under `android/` during the migration.
+Read [server/README.md](server/README.md) for configuration, data migration, API behavior and checks, and [mobile/README.md](mobile/README.md) for Android setup.
+
+## Features
+
+- Seven tree issue categories with guided wide, structural and close-up photos.
+- Gemini/OpenRouter photo analysis with optional on-device Gemma drafting.
+- Deterministic authority routing and complaint references.
+- Nearby duplicate detection and witness corroboration.
+- PDF notice with photos, English statement, Marathi summary, QR link and record digest.
+- Phone email composer with PDF attachment, and separate WhatsApp sharing.
+- Follow-up deadline, 50-metre GPS check, and before/after photo comparison.
+
+Census and SMTP are excluded from the Next.js backend. Sharing is recorded as prepared; the app cannot confirm delivery from external email or WhatsApp apps. An unavailable AI audit leaves the complaint open.
+
+This local hackathon setup needs authentication and per-citizen access controls before public rollout. Census-related assets in the old Python implementation are not loaded by Next.js.
+
+## Checks
+
+```powershell
+npm --prefix server run typecheck
+npm --prefix server run lint
+npm run backend:test
+npm run backend:build
+npm --prefix mobile run typecheck
+npm --prefix mobile run lint
+npm --prefix mobile test
+```

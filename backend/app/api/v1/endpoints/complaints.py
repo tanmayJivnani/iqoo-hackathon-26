@@ -68,6 +68,8 @@ async def check_duplicates(
                 address_landmark=c.address_landmark,
                 distance_meters=round(dist, 1),
                 witness_count=c.witness_count,
+                photo_urls=c.photo_urls or [],
+                created_at=c.created_at,
                 verification_status=c.verification_status
             ))
 

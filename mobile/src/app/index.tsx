@@ -1,5 +1,6 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as DocumentPicker from 'expo-document-picker';
+import { File, Paths } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import * as MailComposer from 'expo-mail-composer';
@@ -12,12 +13,15 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LocalTreeAI from '../../modules/local-tree-ai/src/LocalTreeAIModule';
+import { apiDate, canUseLocalAnalysis, isResolved, isTimelocked, nextPhotoRejection } from '../lib/complaint-flow';
 import { categories, categoryLabel, legalGrounding } from '../data/categories';
 import { API_BASE, api, asDataUri, type Complaint, type ComplaintDetail, type Draft } from '../lib/api';
 
 type Page = 'tracker' | 'category' | 'guidance' | 'camera' | 'review' | 'draft' | 'dispatch' | 'verify';
 type Profile = { name: string; phone: string; email: string };
 type Photo = { uri: string; base64: string };
+type EvidenceLocation = { latitude: number; longitude: number; address: string };
+type LocalAnalysis = { available: boolean; treeDetected: boolean; visualDamageSummary?: string | null; estimatedTreeSpecies?: string | null; urgencyLevel?: string | null };
 const blankProfile: Profile = { name: '', phone: '', email: '' };
 const green = '#246B45';
 const dark = '#19392A';
@@ -47,8 +51,8 @@ function PageHeader({ title, subtitle, onBack }: { title: string; subtitle?: str
 }
 function photoBase64(photo: Photo) { return photo.base64.replace(/^data:image\/[^;]+;base64,/, ''); }
 
-function localDraft(category: string, latitude: number, longitude: number, address: string, profile: Profile, analysis?: Record<string, any>): Draft {
-  const tracking = `PMC-TREE-LOC-${Math.floor(1000 + Math.random() * 9000)}`;
+function localDraft(category: string, latitude: number, longitude: number, address: string, profile: Profile, analysis: LocalAnalysis): Draft {
+  const tracking = `PUNE-TREE-LOC-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
   const citations = legalGrounding[category] ?? legalGrounding.HAZARDOUS_BRANCH;
   const categoryName = categoryLabel(category);
   return {
@@ -58,11 +62,11 @@ function localDraft(category: string, latitude: number, longitude: number, addre
     visual_damage_summary: analysis?.visualDamageSummary ?? 'Evidence saved for local review. Add any observations before dispatch.',
     citizen_name: profile.name || 'Concerned Pune Citizen', citizen_phone: profile.phone || undefined,
     citizen_email: profile.email || undefined, latitude, longitude, address_landmark: address,
-    ward_name: 'Pune', routed_authority: { name: 'PMC Tree Authority', role: 'Tree Officer', email: 'treeofficer@punecorporation.org', whatsapp: '919689900002', emergency_phone: '112' },
+    ward_name: 'Pune', routed_authority: null,
     legal_citations: citations, draft_subject_en: `Tree grievance: ${categoryName} — ${tracking}`,
     draft_body_en: `To the Tree Officer, Pune Municipal Corporation,\n\nI am reporting a ${categoryName.toLowerCase()} at ${address || 'Pune'} (latitude ${latitude.toFixed(5)}, longitude ${longitude.toFixed(5)}).\n\n${analysis?.visualDamageSummary ?? 'Please inspect the attached photo evidence and take appropriate action.'}\n\nGrounding: ${citations.join('; ')}.\n\nPlease acknowledge this complaint and share the action taken.\n\nSincerely,\n${profile.name || 'Concerned Pune Citizen'}${profile.phone ? `\n${profile.phone}` : ''}`,
     draft_summary_mr: `पुणे येथे ${categoryName} संदर्भात तक्रार नोंदवली आहे. कृपया जोडलेल्या छायाचित्रांची पाहणी करून योग्य ती कार्यवाही करावी.`,
-    reverification_due_hours: 48, is_fallback: true, ai_provider: analysis ? 'ON_DEVICE_GEMMA' : 'OFFLINE_TEMPLATE',
+    reverification_due_hours: 48, is_fallback: true, ai_provider: 'ON_DEVICE_GEMMA',
   };
 }
 
@@ -83,7 +87,10 @@ export default function HomeScreen() {
   const [perpetratorName, setPerpetratorName] = useState('');
   const [perpetratorPhone, setPerpetratorPhone] = useState('');
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [location, setLocation] = useState({ latitude: 18.5196, longitude: 73.8436, address: 'Pune Central, Pune' });
+  const [location, setLocation] = useState<EvidenceLocation | null>(null);
+  const [trackerError, setTrackerError] = useState<string | null>(null);
+  const operationRef = useRef(false);
+  const captureRef = useRef(false);
   const [tilt, setTilt] = useState(0);
   const [busy, setBusy] = useState(false);
   const [pendingProfileStart, setPendingProfileStart] = useState(false);
@@ -97,8 +104,8 @@ export default function HomeScreen() {
 
   const refresh = async () => {
     setLoading(true);
-    try { setComplaints(await api<Complaint[]>('/api/v1/complaints/')); }
-    catch { setComplaints([]); }
+    try { setComplaints(await api<Complaint[]>('/api/v1/complaints/')); setTrackerError(null); }
+    catch (error) { setTrackerError(error instanceof Error ? error.message : 'Could not load reports. Pull to retry.'); }
     finally { setLoading(false); }
   };
 
@@ -139,23 +146,27 @@ export default function HomeScreen() {
     if (!profileDraft.name.trim() || !profileDraft.phone.trim()) {
       Alert.alert('A little more information', 'Please enter your name and phone number to continue.'); return;
     }
+    try { await SecureStore.setItemAsync('citizen-profile', JSON.stringify(profileDraft)); }
+    catch { Alert.alert('Profile not saved', 'Could not save your profile securely. Please retry.'); return; }
     setProfile(profileDraft);
-    await SecureStore.setItemAsync('citizen-profile', JSON.stringify(profileDraft));
     setProfileOpen(false);
     if (pendingProfileStart) { setPendingProfileStart(false); setPage('category'); }
   };
 
   const startComplaint = () => {
+    setSelectedCategories([]); setPhotos([]); setRetakeIndex(null); setNearbyComplaints([]); setNotes(''); setDraft(null); setDetail(null);
+    setPerpetratorName(''); setPerpetratorPhone(''); setPerpetratorPhotos([]); setLocation(null); setTilt(0);
+    setVerificationPhoto(null); setVerificationResult(null); setVerificationNote('');
     if (!profile.name || !profile.phone) {
       setPendingProfileStart(true); setProfileDraft(profile); setProfileOpen(true); return;
     }
-    setSelectedCategories([]); setPhotos([]); setRetakeIndex(null); setNearbyComplaints([]); setNotes(''); setDraft(null); setPage('category');
+    setPage('category');
   };
 
   const getLocation = async () => {
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
-      if (permission.status !== 'granted') return;
+      if (permission.status !== 'granted') throw new Error('Allow location access to attach the actual evidence location.');
       const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       let address = `${current.coords.latitude.toFixed(5)}, ${current.coords.longitude.toFixed(5)}, Pune`;
       try {
@@ -163,14 +174,16 @@ export default function HomeScreen() {
         const first = result[0];
         if (first) address = [first.name, first.street, first.subregion, first.city].filter(Boolean).join(', ');
       } catch { /* coordinate address is still useful */ }
-      setLocation({ latitude: current.coords.latitude, longitude: current.coords.longitude, address });
+      const evidenceLocation = { latitude: current.coords.latitude, longitude: current.coords.longitude, address };
+      setLocation(evidenceLocation);
       try {
         const duplicates = await api<{ nearby_complaints: typeof nearbyComplaints }>('/api/v1/complaints/check-duplicate', {
           method: 'POST', body: JSON.stringify({ latitude: current.coords.latitude, longitude: current.coords.longitude, radius_meters: 30 }),
         });
         setNearbyComplaints(duplicates.nearby_complaints ?? []);
       } catch { setNearbyComplaints([]); }
-    } catch { Alert.alert('Location unavailable', 'Using the Pune Central location preset.'); }
+      return evidenceLocation;
+    } catch (error) { Alert.alert('Location unavailable', error instanceof Error ? error.message : 'Could not get a GPS fix. Please retry.'); return null; }
   };
 
   const openCamera = async (replaceIndex: number | null = null) => {
@@ -179,12 +192,13 @@ export default function HomeScreen() {
       if (!result.granted) { Alert.alert('Camera access needed', 'Allow camera access to take the three evidence photos.'); return; }
     }
     setRetakeIndex(replaceIndex);
-    await getLocation();
+    if (replaceIndex === null && photos.length === 0 && !await getLocation()) return;
     setPage('camera');
   };
 
   const takePhoto = async () => {
-    if (!cameraRef.current) return;
+    if (!cameraRef.current || captureRef.current) return;
+    captureRef.current = true;
     try {
       const image = await cameraRef.current.takePictureAsync({ quality: 0.68, base64: true });
       if (!image?.uri || !image.base64) throw new Error('The photo could not be read. Try again.');
@@ -199,6 +213,7 @@ export default function HomeScreen() {
         if (next.length === 3) setPage('review');
       }
     } catch (error) { Alert.alert('Could not capture photo', error instanceof Error ? error.message : 'Try again.'); }
+    finally { captureRef.current = false; }
   };
 
   const choosePhotos = async () => {
@@ -206,7 +221,8 @@ export default function HomeScreen() {
     if (result.canceled) return;
     const chosen = result.assets.slice(0, 3).filter((asset) => asset.base64).map((asset) => ({ uri: asset.uri, base64: asset.base64! }));
     if (chosen.length < 3) { Alert.alert('Choose three photos', 'Please select three photos so the context, structure, and detail are all documented.'); return; }
-    setPhotos(chosen); setRetakeIndex(null); await getLocation(); setPage('review');
+    if (!await getLocation()) return;
+    setPhotos(chosen); setRetakeIndex(null); setPage('review');
   };
 
   const attachOffenderPhoto = async () => {
@@ -217,22 +233,24 @@ export default function HomeScreen() {
   };
 
   const analyze = async () => {
+    if (operationRef.current) return;
+    if (!location) { Alert.alert('Location required', 'Capture the actual GPS position before analyzing evidence.'); return; }
     if (photos.length !== 3) { Alert.alert('Three photos required', 'Capture or select all three guided evidence photos.'); return; }
-    const storedGuard = await SecureStore.getItemAsync('tree-photo-guard');
-    const guard: { count: number; cooldownUntil: number } = storedGuard ? JSON.parse(storedGuard) : { count: 0, cooldownUntil: 0 };
-    if (guard.cooldownUntil > Date.now()) {
-      const minutes = Math.ceil((guard.cooldownUntil - Date.now()) / 60000);
-      Alert.alert('Photo review paused', `Three photos without a tree were submitted. Please wait ${Math.ceil(minutes / 60)} hour(s) before trying again.`); return;
-    }
-    const recordRejectedPhoto = async () => {
-      const nextCount = guard.cooldownUntil > 0 ? 1 : guard.count + 1;
-      const next = nextCount >= 3 ? { count: 0, cooldownUntil: Date.now() + 3 * 60 * 60 * 1000 } : { count: nextCount, cooldownUntil: 0 };
-      await SecureStore.setItemAsync('tree-photo-guard', JSON.stringify(next));
-      if (next.cooldownUntil) Alert.alert('Anti-spam pause', 'Three photo checks did not show a tree. Photo analysis is paused for three hours.');
-    };
+    operationRef.current = true;
     setBusy(true);
-    let local: Record<string, any> | undefined;
     try {
+      const storedGuard = await SecureStore.getItemAsync('tree-photo-guard');
+      const guard: { count: number; cooldownUntil: number } = storedGuard ? JSON.parse(storedGuard) : { count: 0, cooldownUntil: 0 };
+      if (guard.cooldownUntil > Date.now()) {
+        const minutes = Math.ceil((guard.cooldownUntil - Date.now()) / 60000);
+        Alert.alert('Photo review paused', `Three photos without a tree were submitted. Please wait ${Math.ceil(minutes / 60)} hour(s) before trying again.`); return;
+      }
+      const recordRejectedPhoto = async () => {
+        const next = nextPhotoRejection(guard);
+        await SecureStore.setItemAsync('tree-photo-guard', JSON.stringify(next));
+        if (next.cooldownUntil) Alert.alert('Anti-spam pause', 'Three photo checks did not show a tree. Photo analysis is paused for three hours.');
+      };
+      let local: LocalAnalysis | undefined;
       if (modelInstalled) {
         try {
           const result = await LocalTreeAI.analyzePhoto(photos[0].uri, category, location.address);
@@ -240,16 +258,15 @@ export default function HomeScreen() {
             await recordRejectedPhoto();
             Alert.alert('No tree detected', result.rejectionReason || 'Point the camera at a real tree and try again.'); setBusy(false); return;
           }
-          local = result;
-          if (result.available) await SecureStore.deleteItemAsync('tree-photo-guard');
+          if (result.available && result.treeDetected) local = result;
         } catch {
           Alert.alert('Local model unavailable', 'The local model could not analyze this photo. I’ll try the server analysis instead.');
         }
       }
       const payload = {
         photo_base64: photoBase64(photos[0]), photos_base64: photos.map(photoBase64),
-        perpetrator_photos_base64: perpetratorPhotos.map(photoBase64), citizen_selected_category: category,
-        latitude: location.latitude, longitude: location.longitude, sensor_tilt_angle: Number(tilt.toFixed(1)),
+        perpetrator_photos_base64: perpetratorPhotos.map(photoBase64), citizen_selected_category: selectedCategories.join(','),
+        latitude: location.latitude, longitude: location.longitude, sensor_tilt_angle: null,
         citizen_notes: [notes, ...selectedCategories.slice(1).map(categoryLabel)].filter(Boolean).join('\nAdditional selected issue: '),
         citizen_name: profile.name, citizen_phone: profile.phone, citizen_email: profile.email || null,
         perpetrator_name: perpetratorName || null, perpetrator_phone: perpetratorPhone || null, address_landmark: location.address,
@@ -260,13 +277,14 @@ export default function HomeScreen() {
         await SecureStore.deleteItemAsync('tree-photo-guard');
         setDraft(response);
       } catch (networkError) {
-        if (!modelInstalled) throw networkError;
-        setDraft(localDraft(category, location.latitude, location.longitude, location.address, profile, local));
-        Alert.alert('Saved for local review', 'The server could not be reached. The on-device model prepared a draft; backend routing and tree census data will be unavailable until you reconnect.');
+        if (!local || !canUseLocalAnalysis(local)) throw networkError;
+        await SecureStore.deleteItemAsync('tree-photo-guard');
+        setDraft({ ...localDraft(category, location.latitude, location.longitude, location.address, profile, local), perpetrator_name: perpetratorName || null, perpetrator_phone: perpetratorPhone || null });
+        Alert.alert('Saved for local review', 'The server could not be reached. The on-device model prepared a draft; reconnect to save the report and generate its PDF.');
       }
       setPage('draft');
     } catch (error) { Alert.alert('Analysis failed', error instanceof Error ? error.message : 'Check your connection and try again.'); }
-    finally { setBusy(false); }
+    finally { operationRef.current = false; setBusy(false); }
   };
 
   const importGemma = async () => {
@@ -277,7 +295,9 @@ export default function HomeScreen() {
       if (!uri) return;
       setBusy(true);
       await LocalTreeAI.importModelFromUri(uri);
-      setModelInstalled(LocalTreeAI.getModelStatus().installed);
+      const installed = LocalTreeAI.getModelStatus().installed;
+      if (!installed) throw new Error('The selected model could not be saved.');
+      setModelInstalled(installed);
       Alert.alert('On-device AI ready', 'Gemma has been imported to app storage.');
     } catch (error) { Alert.alert('Model import failed', error instanceof Error ? error.message : 'Choose a compatible MediaPipe Gemma .task model.'); }
     finally { setBusy(false); }
@@ -290,47 +310,50 @@ export default function HomeScreen() {
     finally { setBusy(false); }
   };
 
-  const sendDispatch = async () => {
-    if (!draft) return;
+  const sendDispatch = async (channel: 'EMAIL' | 'WHATSAPP') => {
+    if (!draft || operationRef.current) return;
+    operationRef.current = true;
     setBusy(true);
     try {
-      let pdfUrl = '';
-      if (draft.complaint_id) {
-        try {
-          const pdf = await api<{ pdf_url: string }>('/api/v1/complaints/render-pdf', { method: 'POST', body: JSON.stringify({
-            complaint_id: draft.complaint_id, tracking_id: draft.tracking_id, issue_type: draft.issue_type,
-            urgency_level: draft.urgency_level, felling_stage: draft.felling_stage, latitude: draft.latitude,
-            longitude: draft.longitude, address_landmark: draft.address_landmark, ward_name: draft.ward_name,
-            citizen_name: profile.name, citizen_phone: profile.phone, citizen_email: profile.email,
-            legal_citations: draft.legal_citations, draft_subject_en: draft.draft_subject_en,
-            draft_body_en: draft.draft_body_en, draft_summary_mr: draft.draft_summary_mr, photo_base64: photoBase64(photos[0]),
-          }) });
-          pdfUrl = pdf.pdf_url;
-        } catch { /* dispatch still works if PDF rendering is unavailable */ }
-        await api('/api/v1/complaints/dispatch', { method: 'POST', body: JSON.stringify({
-          complaint_id: draft.complaint_id, confirmed_by_citizen: true, channels: ['EMAIL', 'WHATSAPP'],
-          tracking_id: draft.tracking_id, issue_type: draft.issue_type, urgency_level: draft.urgency_level,
-          latitude: draft.latitude, longitude: draft.longitude, address_landmark: draft.address_landmark,
-          ward_name: draft.ward_name, citizen_name: profile.name, citizen_phone: profile.phone,
-          citizen_email: profile.email, legal_citations: draft.legal_citations,
-          draft_subject_en: draft.draft_subject_en, draft_body_en: draft.draft_body_en, draft_summary_mr: draft.draft_summary_mr,
-        }) });
-      } else {
-        // A local-only record can still be sent through the citizen's own mail and WhatsApp apps.
-        if (await MailComposer.isAvailableAsync()) await MailComposer.composeAsync({
-          recipients: [draft.routed_authority?.email ?? 'treeofficer@punecorporation.org'],
-          subject: draft.draft_subject_en, body: `${draft.draft_body_en}\n\n${draft.draft_summary_mr}`,
-          attachments: photos.map((photo) => photo.uri),
-        });
+      if (channel === 'EMAIL' && !(await MailComposer.isAvailableAsync())) {
+        throw new Error('Set up an email app on this phone before sharing the report by email.');
       }
-      const message = `🚨 ${draft.tracking_id} Tree grievance\nLocation: ${draft.address_landmark}\nIssue: ${categoryLabel(draft.issue_type)}\n\n${draft.draft_summary_mr}\n\nTrack: https://punetrees.org/track/${draft.tracking_id}`;
-      const whatsapp = `https://wa.me/${draft.routed_authority?.whatsapp ?? '919689900002'}?text=${encodeURIComponent(message)}`;
-      if (await Linking.canOpenURL(whatsapp)) await Linking.openURL(whatsapp);
-      Alert.alert('Grievance dispatched', `${draft.tracking_id}${pdfUrl ? '\nPDF attached to the server record.' : ''}`);
-      setPage('tracker'); await refresh();
+      const complaintId = draft.complaint_id || `loc-${draft.tracking_id}`;
+      const pdf = await api<{ complaint_id: string; pdf_url: string }>('/api/v1/complaints/render-pdf', {
+        method: 'POST', body: JSON.stringify({
+          ...draft, complaint_id: complaintId,
+          photo_base64: photos[0] ? photoBase64(photos[0]) : undefined,
+          photos_base64: [...photos, ...perpetratorPhotos].map(photoBase64),
+        }),
+      });
+      // Keep the registered ID for retrying a failed dispatch without creating another report.
+      setDraft({ ...draft, complaint_id: pdf.complaint_id });
+      const result = await api<{ email?: { ready: boolean; recipient: string; subject: string; body: string; attachment_url: string }; whatsapp?: { deep_link_url: string } }>(
+        '/api/v1/complaints/dispatch', { method: 'POST', body: JSON.stringify({
+          complaint_id: pdf.complaint_id, confirmed_by_citizen: true, channels: [channel],
+        }) },
+      );
+      if (channel === 'EMAIL') {
+        if (!result.email?.ready) throw new Error('The email could not be prepared. Your report is saved; please retry.');
+        const attachment = await File.downloadFileAsync(
+          `${API_BASE}${result.email.attachment_url}`,
+          new File(Paths.cache, `${draft.tracking_id}.pdf`),
+          { idempotent: true, signal: AbortSignal.timeout(60_000) },
+        );
+        await MailComposer.composeAsync({
+          recipients: [result.email.recipient], subject: result.email.subject,
+          body: result.email.body, attachments: [attachment.uri],
+        });
+      } else {
+        if (!result.whatsapp?.deep_link_url) throw new Error('The WhatsApp summary could not be prepared.');
+        await Linking.openURL(result.whatsapp.deep_link_url);
+      }
+      // Android reports the composer as "sent" even when delivery is unknown.
+      // Keep this screen available to retry or share through the other channel.
+      await refresh();
     } catch (error) {
-      Alert.alert('Dispatch incomplete', error instanceof Error ? error.message : 'Your draft is still saved. Try dispatch again when connected.');
-    } finally { setBusy(false); }
+      Alert.alert('Dispatch incomplete', error instanceof Error ? error.message : 'Your draft is still available. Try again when connected.');
+    } finally { operationRef.current = false; setBusy(false); }
   };
 
   const pickVerificationPhoto = async () => {
@@ -339,14 +362,16 @@ export default function HomeScreen() {
     if (!result.canceled && asset?.base64) setVerificationPhoto({ uri: asset.uri, base64: asset.base64 });
   };
   const submitVerification = async () => {
+    if (isTimelocked(detail?.verification_status, detail?.reverification_due_at)) { Alert.alert('Re-audit locked', 'Please wait until the follow-up deadline shown on the tracker.'); return; }
     if (!detail || !verificationPhoto) { Alert.alert('Photo required', 'Take a new on-site photo before running the check.'); return; }
     setBusy(true);
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
-      const current = permission.status === 'granted' ? await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }) : null;
+      if (permission.status !== 'granted') throw new Error('Location access is required for an on-site re-audit.');
+      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       const result = await api<{ ai_verdict: string; ai_confidence: number; ai_notes_en: string; ai_notes_mr: string; final_status: string; gps_valid: boolean; distance_from_original_m: number; reopen_count: number }>(`/api/v1/complaints/${detail.id}/verify`, { method: 'POST', body: JSON.stringify({
         complaint_id: detail.id, photo_base64: photoBase64(verificationPhoto),
-        latitude: current?.coords.latitude ?? detail.latitude, longitude: current?.coords.longitude ?? detail.longitude,
+        latitude: current.coords.latitude, longitude: current.coords.longitude,
         citizen_notes: verificationNote || null,
       }) });
       setVerificationResult(result);
@@ -358,9 +383,9 @@ export default function HomeScreen() {
 
   const upvoteNearby = async (id: string) => {
     try {
-      await api('/api/v1/complaints/upvote-witness', { method: 'POST', body: JSON.stringify({ complaint_id: id, witness_name: profile.name, witness_phone: profile.phone }) });
-      setNearbyComplaints((current) => current.map((item) => item.id === id ? { ...item, witness_count: item.witness_count + 1 } : item));
-      Alert.alert('Added as witness', 'Thank you for corroborating this nearby report.');
+      const result = await api<{ status: string; new_witness_count: number; message: string }>('/api/v1/complaints/upvote-witness', { method: 'POST', body: JSON.stringify({ complaint_id: id, witness_name: profile.name, witness_phone: profile.phone }) });
+      setNearbyComplaints((current) => current.map((item) => item.id === id ? { ...item, witness_count: result.new_witness_count } : item));
+      Alert.alert(result.status === 'ALREADY_WITNESSED' ? 'Already a witness' : 'Added as witness', result.message);
     } catch (error) { Alert.alert('Could not add witness', error instanceof Error ? error.message : 'Please try again.'); }
   };
 
@@ -370,19 +395,20 @@ export default function HomeScreen() {
         <View style={styles.homeHeader}>
           <View style={styles.brandMark}><Text style={{ fontSize: 22 }}>🌳</Text></View>
           <View style={{ flex: 1 }}><Text style={styles.brand}>Pune Tree Rakshak</Text><Text style={styles.subtle}>Citizen complaint tracker</Text></View>
-          <Pressable onPress={() => { setProfileDraft(profile); setProfileOpen(true); }} style={styles.avatar}><Text style={styles.avatarText}>{profile.name ? profile.name[0].toUpperCase() : '👤'}</Text></Pressable>
+          <Pressable onPress={() => { setPendingProfileStart(false); setProfileDraft(profile); setProfileOpen(true); }} style={styles.avatar}><Text style={styles.avatarText}>{profile.name ? profile.name[0].toUpperCase() : '👤'}</Text></Pressable>
           <Pressable onPress={() => void refresh()} style={styles.refresh}><Text style={{ color: green, fontSize: 22 }}>⟳</Text></Pressable>
         </View>
         <ScrollView contentContainerStyle={styles.scroll} refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} tintColor={green} />}>
           <View style={styles.hero}><Text style={styles.eyebrow}>PUNE • CITIZEN ACTION</Text><Text style={styles.heroTitle}>Protect the trees{ '\n' }that protect us.</Text><Text style={styles.heroCopy}>Document a concern, create a statutory notice, and follow progress from one place.</Text>
             <Button title="＋  Report a tree concern" onPress={startComplaint} /></View>
           <View style={styles.sectionTitleRow}><Text style={styles.sectionTitle}>Your reports</Text><Text style={styles.count}>{complaints.length} {complaints.length === 1 ? 'report' : 'reports'}</Text></View>
-          {loading && complaints.length === 0 ? <ActivityIndicator color={green} style={{ marginTop: 30 }} /> : complaints.length === 0 ? <Card style={styles.emptyCard}><Text style={styles.emptyIcon}>🌱</Text><Text style={styles.cardTitle}>No reports yet</Text><Text style={styles.subtleCenter}>Your tree complaints will appear here with their status and follow-up timeline.</Text><Button title="Start your first report" onPress={startComplaint} secondary /></Card> : complaints.map((item) => <Pressable key={item.id} onPress={() => void openDetail(item.id)}><Card style={styles.reportCard}>
-            <View style={styles.reportTop}><Text style={styles.reportIcon}>{categories.find((c) => item.issue_type.includes(c.key))?.emoji ?? '🌿'}</Text><View style={{ flex: 1 }}><Text style={styles.cardTitle}>{categoryLabel(item.issue_type)}</Text><Text style={styles.reportMeta}>{item.tracking_id} · {new Date(item.created_at).toLocaleDateString()}</Text></View><Text style={styles.chevron}>›</Text></View>
-            <Text style={styles.reportAddress}>📍 {item.address_landmark}</Text><View style={styles.reportBottom}><Text style={[styles.statusPill, item.verification_status.includes('RESOLVED') ? styles.statusGreen : styles.statusAmber]}>{item.verification_status.replaceAll('_', ' ')}</Text><Text style={styles.reportMeta}>Urgency: {item.urgency_level.replaceAll('_', ' ')}</Text></View>
-            {item.reverification_due_at && <Text style={styles.reportMeta}>Ground check due {new Date(item.reverification_due_at).toLocaleString()}</Text>}
+          {trackerError && <Card style={styles.warningCard}><Text style={styles.warningTitle}>Reports unavailable</Text><Text style={styles.bodyText}>{trackerError}</Text><Button title="Retry" onPress={() => void refresh()} secondary /></Card>}
+          {loading && complaints.length === 0 ? <ActivityIndicator color={green} style={{ marginTop: 30 }} /> : complaints.length === 0 && !trackerError ? <Card style={styles.emptyCard}><Text style={styles.emptyIcon}>🌱</Text><Text style={styles.cardTitle}>No reports yet</Text><Text style={styles.subtleCenter}>Your tree complaints will appear here with their status and follow-up timeline.</Text><Button title="Start your first report" onPress={startComplaint} secondary /></Card> : complaints.map((item) => <Pressable key={item.id} onPress={() => void openDetail(item.id)}><Card style={styles.reportCard}>
+            <View style={styles.reportTop}><Text style={styles.reportIcon}>{categories.find((c) => item.issue_type.includes(c.key))?.emoji ?? '🌿'}</Text><View style={{ flex: 1 }}><Text style={styles.cardTitle}>{categoryLabel(item.issue_type)}</Text><Text style={styles.reportMeta}>{item.tracking_id} · {apiDate(item.created_at).toLocaleDateString()}</Text></View><Text style={styles.chevron}>›</Text></View>
+            <Text style={styles.reportAddress}>📍 {item.address_landmark}</Text><View style={styles.reportBottom}><Text style={[styles.statusPill, isResolved(item.verification_status) ? styles.statusGreen : styles.statusAmber]}>{item.verification_status.replaceAll('_', ' ')}</Text><Text style={styles.reportMeta}>Urgency: {item.urgency_level.replaceAll('_', ' ')}</Text></View>
+            {item.reverification_due_at && <Text style={styles.reportMeta}>Ground check due {apiDate(item.reverification_due_at).toLocaleString()}</Text>}
           </Card></Pressable>)}
-          <Card style={styles.aiCard}><View style={styles.aiRow}><Text style={{ fontSize: 24 }}>🤖</Text><View style={{ flex: 1 }}><Text style={styles.cardTitle}>On-device Gemma AI</Text><Text style={styles.subtle}>{modelInstalled ? 'Model ready · Photo checks run on this phone' : 'Optional · Import a MediaPipe Gemma model'}</Text></View></View><Button title={modelInstalled ? 'Model installed' : 'Import local AI model'} onPress={() => void importGemma()} secondary disabled={modelInstalled || busy} /></Card>
+          <Card style={styles.aiCard}><View style={styles.aiRow}><Text style={{ fontSize: 24 }}>🤖</Text><View style={{ flex: 1 }}><Text style={styles.cardTitle}>On-device Gemma AI</Text><Text style={styles.subtle}>{modelInstalled ? 'Model ready · Photo checks run on this phone' : 'Optional · Import a MediaPipe Gemma model'}</Text></View></View><Button title={modelInstalled ? 'Replace local AI model' : 'Import local AI model'} onPress={() => void importGemma()} secondary disabled={busy} /></Card>
           <Text style={styles.footer}>Maharashtra Trees Act, 1975 · Built for Pune</Text>
         </ScrollView>
       </>}
@@ -424,7 +450,7 @@ export default function HomeScreen() {
       {page === 'review' && <>
         <PageHeader title="Review evidence" subtitle="Step 3 of 5 · Check your photos and add context" onBack={() => setPage('guidance')} />
         <ScrollView contentContainerStyle={styles.scroll}>
-          <Card style={styles.locationCard}><Text style={styles.locationLabel}>📍 GPS LOCATION</Text><Text style={styles.locationTitle}>{location.address}</Text><Text style={styles.subtle}>{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</Text></Card>
+          <Card style={styles.locationCard}><Text style={styles.locationLabel}>📍 GPS LOCATION</Text><Text style={styles.locationTitle}>{location?.address ?? 'GPS position required'}</Text><Text style={styles.subtle}>{location ? `${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}` : 'Acquire GPS before continuing'}</Text></Card>
           <View style={styles.photoGrid}>{photos.map((photo, index) => <View key={`${photo.uri}-${index}`} style={styles.photoItem}><Image source={{ uri: photo.uri }} style={styles.photoThumb} /><Text style={styles.photoCaption}>{index + 1}. {(categories.find((item) => item.key === category)?.guides ?? categories[0].guides)[index]?.badge}</Text><Pressable onPress={() => void openCamera(index)}><Text style={styles.removeText}>Retake</Text></Pressable></View>)}</View>
           {nearbyComplaints.length > 0 && <Card style={styles.warningCard}><Text style={styles.warningTitle}>📍  Nearby reports within 30 m</Text><Text style={styles.subtle}>A similar open report may already cover this location. Add your name as a witness or continue with your own evidence.</Text>{nearbyComplaints.map((item) => <View key={item.id} style={styles.duplicateRow}><View style={{ flex: 1 }}><Text style={styles.cardTitle}>{categoryLabel(item.issue_type)}</Text><Text style={styles.reportMeta}>{item.tracking_id} · {item.distance_meters.toFixed(0)} m · {item.witness_count} witnesses</Text></View><Pressable onPress={() => void upvoteNearby(item.id)}><Text style={styles.witnessButton}>+ Witness</Text></Pressable></View>)}</Card>}
           <Field label="Your observations (optional)" value={notes} onChangeText={setNotes} placeholder="Describe the visible damage or immediate danger…" multiline />
@@ -433,7 +459,7 @@ export default function HomeScreen() {
             <Field label="Phone or vehicle registration (optional)" value={perpetratorPhone} onChangeText={setPerpetratorPhone} placeholder="Phone / vehicle number" />
             <Button title={`＋  Add evidence photo (${perpetratorPhotos.length}/4)`} onPress={() => void attachOffenderPhoto()} secondary />
           </Card>
-          {modelInstalled ? <Card style={styles.aiCard}><Text style={styles.cardTitle}>✓  On-device photo check is ready</Text><Text style={styles.subtle}>The selected image is checked on your device before any server analysis.</Text></Card> : <Card style={styles.noteCard}><Text style={styles.noteText}>Server analysis and tree census match require an internet connection. You can add the local Gemma model from the tracker screen for an on-device photo check.</Text></Card>}
+          {modelInstalled ? <Card style={styles.aiCard}><Text style={styles.cardTitle}>✓  On-device photo check is ready</Text><Text style={styles.subtle}>The selected image is checked on your device before any server analysis.</Text></Card> : <Card style={styles.noteCard}><Text style={styles.noteText}>Cloud photo analysis requires an internet connection. You can add the local Gemma model from the tracker screen for an on-device photo check.</Text></Card>}
           <Button title={busy ? 'Analyzing photos…' : '🤖  Analyze and prepare draft'} onPress={() => void analyze()} disabled={busy || photos.length !== 3} />
           {busy && <ActivityIndicator color={green} />}
         </ScrollView>
@@ -445,9 +471,9 @@ export default function HomeScreen() {
           <Card><Text style={styles.locationLabel}>ISSUE</Text><Text style={styles.cardTitle}>{categoryLabel(detail.issue_type)}</Text><Text style={styles.subtle}>📍 {detail.address_landmark}</Text><Text style={styles.reportMeta}>Status: {(detail.verification_status ?? 'PENDING_TIMELOCK').replaceAll('_', ' ')}</Text></Card>
           <Card><Text style={styles.legalTitle}>Routed authority</Text><Text style={styles.cardTitle}>{typeof detail.routed_authority === 'string' ? detail.routed_authority : detail.routed_authority?.name ?? 'PMC Tree Authority'}</Text><Text style={styles.subtle}>{detail.target_email ?? (typeof detail.routed_authority === 'object' ? detail.routed_authority?.email : '')}</Text></Card>
           <Card><Text style={styles.legalTitle}>Formal grievance</Text><Text style={styles.cardTitle}>{detail.draft_subject_en}</Text><Text style={styles.bodyText}>{detail.draft_body_en}</Text></Card>
-          {detail.pdf_path && <Button title="Open statutory PDF" onPress={() => void Linking.openURL(`${API_BASE}${detail.pdf_path}`)} secondary />}
+          {detail.pdf_path && <Button title="Open statutory PDF" onPress={() => void Linking.openURL(`${API_BASE}/api/v1/complaints/${encodeURIComponent(detail.id)}/download-pdf`)} secondary />}
           <Card><Text style={styles.legalTitle}>तक्रार गोषवारा</Text><Text style={styles.bodyText}>{detail.draft_summary_mr}</Text></Card>
-          <Button title="📸  Submit ground re-audit" onPress={() => { setVerificationPhoto(null); setVerificationResult(null); setPage('verify'); }} />
+          <Button disabled={isTimelocked(detail.verification_status, detail.reverification_due_at)} title={isTimelocked(detail.verification_status, detail.reverification_due_at) ? "Re-audit locked until follow-up deadline" : "📸  Submit ground re-audit"} onPress={() => { setVerificationPhoto(null); setVerificationResult(null); setVerificationNote(''); setPage('verify'); }} />
           <Button title="Back to tracker" onPress={() => { setDetail(null); setPage('tracker'); }} secondary />
         </ScrollView>
       </> : draft ? <>
@@ -472,13 +498,15 @@ export default function HomeScreen() {
       {page === 'dispatch' && draft && <>
         <PageHeader title="Dispatch grievance" subtitle="Step 5 of 5 · Confirm the official notice" onBack={() => setPage('draft')} />
         <ScrollView contentContainerStyle={styles.scroll}>
-          <View style={styles.successIcon}><Text style={{ fontSize: 30 }}>📨</Text></View><Text style={styles.centerTitle}>Ready to send</Text><Text style={styles.subtleCenter}>The complaint will go to the routed authority. WhatsApp opens with a bilingual summary ready to share.</Text>
+          <View style={styles.successIcon}><Text style={{ fontSize: 30 }}>📨</Text></View><Text style={styles.centerTitle}>Ready to share</Text><Text style={styles.subtleCenter}>Email opens your mail app with the PDF attached. WhatsApp opens with a summary. Review and send from the selected app.</Text>
           <Card><Text style={styles.legalTitle}>EMAIL RECIPIENT</Text><Text style={styles.cardTitle}>{draft.routed_authority?.name ?? 'PMC Tree Authority'}</Text><Text style={styles.subtle}>{draft.routed_authority?.email}</Text></Card>
           <Card><Text style={styles.legalTitle}>WHATSAPP SUMMARY</Text><Text style={styles.bodyText}>{draft.draft_summary_mr}</Text><Text style={styles.subtle}>Tracking: {draft.tracking_id}</Text></Card>
           <Card style={styles.infoCard}><Text style={styles.infoTitle}>🔒  Review before sharing</Text><Text style={styles.subtle}>Your report includes your name, contact details, GPS coordinates, photos, and complaint text.</Text></Card>
-          <Button title={busy ? 'Sending…' : '✓  Confirm and dispatch'} onPress={() => void sendDispatch()} disabled={busy} />
+          <Button title={busy ? 'Preparing…' : 'Open email with PDF'} onPress={() => void sendDispatch('EMAIL')} disabled={busy} />
+          <Button title="Open WhatsApp summary" onPress={() => void sendDispatch('WHATSAPP')} disabled={busy} secondary />
           {busy && <ActivityIndicator color={green} />}
           <Button title="Back to draft" onPress={() => setPage('draft')} secondary />
+          <Button title="Back to tracker" onPress={() => { setPage('tracker'); setDraft(null); }} disabled={busy} secondary />
         </ScrollView>
       </>}
 
@@ -496,12 +524,12 @@ export default function HomeScreen() {
       </>}
     </KeyboardAvoidingView>
 
-    <Modal visible={profileOpen} transparent animationType="slide" onRequestClose={() => setProfileOpen(false)}>
+    <Modal visible={profileOpen} transparent animationType="slide" onRequestClose={() => { setPendingProfileStart(false); setProfileOpen(false); }}>
       <View style={styles.modalShade}><View style={styles.modalCard}><View style={styles.modalHandle} /><Text style={styles.pageTitle}>Citizen profile</Text><Text style={styles.subtle}>Used to prepare and track your grievance.</Text>
         <Field label="Full name" value={profileDraft.name} onChangeText={(name) => setProfileDraft((p) => ({ ...p, name }))} placeholder="Your name" />
         <Field label="Phone number" value={profileDraft.phone} onChangeText={(phone) => setProfileDraft((p) => ({ ...p, phone }))} placeholder="10-digit mobile number" keyboardType="phone-pad" />
         <Field label="Email (optional)" value={profileDraft.email} onChangeText={(email) => setProfileDraft((p) => ({ ...p, email }))} placeholder="you@example.com" keyboardType="email-address" />
-        <Button title="Save profile" onPress={() => void saveProfile()} /><Button title="Cancel" onPress={() => setProfileOpen(false)} secondary />
+        <Button title="Save profile" onPress={() => void saveProfile()} /><Button title="Cancel" onPress={() => { setPendingProfileStart(false); setProfileOpen(false); }} secondary />
       </View></View>
     </Modal>
   </SafeAreaView>;
