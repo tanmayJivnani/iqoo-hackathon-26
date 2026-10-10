@@ -70,7 +70,8 @@
           "enableBackgroundPlayback": false
         }
       ],
-      "./plugins/with-android-ndk"
+      "./plugins/with-android-ndk",
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true,

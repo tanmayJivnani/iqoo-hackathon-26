@@ -3,7 +3,7 @@ import { Linking, ScrollView, Text, View } from 'react-native';
 import { Button, Card, Field, PageHeader } from '../../../components/ui';
 import { isTimelocked } from '../../../lib/complaint-flow';
 import { API_BASE } from '../../../lib/api';
-import { categoryLabel } from '../../../data/civic';
+import { categoryLabel, domainFor } from '../../../data/civic';
 import { photoBase64 } from '../types';
 import { styles } from '../styles';
 import type { ComplaintFlow } from '../../../hooks/useComplaintFlow';
