@@ -234,13 +234,13 @@ export default function HomeScreen() {
 
   const openCamera = async (replaceIndex: number | null = null) => {
     if (replaceIndex === null && photos.length >= maxEvidencePhotos) return;
-    if (!location && !await getLocation()) return;
     const photo = await captureNativePhoto();
     if (!photo) return;
     setCapturedAt(new Date().toISOString());
     setPhotos(current => replaceIndex === null ? [...current, photo].slice(0, maxEvidencePhotos)
       : current.map((existing, index) => index === replaceIndex ? photo : existing));
     setPage(domain === 'TREES' && replaceIndex === null && photos.length === 0 ? 'guidance' : 'review');
+    if (!location) void getLocation();
   };
 
   const choosePhotos = async () => {
@@ -248,8 +248,8 @@ export default function HomeScreen() {
     if (result.canceled) return;
     const chosen = result.assets.slice(0, maxEvidencePhotos).filter((asset) => asset.base64).map((asset) => ({ uri: asset.uri, base64: asset.base64! }));
     if (!chosen.length) { Alert.alert('Photo required', 'Please select at least one readable photo.'); return; }
-    if (!await getLocation()) return;
     setCapturedAt(new Date().toISOString()); setPhotos(chosen); setPage(domain === 'TREES' && chosen.length < 2 ? 'guidance' : 'review');
+    if (!location) void getLocation();
   };
 
   const attachOffenderPhoto = async () => {
@@ -293,6 +293,20 @@ export default function HomeScreen() {
     try { setDetail(await api<ComplaintDetail>(`/api/v1/complaints/${id}`)); setPage('draft'); }
     catch (error) { Alert.alert('Could not open complaint', error instanceof Error ? error.message : 'Try again.'); }
     finally { setBusy(false); }
+  };
+
+  const generateReportPdf = async (complaintId: string, reportFields: Record<string, unknown> = {}) => {
+    if (operationRef.current) return;
+    operationRef.current = true; setBusy(true);
+    try {
+      const pdf = await api<{ complaint_id: string; pdf_url: string }>('/api/v1/complaints/render-pdf', {
+        method: 'POST', body: JSON.stringify({ ...reportFields, complaint_id: complaintId }),
+      });
+      setDetail(current => current?.id === complaintId ? { ...current, pdf_path: pdf.pdf_url } : current);
+      await Linking.openURL(`${API_BASE}${pdf.pdf_url}`);
+    } catch (error) {
+      Alert.alert('Could not generate report PDF', error instanceof Error ? error.message : 'Reconnect to the backend and try again.');
+    } finally { operationRef.current = false; setBusy(false); }
   };
 
   const sendDispatch = async (channel: 'EMAIL' | 'WHATSAPP') => {
@@ -426,7 +440,7 @@ export default function HomeScreen() {
       {page === 'review' && <>
         <PageHeader title="Review evidence" subtitle="Step 3 of 5 · Check your photos and add context" onBack={() => setPage('guidance')} />
         <ScrollView onScroll={onContentScroll} scrollEventThrottle={16} contentContainerStyle={styles.scroll}>
-          <Card style={styles.locationCard}><Text style={styles.locationLabel}>📍 GPS LOCATION</Text><Text style={styles.locationTitle}>{location?.address ?? 'GPS position required'}</Text><Text style={styles.subtle}>{location ? `${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}` : 'Acquire GPS before continuing'}</Text></Card>
+          <Card style={styles.locationCard}><Text style={styles.locationLabel}>📍 GPS LOCATION</Text><Text style={styles.locationTitle}>{location?.address ?? 'GPS position required'}</Text><Text style={styles.subtle}>{location ? `${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}` : 'Acquire GPS before continuing'}</Text>{!location && <Button title="Retry GPS location" onPress={() => void getLocation()} secondary />}</Card>
           <View style={styles.photoGrid}>{photos.map((photo, index) => <View key={`${photo.uri}-${index}`} style={styles.photoItem}><Image source={{ uri: photo.uri }} style={styles.photoThumb} /><Text style={styles.photoCaption}>{index + 1}. {photoGuides[index]?.badge}</Text><Pressable onPress={() => void openCamera(index)}><Text style={styles.removeText}>Retake</Text></Pressable></View>)}</View>
           {nearbyComplaints.length > 0 && <Card style={styles.warningCard}><Text style={styles.warningTitle}>📍  Nearby reports within 30 m</Text><Text style={styles.subtle}>A similar open report may already cover this location. Add your name as a witness or continue with your own evidence.</Text>{nearbyComplaints.map((item) => <View key={item.id} style={styles.duplicateRow}><View style={{ flex: 1 }}><Text style={styles.cardTitle}>{categoryLabel(item.issue_type)}</Text><Text style={styles.reportMeta}>{item.tracking_id} · {item.distance_meters.toFixed(0)} m · {item.witness_count} witnesses</Text></View><Pressable onPress={() => void upvoteNearby(item.id)}><Text style={styles.witnessButton}>+ Witness</Text></Pressable></View>)}</Card>}
           <Card style={styles.infoCard}><Text style={styles.infoTitle}>AI prepares your observations</Text><Text style={styles.subtle}>Your photos are analyzed to fill the complaint template. Add notes only for details the photos cannot show.</Text></Card>
@@ -449,7 +463,9 @@ export default function HomeScreen() {
           <Card><Text style={styles.locationLabel}>ISSUE</Text><Text style={styles.cardTitle}>{categoryLabel(detail.issue_type)}</Text><Text style={styles.subtle}>📍 {detail.address_landmark}</Text><Text style={styles.reportMeta}>Status: {(detail.verification_status ?? 'PENDING_TIMELOCK').replaceAll('_', ' ')}</Text></Card>
           <Card><Text style={styles.legalTitle}>Routed authority</Text><Text style={styles.cardTitle}>{typeof detail.routed_authority === 'string' ? detail.routed_authority : detail.routed_authority?.name ?? 'PMC Tree Authority'}</Text><Text style={styles.subtle}>{detail.target_email ?? (typeof detail.routed_authority === 'object' ? detail.routed_authority?.email : '')}</Text></Card>
           <Card><Text style={styles.legalTitle}>Formal grievance</Text><Text style={styles.cardTitle}>{detail.draft_subject_en}</Text><Text style={styles.bodyText}>{detail.draft_body_en}</Text></Card>
-          {detail.pdf_path && <Button title="Open statutory PDF" onPress={() => void Linking.openURL(`${API_BASE}/api/v1/complaints/${encodeURIComponent(detail.id)}/download-pdf`)} secondary />}
+          {detail.pdf_path
+            ? <Button title="Open statutory PDF" onPress={() => void Linking.openURL(`${API_BASE}/api/v1/complaints/${encodeURIComponent(detail.id)}/download-pdf`)} secondary />
+            : <Button title={busy ? 'Generating report PDF…' : 'Generate full report PDF'} onPress={() => void generateReportPdf(detail.id)} disabled={busy} secondary />}
           <Card><Text style={styles.legalTitle}>तक्रार गोषवारा</Text><Text style={styles.bodyText}>{detail.draft_summary_mr}</Text></Card>
           {detail.reverification_required !== false && <Button disabled={isTimelocked(detail.verification_status, detail.reverification_due_at)} title={isTimelocked(detail.verification_status, detail.reverification_due_at) ? "Photo check available after the reminder" : "📸  Submit ground re-audit"} onPress={() => { setVerificationPhoto(null); setVerificationResult(null); setVerificationNote(''); setPage('verify'); }} />}
           {detail.audio_url && <Button title="Open audio evidence" onPress={() => void Linking.openURL(`${API_BASE}${detail.audio_url}`)} secondary />}
@@ -471,6 +487,7 @@ export default function HomeScreen() {
           </Card>
           <Card><Text style={styles.legalTitle}>तक्रार गोषवारा (मराठी)</Text><Text style={styles.bodyText}>{draft.draft_summary_mr}</Text></Card>
           <Card style={styles.legalCard}><Text style={styles.legalTitle}>⚖️  Legal grounding</Text>{draft.legal_citations.map((citation, index) => <Text key={index} style={styles.subtle}>•  {citation}</Text>)}</Card>
+          {draft.complaint_id && <Button title={busy ? 'Generating report PDF…' : 'Generate full report PDF'} onPress={() => void generateReportPdf(draft.complaint_id!, { draft_subject_en: draft.draft_subject_en, draft_body_en: draft.draft_body_en, draft_summary_mr: draft.draft_summary_mr })} disabled={busy} secondary />}
           <Button title="Continue to dispatch  →" onPress={() => setPage('dispatch')} />
         </ScrollView>
       </> : null)}

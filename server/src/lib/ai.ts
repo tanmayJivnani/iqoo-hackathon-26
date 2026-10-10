@@ -38,7 +38,8 @@ async function modelJson<T>(prompt: string, images: string[], schema: z.ZodType<
   if (config.geminiKey) providers.push({
     name: 'GEMINI', url: `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.geminiModel)}:generateContent`,
     headers: { 'x-goog-api-key': config.geminiKey },
-    body: { contents: [{ parts: [{ text: prompt }, ...uris.map(uri => ({ inlineData: { mimeType: uri.slice(5, uri.indexOf(';')), data: uri.split(',')[1] } }))] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.1, maxOutputTokens: 4096 } },
+    // Gemini 3.x rejects deprecated sampling parameters such as temperature.
+    body: { contents: [{ parts: [{ text: prompt }, ...uris.map(uri => ({ inlineData: { mimeType: uri.slice(5, uri.indexOf(';')), data: uri.split(',')[1] } }))] }], generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 4096 } },
     extract: data => {
       const response = data as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
       return response.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
@@ -56,9 +57,16 @@ async function modelJson<T>(prompt: string, images: string[], schema: z.ZodType<
   for (const provider of providers) {
     try {
       const response = await fetch(provider.url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...provider.headers }, body: JSON.stringify(provider.body), signal: AbortSignal.timeout(40_000), cache: 'no-store' });
-      if (!response.ok) { console.warn(`${provider.name} returned HTTP ${response.status}.`); continue; }
+      if (!response.ok) {
+        const detail = (await response.text()).replace(/\s+/g, ' ').slice(0, 300);
+        console.warn(`${provider.name} returned HTTP ${response.status}: ${detail}`);
+        continue;
+      }
       return { result: schema.parse(parseModelJson(provider.extract(await response.json()))), provider: provider.name };
-    } catch { console.warn(`${provider.name} photo analysis unavailable or invalid.`); }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message.slice(0, 240) : 'Unknown provider error';
+      console.warn(`${provider.name} photo analysis unavailable or invalid: ${detail}`);
+    }
   }
 }
 export async function analyzePhotos(input: AnalyzeInput, trackingId: string, address: string, ward: string) {

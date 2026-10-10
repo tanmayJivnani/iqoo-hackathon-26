@@ -20,6 +20,10 @@ export async function generatePdf(c: Complaint) {
   doc.registerFont('Marathi', font);
   const heading = (text: string) => { doc.moveDown(0.6).font('Helvetica-Bold').fontSize(13).fillColor('#185b38').text(text).moveDown(0.3); };
   const body = (text: string) => doc.font('Helvetica').fontSize(10).fillColor('#202b24').text(text, { lineGap: 3 });
+  // fontkit currently crashes on null GPOS anchors in Noto Sans Devanagari.
+  // Keep substitution shaping and other mark positioning; disable only the above-base
+  // mark lookup that hits null GPOS anchors in the bundled Noto Sans Devanagari font.
+  const devanagariFeatures = { abvm: false };
   doc.font('Helvetica-Bold').fontSize(22).fillColor('#185b38').text('Pune Fast Complaint');
   body(`Citizen complaint | ${c.tracking_id}\nCreated: ${new Date(c.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST`);
   heading('Complaint details');
@@ -42,7 +46,7 @@ export async function generatePdf(c: Complaint) {
     doc.file(await readFile(mediaPath(c.video_url.split('/').at(-1)!)), { name: `${c.tracking_id}.mp4`, description: 'Citizen-recorded visual evidence; audio is attached separately.' });
   }
   heading('Routing references'); c.legal_citations.forEach(citation => body(citation));
-  heading('Marathi summary'); doc.font('Marathi').fontSize(11).fillColor('#202b24').text(c.draft_summary_mr, { lineGap: 4 });
+  heading('Marathi summary'); doc.font('Marathi').fontSize(11).fillColor('#202b24').text(c.draft_summary_mr, { lineGap: 4, features: devanagariFeatures });
   doc.addPage(); heading('Evidence record');
   body(`Reference: ${c.tracking_id}\nSHA-256 record digest: ${evidenceDigest(c)}\nThis digest identifies the current record; it is not a government-issued signature or certificate.`);
   const qr = await QRCode.toBuffer(`${config.publicBaseUrl}/api/v1/complaints/verify/${encodeURIComponent(c.tracking_id)}`);
