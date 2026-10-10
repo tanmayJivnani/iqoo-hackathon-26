@@ -134,6 +134,8 @@ export default function HomeScreen() {
     { title: 'Whole tree and location', badge: 'Overall view', instruction: 'Step back safely and show the entire tree, its base, and nearby street or landmarks. For a felled tree, show the whole affected site.' },
     { ...selectedGuides[selectedGuides.length - 1], title: 'Close-up of the issue', badge: 'Close-up' },
   ] : selectedGuides;
+  const currentPhotoIndex = domain === 'TREES' ? Math.min(photos.length, 1) : 0;
+  const currentPhotoGuide = photoGuides[currentPhotoIndex] ?? photoGuides[0];
   const visibleComplaints = complaints.filter(item => (item.domain || domainFor(item.issue_type)) === domain);
 
   const refresh = async () => {
@@ -244,12 +246,26 @@ export default function HomeScreen() {
   };
 
   const choosePhotos = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, selectionLimit: maxEvidencePhotos, quality: 0.68, base64: true });
-    if (result.canceled) return;
-    const chosen = result.assets.slice(0, maxEvidencePhotos).filter((asset) => asset.base64).map((asset) => ({ uri: asset.uri, base64: asset.base64! }));
-    if (!chosen.length) { Alert.alert('Photo required', 'Please select at least one readable photo.'); return; }
-    setCapturedAt(new Date().toISOString()); setPhotos(chosen); setPage(domain === 'TREES' && chosen.length < 2 ? 'guidance' : 'review');
-    if (!location) void getLocation();
+    if (captureRef.current) return;
+    const remaining = maxEvidencePhotos - photos.length;
+    if (remaining <= 0) { setPage('review'); return; }
+    captureRef.current = true;
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'], allowsMultipleSelection: domain !== 'TREES',
+        selectionLimit: domain === 'TREES' ? 1 : remaining, quality: 0.68, base64: true,
+      });
+      if (result.canceled) return;
+      const chosen = result.assets.slice(0, domain === 'TREES' ? 1 : remaining)
+        .filter(asset => asset.base64).map(asset => ({ uri: asset.uri, base64: asset.base64! }));
+      if (!chosen.length) { Alert.alert('Photo required', 'Please select a readable photo.'); return; }
+      const nextPhotos = [...photos, ...chosen].slice(0, maxEvidencePhotos);
+      setCapturedAt(new Date().toISOString()); setPhotos(nextPhotos);
+      setPage(domain === 'TREES' && nextPhotos.length < 2 ? 'guidance' : 'review');
+      if (!location) void getLocation();
+    } catch (error) {
+      Alert.alert('Could not select photo', error instanceof Error ? error.message : 'Please try again.');
+    } finally { captureRef.current = false; }
   };
 
   const attachOffenderPhoto = async () => {
@@ -427,13 +443,11 @@ export default function HomeScreen() {
       </>}
 
       {page === 'guidance' && <>
-        <PageHeader title="Capture evidence" subtitle={domain === 'TREES' ? 'Two photos: overall view, then a close-up' : 'One clear photo is enough to prepare a notice'} onBack={() => setPage('category')} />
-        <ScrollView onScroll={onContentScroll} scrollEventThrottle={16} contentContainerStyle={styles.scroll}>
-          <Card style={styles.locationCard}><Text style={styles.locationLabel}>ISSUE SELECTED</Text><Text style={styles.locationTitle}>{categoryLabel(category)}</Text><Text style={styles.subtle}>Capture the concern and a nearby landmark from a safe place. AI will describe the visible evidence for your complaint.</Text></Card>
-          {photoGuides.slice(0, domain === 'TREES' ? 2 : 1).map((guide, index) => <Card key={guide.badge} style={styles.guideCard}><View style={styles.stepNumber}><Text style={styles.stepNumberText}>{index + 1}</Text></View><View style={{ flex: 1 }}><Text style={styles.guideBadge}>{guide.badge.toUpperCase()}</Text><Text style={styles.cardTitle}>{guide.title}</Text><Text style={styles.categoryDesc}>{guide.instruction}</Text></View></Card>)}
-          <Card style={styles.infoCard}><Text style={styles.infoTitle}>📍  Location is attached</Text><Text style={styles.subtle}>Allow foreground location access so your report includes GPS coordinates and a nearby address.</Text></Card>
-          <Button title={domain === 'TREES' ? (photos.length === 0 ? 'Take photo 1: whole tree & location' : 'Take photo 2: close-up of issue') : 'Open camera'} onPress={() => void openCamera()} />
-          <Button title="Choose existing photos" onPress={() => void choosePhotos()} secondary />
+        <PageHeader title={currentPhotoGuide.title} subtitle={domain === 'TREES' ? `Photo ${currentPhotoIndex + 1}` : 'Capture evidence'} onBack={() => setPage('category')} />
+        <ScrollView key={`${domain}-${currentPhotoIndex}`} onScroll={onContentScroll} scrollEventThrottle={16} contentContainerStyle={styles.scroll}>
+          <Card style={styles.guideCard}><Text style={styles.categoryDesc}>{currentPhotoGuide.instruction}</Text></Card>
+          <Button title="Take photo" onPress={() => void openCamera()} />
+          <Button title={domain === 'TREES' ? 'Choose existing photo' : 'Choose existing photos'} onPress={() => void choosePhotos()} secondary />
         </ScrollView>
       </>}
 
