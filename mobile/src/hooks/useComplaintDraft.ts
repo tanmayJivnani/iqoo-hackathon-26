@@ -5,7 +5,9 @@ import { api, type Draft } from '../lib/api';
 import { evaluateNoiseActionability, QUIET_RECORDING_MESSAGE, type NoiseEvidence } from '../lib/noise';
 import type { CivicDomain } from '../data/civic';
 import { photoBase64, type Page, type Photo, type Profile, type EvidenceLocation } from '../features/complaints/types';
+import type { LocalAISettings } from './useLocalAI';
 type Options = {
+  aiSettings: LocalAISettings;
   domain: CivicDomain; category: string; location: EvidenceLocation | null; noiseEvidence: NoiseEvidence | null;
   setNoiseEvidence: Dispatch<SetStateAction<NoiseEvidence | null>>; photos: Photo[]; perpetratorPhotos: Photo[];
   capturedAt: string; profile: Profile; notes: string; perpetratorName: string; perpetratorPhone: string;
@@ -14,7 +16,7 @@ type Options = {
 };
 export function useComplaintDraft({ domain, category, location, noiseEvidence, setNoiseEvidence, photos,
   perpetratorPhotos, capturedAt, profile, notes, perpetratorName, perpetratorPhone,
-  refresh, operationRef, setBusy, setPage }: Options) {
+  refresh, operationRef, setBusy, setPage, aiSettings }: Options) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const prepareFastDraft = async () => {
     if (operationRef.current) return;
@@ -30,12 +32,22 @@ export function useComplaintDraft({ domain, category, location, noiseEvidence, s
         return;
       }
     }
+    if (aiSettings.loading || aiSettings.importing) { Alert.alert('AI settings loading', 'Wait for model settings to finish loading.'); return; }
+    if (aiSettings.mode === 'LOCAL_QWEN' && domain !== 'NOISE' && !notes.trim()) {
+      Alert.alert('Describe what you observed', 'Qwen cannot see photos. Add your observations so it can prepare a local summary.'); return;
+    }
     operationRef.current = true; setBusy(true);
     try {
+      const localText = aiSettings.mode === 'LOCAL_QWEN' ? await aiSettings.summarize({
+        issue: category, address: location.address, citizen_observations: notes || 'No additional observations.',
+        recording: noiseEvidence ? { duration_ms: noiseEvidence.duration_ms, average_dbfs: noiseEvidence.average_dbfs,
+          peak_dbfs: noiseEvidence.peak_dbfs, near_sensitive_site: noiseEvidence.near_sensitive_site, site_label: noiseEvidence.site_label,
+          captured_at: noiseEvidence.captured_at, measurement_caveat: 'Uncalibrated microphone. dBFS is not dB(A) and cannot establish a legal threshold breach.' } : null,
+      }) : undefined;
       const audioBase64 = noiseEvidence ? await new File(noiseEvidence.uri).base64() : undefined;
       const videoBase64 = noiseEvidence?.video_uri ? await new File(noiseEvidence.video_uri).base64() : undefined;
       const response = await api<Draft>('/api/v1/complaints/fast-draft', { method: 'POST', signal: AbortSignal.timeout(100_000), body: JSON.stringify({
-        issue_type: category, latitude: location.latitude, longitude: location.longitude, gps_accuracy_m: location.accuracy,
+        ai_mode: aiSettings.mode, local_text: localText, issue_type: category, latitude: location.latitude, longitude: location.longitude, gps_accuracy_m: location.accuracy,
         captured_at: noiseEvidence?.captured_at || capturedAt, photos_base64: photos.map(photoBase64), perpetrator_photos_base64: perpetratorPhotos.map(photoBase64),
         audio_base64: audioBase64, video_base64: videoBase64, noise_evidence: noiseEvidence || undefined,
         citizen_notes: notes || null, citizen_name: profile.name || null, citizen_phone: profile.phone || null, citizen_email: profile.email || null,

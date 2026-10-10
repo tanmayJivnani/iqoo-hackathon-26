@@ -31,7 +31,18 @@ export const renderSchema = metadata.extend({
   photo_base64: photo.nullish(), photos_base64: photos,
   perpetrator_photos_base64: z.array(photo).max(3).nullish(),
 });
+export const localTextSchema = z.object({
+  observations_en: z.string().trim().min(1).max(5000),
+  observations_mr: z.string().trim().min(1).max(5000),
+}).strict();
+const localAiFields = {
+  ai_mode: z.enum(['CLOUD', 'LOCAL_QWEN']).default('CLOUD'),
+  local_text: localTextSchema.optional(),
+};
+export const localAiSelection = z.object(localAiFields).refine(value => value.ai_mode === 'LOCAL_QWEN' ? Boolean(value.local_text) : !value.local_text,
+  'Local mode requires local text; cloud mode cannot accept local text.');
 export const fastDraftSchema = metadata.extend({
+  ...localAiFields,
   ...coordinates.shape,
   issue_type: z.enum([...categories, ...civicCategories]),
   captured_at: z.iso.datetime(), gps_accuracy_m: z.number().finite().nonnegative().max(10_000).nullish(),
@@ -46,13 +57,13 @@ export const fastDraftSchema = metadata.extend({
     near_sensitive_site: z.boolean().default(false), site_label: z.string().trim().max(150).optional(),
     measurement_method: z.enum(['KOTLIN_AUDIO_RECORD_A_WEIGHTED', 'EXPO_AUDIO_METERED']).optional(),
   }).optional(),
-});
+}).refine(value => localAiSelection.safeParse(value).success, 'Select a valid AI mode and supply local results only in local mode.');
 export const dispatchSchema = z.object({
   complaint_id: z.string().min(1).max(120), confirmed_by_citizen: z.literal(true),
   channels: z.array(z.enum(['EMAIL', 'WHATSAPP', 'TWITTER'])).min(1).max(3).default(['EMAIL', 'WHATSAPP']),
 });
 export const duplicateSchema = coordinates.extend({ radius_meters: z.number().finite().positive().max(500).default(30), domain: z.enum(['TREES', 'ROADS', 'GARBAGE', 'NOISE']).optional() });
 export const witnessSchema = z.object({ complaint_id: z.string().min(1).max(120), witness_name: optionalText, witness_phone: z.string().max(30).refine(v => /^\d{10,15}$/.test(v.replace(/\D/g, '')), 'Enter a valid witness phone number.'), corroborating_photo_base64: photo.nullish() });
-export const verifySchema = coordinates.extend({ complaint_id: z.string().min(1).max(120), photo_base64: photo, citizen_notes: optionalText, citizen_verdict: z.enum(['CONFIRMED_RESOLVED', 'DISPUTED_NOT_RESOLVED']).nullish() });
+export const verifySchema = coordinates.extend({ complaint_id: z.string().min(1).max(120), photo_base64: photo, citizen_notes: optionalText, ...localAiFields, citizen_verdict: z.enum(['CONFIRMED_RESOLVED', 'DISPUTED_NOT_RESOLVED']).nullish() }).refine(value => localAiSelection.safeParse(value).success, 'Local mode requires local text.');
 export type AnalyzeInput = z.infer<typeof analyzeSchema>;
 export type RenderInput = z.infer<typeof renderSchema>;

@@ -48,6 +48,21 @@ class LocalTreeAIModule : Module() {
       mapOf("installed" to (target.exists() && target.length() > 0L), "modelPath" to target.absolutePath)
     }
 
+    Function("getQwenStatus") {
+      val context = appContext.reactContext ?: throw IllegalStateException("App context unavailable")
+      QwenEngine.status(context)
+    }
+
+    AsyncFunction("importQwenModel") { uri: String ->
+      val context = appContext.reactContext ?: throw IllegalStateException("App context unavailable")
+      QwenEngine.importModel(context, uri)
+    }
+
+    AsyncFunction("generateQwen") { prompt: String ->
+      val context = appContext.reactContext ?: throw IllegalStateException("App context unavailable")
+      QwenEngine.generate(context, prompt)
+    }
+
     AsyncFunction("analyzePhoto") { photoUri: String, category: String, address: String ->
       val context = appContext.reactContext ?: throw IllegalStateException("App context is unavailable")
       val model = modelFile() ?: return@AsyncFunction mapOf("available" to false, "treeDetected" to false)

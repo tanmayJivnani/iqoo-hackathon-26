@@ -1,3 +1,4 @@
+import { AiProviderSelector } from '../components/AiProviderSelector';
 import { BlurTargetView } from 'expo-blur';
 import { useRef } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, RefreshControl, Text, View } from 'react-native';
@@ -74,6 +75,7 @@ export default function HomeScreen() {
     </RefreshControl>
 
     <ProfileSheet visible={profileOpen} onClose={closeProfile}>
+        <AiProviderSelector settings={flow.aiSettings} disabled={busy} />
         <Field label="Full name" value={profileDraft.name} onChangeText={(name) => setProfileDraft((p) => ({ ...p, name }))} placeholder="Your name" />
         <Field label="Phone number" value={profileDraft.phone} onChangeText={(phone) => setProfileDraft((p) => ({ ...p, phone }))} placeholder="10-digit mobile number" keyboardType="phone-pad" />
         <Field label="Email (optional)" value={profileDraft.email} onChangeText={(email) => setProfileDraft((p) => ({ ...p, email }))} placeholder="you@example.com" keyboardType="email-address" />

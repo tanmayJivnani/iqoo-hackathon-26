@@ -18,6 +18,8 @@ android {
 }
 
 dependencies {
+  implementation 'com.qualcomm.qti:geniex-android:0.4.0'
+
   // The model is user-imported because its size makes bundling it with the app impractical.
   implementation 'com.google.mediapipe:tasks-genai:0.10.35'
   // tasks-genai omits this compile dependency from its published POM, even though

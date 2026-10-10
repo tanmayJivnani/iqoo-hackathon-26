@@ -12,8 +12,10 @@ import { API_BASE, api, type Complaint, type ComplaintDetail, type Draft } from 
 import { blankProfile, photoBase64, previousPage, type Page, type Profile, type Photo } from '../features/complaints/types';
 import { useEvidenceLocation } from './useEvidenceLocation';
 import { useEvidenceCapture } from './useEvidenceCapture';
+import { useLocalAI } from './useLocalAI';
 import { useComplaintDraft } from './useComplaintDraft';
 export function useComplaintFlow() {
+  const aiSettings = useLocalAI();
   const [page, setPage] = useState<Page>('tracker');
   const [domain, setDomain] = useState<CivicDomain>('TREES');
   const { location, setLocation, nearbyComplaints, setNearbyComplaints, getLocation } = useEvidenceLocation(domain);
@@ -51,7 +53,7 @@ export function useComplaintFlow() {
   const currentPhotoGuide = photoGuides[currentPhotoIndex] ?? photoGuides[0];
   const { draft, setDraft, prepareFastDraft } = useComplaintDraft({ domain, category, location, noiseEvidence,
     setNoiseEvidence, photos, perpetratorPhotos, capturedAt, profile, notes, perpetratorName, perpetratorPhone,
-    refresh, operationRef, setBusy, setPage });
+    refresh, operationRef, setBusy, setPage, aiSettings });
   const visibleComplaints = complaints.filter(item => (item.domain || domainFor(item.issue_type)) === domain);
 
   async function refresh() {
@@ -176,6 +178,7 @@ export function useComplaintFlow() {
     if (photo) setVerificationPhoto(photo);
   };
   const submitVerification = async () => {
+    if (aiSettings.loading || aiSettings.importing) { Alert.alert('AI settings loading', 'Wait for model settings to finish loading.'); return; }
     if (isTimelocked(detail?.verification_status, detail?.reverification_due_at)) { Alert.alert('Re-audit locked', 'Please wait until the follow-up deadline shown on the tracker.'); return; }
     if (!detail || !verificationPhoto) { Alert.alert('Photo required', 'Take a new on-site photo before running the check.'); return; }
     setBusy(true);
@@ -183,10 +186,11 @@ export function useComplaintFlow() {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (permission.status !== 'granted') throw new Error('Location access is required for an on-site re-audit.');
       const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const localText = aiSettings.mode === 'LOCAL_QWEN' ? await aiSettings.summarize({ issue: detail.issue_type, address: detail.address_landmark, original_observations: detail.visual_damage_summary, citizen_followup: verificationNote || 'No follow-up observations provided.' }, true) : undefined;
       const result = await api<{ ai_verdict: string; ai_confidence: number; ai_notes_en: string; ai_notes_mr: string; final_status: string; gps_valid: boolean; distance_from_original_m: number; reopen_count: number }>(`/api/v1/complaints/${detail.id}/verify`, { method: 'POST', body: JSON.stringify({
         complaint_id: detail.id, photo_base64: photoBase64(verificationPhoto),
         latitude: current.coords.latitude, longitude: current.coords.longitude,
-        citizen_notes: verificationNote || null,
+        citizen_notes: verificationNote || null, ai_mode: aiSettings.mode, local_text: localText,
       }) });
       setVerificationResult(result);
       Alert.alert('Review complete', result.ai_verdict.replaceAll('_', ' '));
@@ -204,6 +208,7 @@ export function useComplaintFlow() {
   };
 
   return {
+    aiSettings,
     page,
     domain,
     profile,

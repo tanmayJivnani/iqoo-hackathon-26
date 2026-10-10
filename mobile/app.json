@@ -71,7 +71,8 @@
         }
       ],
       "./plugins/with-android-ndk",
-      "expo-video"
+      "expo-video",
+      "./plugins/with-geniex"
     ],
     "experiments": {
       "typedRoutes": true,

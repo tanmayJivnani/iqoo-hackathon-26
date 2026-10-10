@@ -68,7 +68,8 @@ export async function fastDraft(input: z.infer<typeof fastDraftSchema>) {
   }
   const allPhotos = [...input.photos_base64, ...input.perpetrator_photos_base64];
   allPhotos.forEach(decodePhoto);
-  const analysis = !isNoise ? await describeCivicPhotos(input.issue_type, input.photos_base64, input.citizen_notes) : null;
+  const local = input.ai_mode === 'LOCAL_QWEN';
+  const analysis = !isNoise && !local ? await describeCivicPhotos(input.issue_type, input.photos_base64, input.citizen_notes) : null;
   const route = routeIssue(input.issue_type), tracking = trackingId('FAST');
   if (domain === 'TREES') {
     // Fast reports have no verified permit status or legal finding. Keep inherited
@@ -83,9 +84,9 @@ export async function fastDraft(input: z.infer<typeof fastDraftSchema>) {
   const landmark = input.address_landmark || locate(input.latitude, input.longitude).address_landmark;
   const recording = input.noise_evidence;
   const evidenceText = recording ? `Audio recording: ${recording.duration_ms / 1000} seconds. Uncalibrated microphone readings: average ${recording.average_dbfs.toFixed(1)} dBFS, peak ${recording.peak_dbfs.toFixed(1)} dBFS. These are digital levels, not calibrated dB(A) sound-pressure measurements and do not establish a legal threshold breach.\nDevice-reported capture time: ${input.captured_at}; ${isNightTime(input.captured_at) ? 'within' : 'outside'} the usual 22:00–06:00 IST night period.\n${recording.near_sensitive_site ? `Citizen reports a nearby sensitive site: ${recording.site_label || 'hospital, school or similar site'}. Please verify the location and whether it is a notified silence zone.` : 'Silence-zone status has not been verified.'}` : `${input.photos_base64.length} photograph(s) attached. Evidence intake (device-reported): ${input.captured_at}. GPS is the phone location at intake; original timestamps and locations of imported photos have not been verified. The selected issue and observations are citizen-reported; please verify on site.`;
-  const c = buildComplaint({ ...input, complaint_id: '', draft_subject_en: `${title} — request for action [${tracking}]`, draft_body_en: `To ${route.routed_authority.name},\n\nI report a ${title.toLowerCase()} at ${landmark}.\nGPS: ${input.latitude.toFixed(5)}, ${input.longitude.toFixed(5)}${input.gps_accuracy_m != null ? ` (device-reported accuracy ±${input.gps_accuracy_m.toFixed(0)} m)` : ''}.\n\n${evidenceText}\n${analysis ? `\nAI observations from the attached photos (subject to authority verification):\n${analysis.result.observations_en}\n` : ''}${input.citizen_notes ? `\nMy observations: ${input.citizen_notes}\n` : ''}\nApplicable references: ${route.legal_citations.join('; ')}.\n${route.prayer_en}\n\nPlease acknowledge receipt, confirm jurisdiction and provide an action-taken response and expected timeline. The app's follow-up reminder is not a statutory deadline.\n\nSincerely,\n${input.citizen_name || 'Concerned Pune Citizen'}${input.citizen_phone ? `\nPhone: ${input.citizen_phone}` : ''}\nReference: ${tracking}`, draft_summary_mr: analysis ? `${analysis.result.observations_mr}\n\n${route.prayer_mr}` : route.prayer_mr }, randomUUID(), tracking);
-  c.tree_detected = domain === 'TREES' && Boolean(analysis); c.is_cognizable_offence = false; c.evidence_classification = analysis ? 'AI_ASSISTED_VISUAL' : 'CITIZEN_REPORTED'; c.is_fallback = false; c.ai_provider = analysis?.provider || 'MEASURED_NOISE_TEMPLATE';
-  c.visual_damage_summary = analysis?.result.observations_en || null;
+  const c = buildComplaint({ ...input, complaint_id: '', draft_subject_en: `${title} — request for action [${tracking}]`, draft_body_en: `To ${route.routed_authority.name},\n\nI report a ${title.toLowerCase()} at ${landmark}.\nGPS: ${input.latitude.toFixed(5)}, ${input.longitude.toFixed(5)}${input.gps_accuracy_m != null ? ` (device-reported accuracy ±${input.gps_accuracy_m.toFixed(0)} m)` : ''}.\n\n${evidenceText}\n${local ? `\nLocal Qwen summary of citizen observations and measurements (photos/audio not analyzed):\n${input.local_text!.observations_en}\n` : ''}${analysis ? `\nAI observations from the attached photos (subject to authority verification):\n${analysis.result.observations_en}\n` : ''}${input.citizen_notes ? `\nMy observations: ${input.citizen_notes}\n` : ''}\nApplicable references: ${route.legal_citations.join('; ')}.\n${route.prayer_en}\n\nPlease acknowledge receipt, confirm jurisdiction and provide an action-taken response and expected timeline. The app's follow-up reminder is not a statutory deadline.\n\nSincerely,\n${input.citizen_name || 'Concerned Pune Citizen'}${input.citizen_phone ? `\nPhone: ${input.citizen_phone}` : ''}\nReference: ${tracking}`, draft_summary_mr: local ? `${input.local_text!.observations_mr}\n\n${route.prayer_mr}` : analysis ? `${analysis.result.observations_mr}\n\n${route.prayer_mr}` : route.prayer_mr }, randomUUID(), tracking);
+  c.tree_detected = domain === 'TREES' && Boolean(analysis); c.is_cognizable_offence = false; c.evidence_classification = analysis ? 'AI_ASSISTED_VISUAL' : 'CITIZEN_REPORTED'; c.is_fallback = false; c.ai_provider = local ? 'LOCAL_QWEN_TEXT' : analysis?.provider || 'MEASURED_NOISE_TEMPLATE';
+  c.visual_damage_summary = local ? `Citizen-reported; photos not analyzed: ${input.local_text!.observations_en}` : analysis?.result.observations_en || null;
   c.legal_citations = route.legal_citations; c.routed_authority = route.routed_authority; c.routed_authority_role = route.routed_authority.role;
   c.citizen_selected_category = input.issue_type; c.captured_at = input.captured_at; c.gps_accuracy_m = input.gps_accuracy_m ?? null;
   c.photo_urls = await Promise.all(allPhotos.map(savePhoto));
@@ -188,7 +189,11 @@ export async function verify(id: string, input: z.infer<typeof verifySchema>) {
   if (distance > 50) throw new ApiError(422, 'Capture the follow-up photo within 50 metres of the original location.');
   decodePhoto(input.photo_base64);
   if (!c.photo_urls.length) throw new ApiError(409, 'The original evidence photo is missing.');
-  const audit = await comparePhotos(c.photo_urls[0], input.photo_base64, c.issue_type, input.citizen_notes);
+  const audit: Audit = input.ai_mode === 'LOCAL_QWEN' ? {
+    ai_verdict: 'INCONCLUSIVE', ai_confidence: 0, is_fallback: false, ai_provider: 'LOCAL_QWEN_TEXT',
+    ai_notes_en: `Local Qwen cannot compare photographs. Citizen-observation summary: ${input.local_text!.observations_en}`,
+    ai_notes_mr: `स्थानिक Qwen छायाचित्रांची तुलना करू शकत नाही. नागरिकांच्या निरीक्षणांचा सारांश: ${input.local_text!.observations_mr}`,
+  } : await comparePhotos(c.photo_urls[0], input.photo_base64, c.issue_type, input.citizen_notes);
   const image = await savePhoto(input.photo_base64), verificationId = randomUUID();
   return repository().transaction(() => {
     const current = getComplaint(c.id); current.verification_status = auditStatus(audit, input.citizen_verdict);

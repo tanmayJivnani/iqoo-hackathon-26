@@ -63,3 +63,14 @@ npm --prefix mobile run typecheck
 npm --prefix mobile run lint
 npm --prefix mobile test
 ```
+
+
+### Local Qwen with GenieX (Android)
+
+AI settings are available in Citizen profile, Review evidence, Noise evidence and Ground re-audit. Select **Local Qwen** or **Cloud AI**; the choice persists across app restarts. On first launch, an installed local model is selected by default. Choosing local never silently falls back to cloud AI.
+
+- Export the Qwen3-4B-Instruct GGUF from GenieX (or place a copy in Files), then choose **Import Qwen GGUF from Files**. The app validates the GGUF header and keeps a private copy. Allow space for the model plus temporary import; replacing a model preserves the old model if import fails.
+- This uses Qualcomm's `geniex-android:0.4.0` runtime with llama.cpp on the Hexagon NPU. Rebuild/install the development app after pulling these changes; refreshing an older native binary is insufficient. Android 8.1/API 27 or later and a supported Snapdragon ARM64 device are required. Keep the app open during inference; phone battery management can suspend background model tasks. The build plugin extracts native libraries so GenieX can load its runtime plugins.
+- Qwen3-4B-Instruct is text-only. Local mode summarizes citizen observations and noise measurements in English and Marathi. It does **not** analyze photographs, video, or sound. For photo reports, observations are required; photographs remain attached for authority review. For re-audits, local mode summarizes the follow-up but returns INCONCLUSIVE with zero visual confidence. Use Cloud AI for image interpretation/comparison, or a separate local vision model in a future integration.
+- AI runs on the phone. Saving reports, tracking, PDF generation and preparing email attachments still require the backend. Evidence is uploaded to that backend; local inference does not make these workflows fully offline.
+- Models in another app's private storage cannot be read directly by this app. Imported weights are never committed to Git. For a development phone, a debug-accessible GenieX download can be copied into `files/qwen3-4b-instruct.gguf` under this app's UID; production users should use the file picker.
