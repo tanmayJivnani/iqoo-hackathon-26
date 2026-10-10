@@ -5,9 +5,7 @@ import { Directory, File, Paths } from 'expo-file-system';
 // Store metadata separately from evidence so background saves never serialize image base64.
 export function useComplaintSession<T>(snapshot: T, restore: (saved: T) => Promise<void>, storageKey = 'complaint-session') {
   const latest = useRef(snapshot);
-  latest.current = snapshot;
   const restoreRef = useRef(restore);
-  restoreRef.current = restore;
   const [ready, setReady] = useState(false);
   const copied = useRef(new Map<string, string>());
 
@@ -35,7 +33,12 @@ export function useComplaintSession<T>(snapshot: T, restore: (saved: T) => Promi
     } catch (error) { console.warn('Could not save complaint progress:', error instanceof Error ? error.message : 'Storage unavailable'); }
   };
   const persistRef = useRef(persist);
-  persistRef.current = persist;
+
+  useEffect(() => {
+    latest.current = snapshot;
+    restoreRef.current = restore;
+    persistRef.current = persist;
+  });
 
   useEffect(() => {
     let active = true;
@@ -50,7 +53,7 @@ export function useComplaintSession<T>(snapshot: T, restore: (saved: T) => Promi
       finally { if (active) setReady(true); }
     })();
     return () => { active = false; };
-  }, []);
+  }, [storageKey]);
 
   useEffect(() => {
     if (!ready) return;
