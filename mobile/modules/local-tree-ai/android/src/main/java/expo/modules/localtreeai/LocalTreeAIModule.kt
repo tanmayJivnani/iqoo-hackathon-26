@@ -53,14 +53,14 @@ class LocalTreeAIModule : Module() {
       QwenEngine.status(context)
     }
 
-    AsyncFunction("importQwenModel") { uri: String ->
+    AsyncFunction("importQwenModel") { uri: String, projectorUri: String ->
       val context = appContext.reactContext ?: throw IllegalStateException("App context unavailable")
-      QwenEngine.importModel(context, uri)
+      QwenEngine.importModel(context, uri, projectorUri)
     }
 
-    AsyncFunction("generateQwen") { prompt: String ->
+    AsyncFunction("generateQwen") { prompt: String, imageUris: List<String>, audioUri: String? ->
       val context = appContext.reactContext ?: throw IllegalStateException("App context unavailable")
-      QwenEngine.generate(context, prompt)
+      QwenEngine.generate(context, prompt, imageUris, audioUri)
     }
 
     AsyncFunction("analyzePhoto") { photoUri: String, category: String, address: String ->

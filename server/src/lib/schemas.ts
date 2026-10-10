@@ -36,10 +36,10 @@ export const localTextSchema = z.object({
   observations_mr: z.string().trim().min(1).max(5000),
 }).strict();
 const localAiFields = {
-  ai_mode: z.enum(['CLOUD', 'LOCAL_QWEN']).default('CLOUD'),
+  ai_mode: z.enum(['CLOUD', 'LOCAL_QWEN', 'LOCAL_QWEN_OMNI']).default('CLOUD'),
   local_text: localTextSchema.optional(),
 };
-export const localAiSelection = z.object(localAiFields).refine(value => value.ai_mode === 'LOCAL_QWEN' ? Boolean(value.local_text) : !value.local_text,
+export const localAiSelection = z.object(localAiFields).refine(value => value.ai_mode !== 'CLOUD' ? Boolean(value.local_text) : !value.local_text,
   'Local mode requires local text; cloud mode cannot accept local text.');
 export const fastDraftSchema = metadata.extend({
   ...localAiFields,
