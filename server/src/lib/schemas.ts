@@ -2,6 +2,15 @@ import { z } from 'zod';
 import { categories } from './routing';
 import { civicCategories } from './civic';
 
+export const additionalIssueSchema = z.object({ category: z.enum([...categories, ...civicCategories]), reason_en: z.string().trim().min(1).max(2000), reason_mr: z.string().trim().min(1).max(2000) });
+export const updateDraftSchema = z.object({
+  complaint_id: z.string().min(1).max(120),
+  draft_subject_en: z.string().trim().min(1).max(2000),
+  draft_body_en: z.string().trim().min(1).max(20000),
+  draft_summary_mr: z.string().trim().min(1).max(10000),
+  accepted_additional_categories: z.array(z.enum([...categories, ...civicCategories])).max(6).optional(),
+});
+
 const text = z.string().trim().max(20_000);
 const optionalText = text.nullish();
 const photo = z.string().min(20).max(12_000_000);
@@ -34,6 +43,7 @@ export const renderSchema = metadata.extend({
 export const localTextSchema = z.object({
   observations_en: z.string().trim().min(1).max(5000),
   observations_mr: z.string().trim().min(1).max(5000),
+  additional_issues: z.array(additionalIssueSchema).max(6).optional(),
 }).strict();
 const localAiFields = {
   ai_mode: z.enum(['CLOUD', 'LOCAL_QWEN', 'LOCAL_QWEN_OMNI']).default('CLOUD'),

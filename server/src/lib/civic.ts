@@ -10,6 +10,10 @@ export function domainFor(issue: string): CivicDomain {
   return 'TREES';
 }
 export const issueTitles: Record<string, string> = {
+  DANGEROUS_LEANING_FALL_RISK: 'Leaning tree / fall risk', ILLEGAL_FELLING: 'Reported tree felling or damage',
+  UNAUTHORIZED_PRUNING: 'Reported heavy pruning', HAZARDOUS_BRANCH: 'Hazardous branch',
+  ROOT_CONCRETIZATION: 'Roots covered by concrete', DISEASE_PEST: 'Possible tree disease or pests',
+  NAILS_BOARDS_CABLE_STRANGULATION: 'Nails, boards or cables affecting the tree',
   ROAD_POTHOLE: 'Pothole', OPEN_MANHOLE: 'Open manhole or drain', FOOTPATH_ENCROACHMENT: 'Blocked footpath',
   WASTE_DUMP: 'Uncollected waste dump', WASTE_BURNING: 'Reported waste burning', FESTIVAL_NOISE: 'Loudspeaker or DJ noise', NIGHT_NOISE: 'Night-time noise',
 };

@@ -5,6 +5,8 @@ export type Routing = {
   legal_citations: string[]; prayer_en: string; prayer_mr: string;
 };
 export type Complaint = {
+  additional_issues?: { category: string; reason_en: string; reason_mr: string }[];
+  accepted_additional_categories?: string[];
   domain?: 'TREES' | 'ROADS' | 'GARBAGE' | 'NOISE';
   reverification_required?: boolean;
   evidence_classification?: 'CITIZEN_REPORTED' | 'AI_ASSISTED_VISUAL';

@@ -7,7 +7,7 @@ import { evaluateResidentialNoiseEstimate } from '../../../shared/noise-policy';
 import { generatePdf } from './pdf';
 import { repository } from './repository';
 import { routeIssue } from './routing';
-import { coordinates, type AnalyzeInput, type RenderInput, dispatchSchema, duplicateSchema, witnessSchema, verifySchema, fastDraftSchema } from './schemas';
+import { coordinates, type AnalyzeInput, type RenderInput, dispatchSchema, duplicateSchema, witnessSchema, verifySchema, fastDraftSchema, updateDraftSchema } from './schemas';
 import { domainFor, isNightTime, issueTitles, requiresReverification } from './civic';
 import { distanceMeters, locate } from './spatial';
 import type { Complaint, Audit } from './types';
@@ -105,6 +105,10 @@ export async function fastDraft(input: z.infer<typeof fastDraftSchema>) {
   const c = buildComplaint({ ...input, complaint_id: '', draft_subject_en: `${title} — request for action [${tracking}]`, draft_body_en: `To ${route.routed_authority.name},\n\nI report a ${title.toLowerCase()} at ${landmark}.\nGPS: ${input.latitude.toFixed(5)}, ${input.longitude.toFixed(5)}${input.gps_accuracy_m != null ? ` (device-reported accuracy ±${input.gps_accuracy_m.toFixed(0)} m)` : ''}.\n\n${evidenceText}\n${local ? `\n${omni ? 'Local Qwen2.5-Omni observations from supplied photos/audio (subject to authority verification)' : 'Local Qwen summary of citizen observations and measurements (photos/audio not analyzed)'}:\n${input.local_text!.observations_en}\n` : ''}${analysis ? `\nAI observations from the attached photos (subject to authority verification):\n${analysis.result.observations_en}\n` : ''}${input.citizen_notes ? `\nMy observations: ${input.citizen_notes}\n` : ''}\nApplicable references: ${route.legal_citations.join('; ')}.\n${route.prayer_en}\n\nPlease acknowledge receipt, confirm jurisdiction and provide an action-taken response and expected timeline. The app's follow-up reminder is not a statutory deadline.\n\nSincerely,\n${input.citizen_name || 'Concerned Pune Citizen'}${input.citizen_phone ? `\nPhone: ${input.citizen_phone}` : ''}\nReference: ${tracking}`, draft_summary_mr: local ? `${input.local_text!.observations_mr}\n\n${route.prayer_mr}` : analysis ? `${analysis.result.observations_mr}\n\n${route.prayer_mr}` : route.prayer_mr }, randomUUID(), tracking);
   c.tree_detected = domain === 'TREES' && Boolean(analysis); c.is_cognizable_offence = false; c.evidence_classification = analysis || (omni && !isNoise) ? 'AI_ASSISTED_VISUAL' : 'CITIZEN_REPORTED'; c.is_fallback = false; c.ai_provider = local ? omni ? 'LOCAL_QWEN_OMNI' : 'LOCAL_QWEN_TEXT' : analysis?.provider || 'MEASURED_NOISE_TEMPLATE';
   c.visual_damage_summary = local ? `${omni ? "Local Omni evidence observations" : "Citizen-reported; photos not analyzed"}: ${input.local_text!.observations_en}` : analysis?.result.observations_en || null;
+  c.additional_issues = (analysis?.result.additional_issues || (omni ? input.local_text?.additional_issues : []) || []).filter((item, index, items) => item.category !== input.issue_type && domainFor(item.category) === domain && items.findIndex(other => other.category === item.category) === index);
+  c.accepted_additional_categories = [];
+  c.ai_additional_category = c.additional_issues[0]?.category || null;
+  c.ai_additional_reason_en = c.additional_issues[0]?.reason_en || null;
   c.legal_citations = route.legal_citations; c.routed_authority = route.routed_authority; c.routed_authority_role = route.routed_authority.role;
   c.citizen_selected_category = input.issue_type; c.captured_at = input.captured_at; c.gps_accuracy_m = input.gps_accuracy_m ?? null;
   c.photo_urls = await Promise.all(allPhotos.map(savePhoto));
@@ -129,6 +133,31 @@ export async function analyze(input: AnalyzeInput) {
   c.is_fallback = false; c.ai_provider = provider;
   c.photo_urls = await Promise.all(allPhotos.map(savePhoto));
   repository().save(c); return draftResponse(c);
+}
+export function updateDraft(input: z.infer<typeof updateDraftSchema>) {
+  return repository().transaction(() => {
+    const c = getComplaint(input.complaint_id);
+    const previous = c.accepted_additional_categories || [];
+    const accepted = [...new Set([...previous, ...(input.accepted_additional_categories || [])])];
+    const candidates = c.additional_issues || [];
+    if (accepted.some(category => !candidates.some(item => item.category === category))) throw new ApiError(422, 'Only issues identified in this evidence can be added.');
+    c.draft_subject_en = input.draft_subject_en;
+    c.draft_body_en = input.draft_body_en;
+    c.draft_summary_mr = input.draft_summary_mr;
+    for (const category of accepted.filter(value => !previous.includes(value))) {
+      const issue = candidates.find(item => item.category === category)!;
+      const label = issueTitles[category] || category.replaceAll('_', ' ').toLowerCase();
+      const paragraph = `Additional concern confirmed by me — ${label}:\n${issue.reason_en}\nPlease inspect this concern as well and take appropriate action. These are image-based observations, subject to on-site verification.`;
+      const signoff = c.draft_body_en.lastIndexOf('\n\nSincerely,');
+      c.draft_body_en = signoff >= 0 ? `${c.draft_body_en.slice(0, signoff)}\n\n${paragraph}${c.draft_body_en.slice(signoff)}` : `${c.draft_body_en}\n\n${paragraph}`;
+      c.draft_summary_mr += `\n\nमी पुष्टी केलेली अतिरिक्त समस्या:\n${issue.reason_mr}\nकृपया या समस्येचीही प्रत्यक्ष पाहणी करून योग्य कार्यवाही करावी.`;
+    }
+    c.accepted_additional_categories = accepted;
+    c.pdf_path = null;
+    c.updated_at = new Date().toISOString();
+    repository().save(c);
+    return draftResponse(c);
+  });
 }
 export async function renderPdf(input: RenderInput) {
   let c = repository().get(input.complaint_id);

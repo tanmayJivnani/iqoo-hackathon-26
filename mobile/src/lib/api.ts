@@ -7,6 +7,8 @@ export type Complaint = {
 };
 export type RoutingAuthority = { name: string; role: string; email: string; whatsapp?: string | null; emergency_phone?: string | null };
 export type Draft = {
+  additional_issues?: { category: string; reason_en: string; reason_mr: string }[];
+  accepted_additional_categories?: string[];
   domain?: 'TREES' | 'ROADS' | 'GARBAGE' | 'NOISE'; reverification_required?: boolean;
   audio_url?: string | null; video_url?: string | null; captured_at?: string;
   complaint_id: string; tracking_id: string; issue_type: string; urgency_level: string;
