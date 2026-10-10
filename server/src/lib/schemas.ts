@@ -34,7 +34,7 @@ export const fastDraftSchema = metadata.extend({
   ...coordinates.shape,
   issue_type: z.enum([...categories, ...civicCategories]),
   captured_at: z.iso.datetime(), gps_accuracy_m: z.number().finite().nonnegative().max(10_000).nullish(),
-  photos_base64: z.array(photo).max(6).default([]), citizen_notes: optionalText,
+  photos_base64: z.array(photo).max(6).default([]), perpetrator_photos_base64: z.array(photo).max(3).default([]), citizen_notes: optionalText,
   audio_base64: z.string().max(4_200_000).optional(),
   video_base64: z.string().max(11_200_000).optional(),
   noise_evidence: z.object({

@@ -63,9 +63,11 @@ export async function fastDraft(input: z.infer<typeof fastDraftSchema>) {
     if (input.video_base64) decodeVideo(input.video_base64);
   } else {
     if (!input.photos_base64.length) throw new ApiError(422, 'A photo of the concern is required.');
+    if (domain === 'TREES' && input.photos_base64.length !== 2) throw new ApiError(422, 'Tree reports require two photos: the whole tree and location, then a close-up of the issue.');
     if (input.audio_base64 || input.video_base64 || input.noise_evidence) throw new ApiError(422, 'Use a noise category for microphone/video evidence.');
   }
-  input.photos_base64.forEach(decodePhoto);
+  const allPhotos = [...input.photos_base64, ...input.perpetrator_photos_base64];
+  allPhotos.forEach(decodePhoto);
   const analysis = !isNoise ? await describeCivicPhotos(input.issue_type, input.photos_base64, input.citizen_notes) : null;
   const route = routeIssue(input.issue_type), tracking = trackingId('FAST');
   if (domain === 'TREES') {
@@ -86,7 +88,7 @@ export async function fastDraft(input: z.infer<typeof fastDraftSchema>) {
   c.visual_damage_summary = analysis?.result.observations_en || null;
   c.legal_citations = route.legal_citations; c.routed_authority = route.routed_authority; c.routed_authority_role = route.routed_authority.role;
   c.citizen_selected_category = input.issue_type; c.captured_at = input.captured_at; c.gps_accuracy_m = input.gps_accuracy_m ?? null;
-  c.photo_urls = await Promise.all(input.photos_base64.map(savePhoto));
+  c.photo_urls = await Promise.all(allPhotos.map(savePhoto));
   if (isNoise && input.audio_base64 && recording) {
     const audio = await saveAudio(input.audio_base64); c.audio_url = audio.url; c.audio_sha256 = audio.sha256;
     c.noise_evidence = { ...recording, night_time: isNightTime(input.captured_at) };

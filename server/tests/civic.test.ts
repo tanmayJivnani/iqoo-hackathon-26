@@ -41,14 +41,14 @@ test('AI civic notices populate templates, require analysis and keep noise out o
     assert.equal(routeIssue('NIGHT_NOISE').routed_authority.emergency_phone, '112');
     assert.equal(requiresReverification('WASTE_BURNING'), false);
     for (const issue of ['ROAD_POTHOLE', 'OPEN_MANHOLE', 'FOOTPATH_ENCROACHMENT', 'WASTE_DUMP', 'WASTE_BURNING', 'HAZARDOUS_BRANCH']) {
-      const response = await call(['fast-draft'], { ...base, issue_type: issue, photos_base64: [photo] });
+      const response = await call(['fast-draft'], { ...base, issue_type: issue, photos_base64: issue === 'HAZARDOUS_BRANCH' ? [photo, photo] : [photo] });
       assert.equal(response.status, 200, issue);
       const draft = await response.json();
       assert.equal(draft.ai_provider, 'GEMINI'); assert.equal(draft.tree_detected, issue === 'HAZARDOUS_BRANCH');
       assert.match(draft.draft_body_en, /Visible damage and surrounding pavement/);
       assert.match(draft.draft_summary_mr, /छायाचित्रात/);
       assert.match(draft.visual_damage_summary, /Visible damage/);
-      assert.equal(draft.evidence_classification, 'AI_ASSISTED_VISUAL'); assert.equal(draft.photo_urls.length, 1);
+      assert.equal(draft.evidence_classification, 'AI_ASSISTED_VISUAL'); assert.equal(draft.photo_urls.length, issue === 'HAZARDOUS_BRANCH' ? 2 : 1);
       assert.match(draft.tracking_id, /^PUNE-FAST-/);
       assert.match(draft.draft_body_en, /not a statutory deadline/);
       assert.match(draft.draft_body_en, /original timestamps and locations of imported photos have not been verified/);

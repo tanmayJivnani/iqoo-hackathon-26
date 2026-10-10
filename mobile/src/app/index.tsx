@@ -128,6 +128,12 @@ export default function HomeScreen() {
   const [verificationNote, setVerificationNote] = useState('');
   const category = selectedCategories[0] ?? 'DANGEROUS_LEANING_FALL_RISK';
   const categories = categoriesByDomain[domain];
+  const maxEvidencePhotos = domain === 'TREES' ? 2 : 3;
+  const selectedGuides = (categories.find(item => item.key === category) ?? categories[0]).guides;
+  const photoGuides = domain === 'TREES' ? [
+    { title: 'Whole tree and location', badge: 'Overall view', instruction: 'Step back safely and show the entire tree, its base, and nearby street or landmarks. For a felled tree, show the whole affected site.' },
+    { ...selectedGuides[selectedGuides.length - 1], title: 'Close-up of the issue', badge: 'Close-up' },
+  ] : selectedGuides;
   const visibleComplaints = complaints.filter(item => (item.domain || domainFor(item.issue_type)) === domain);
 
   const refresh = async () => {
@@ -227,23 +233,23 @@ export default function HomeScreen() {
   };
 
   const openCamera = async (replaceIndex: number | null = null) => {
-    if (replaceIndex === null && photos.length >= 3) return;
+    if (replaceIndex === null && photos.length >= maxEvidencePhotos) return;
     if (!location && !await getLocation()) return;
     const photo = await captureNativePhoto();
     if (!photo) return;
     setCapturedAt(new Date().toISOString());
-    setPhotos(current => replaceIndex === null ? [...current, photo].slice(0, 3)
+    setPhotos(current => replaceIndex === null ? [...current, photo].slice(0, maxEvidencePhotos)
       : current.map((existing, index) => index === replaceIndex ? photo : existing));
-    setPage('review');
+    setPage(domain === 'TREES' && replaceIndex === null && photos.length === 0 ? 'guidance' : 'review');
   };
 
   const choosePhotos = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, selectionLimit: 3, quality: 0.68, base64: true });
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, selectionLimit: maxEvidencePhotos, quality: 0.68, base64: true });
     if (result.canceled) return;
-    const chosen = result.assets.slice(0, 3).filter((asset) => asset.base64).map((asset) => ({ uri: asset.uri, base64: asset.base64! }));
+    const chosen = result.assets.slice(0, maxEvidencePhotos).filter((asset) => asset.base64).map((asset) => ({ uri: asset.uri, base64: asset.base64! }));
     if (!chosen.length) { Alert.alert('Photo required', 'Please select at least one readable photo.'); return; }
     if (!await getLocation()) return;
-    setCapturedAt(new Date().toISOString()); setPhotos(chosen); setPage('review');
+    setCapturedAt(new Date().toISOString()); setPhotos(chosen); setPage(domain === 'TREES' && chosen.length < 2 ? 'guidance' : 'review');
   };
 
   const attachOffenderPhoto = async () => {
@@ -255,6 +261,7 @@ export default function HomeScreen() {
   const prepareFastDraft = async () => {
     if (operationRef.current) return;
     if (!location || (domain === 'NOISE' ? !noiseEvidence : !photos.length)) { Alert.alert('Evidence required', 'Capture evidence and GPS before preparing the notice.'); return; }
+    if (domain === 'TREES' && photos.length !== 2) { Alert.alert('Two photos required', 'Take an overall view of the whole tree and location, followed by a close-up of the issue.'); return; }
     if (domain === 'NOISE' && noiseEvidence) {
       const hourStr = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', hourCycle: 'h23' }).format(new Date(noiseEvidence.captured_at));
       const isNight = Number(hourStr) >= 22 || Number(hourStr) < 6;
@@ -271,7 +278,7 @@ export default function HomeScreen() {
       const videoBase64 = noiseEvidence?.video_uri ? await new File(noiseEvidence.video_uri).base64() : undefined;
       const response = await api<Draft>('/api/v1/complaints/fast-draft', { method: 'POST', signal: AbortSignal.timeout(100_000), body: JSON.stringify({
         issue_type: category, latitude: location.latitude, longitude: location.longitude, gps_accuracy_m: location.accuracy,
-        captured_at: noiseEvidence?.captured_at || capturedAt, photos_base64: [...photos, ...perpetratorPhotos].map(photoBase64),
+        captured_at: noiseEvidence?.captured_at || capturedAt, photos_base64: photos.map(photoBase64), perpetrator_photos_base64: perpetratorPhotos.map(photoBase64),
         audio_base64: audioBase64, video_base64: videoBase64, noise_evidence: noiseEvidence || undefined,
         citizen_notes: notes || null, citizen_name: profile.name || null, citizen_phone: profile.phone || null, citizen_email: profile.email || null,
         address_landmark: location.address, perpetrator_name: perpetratorName || null, perpetrator_phone: perpetratorPhone || null,
@@ -301,7 +308,7 @@ export default function HomeScreen() {
         method: 'POST', body: JSON.stringify({
           ...draft, complaint_id: complaintId,
           photo_base64: photos[0] ? photoBase64(photos[0]) : undefined,
-          photos_base64: [...photos, ...perpetratorPhotos].map(photoBase64),
+          photos_base64: photos.map(photoBase64), perpetrator_photos_base64: perpetratorPhotos.map(photoBase64),
         }),
       });
       // Keep the registered ID for retrying a failed dispatch without creating another report.
@@ -394,25 +401,24 @@ export default function HomeScreen() {
       {page === 'category' && <>
         <PageHeader title={`Report ${tabs.find(tab => tab.key === domain)?.title.toLowerCase()}`} subtitle="Choose the issue you observed" onBack={() => setPage('tracker')} />
         <ScrollView onScroll={onContentScroll} scrollEventThrottle={16} contentContainerStyle={styles.scroll}>
-          <Card style={styles.noteCard}><Text style={styles.noteText}>Choose one concern. The app prepares the recipient, legal references and notice text for you.</Text></Card>
+          <Card style={styles.noteCard}><Text style={styles.noteText}>Choose one concern. AI prepares the observations and complaint text for you.</Text></Card>
           {categories.map((item) => {
             const selected = selectedCategories.includes(item.key);
             return <Pressable key={item.key} onPress={() => setSelectedCategories([item.key])}>
               <Card style={[styles.categoryCard, selected && styles.categorySelected]}><View style={styles.categoryTop}><Text style={styles.categoryEmoji}>{item.emoji}</Text><View style={{ flex: 1 }}><Text style={styles.cardTitle}>{item.title}</Text><Text style={styles.categoryDesc}>{item.description}</Text></View><Text style={[styles.checkbox, selected && styles.checkboxSelected]}>{selected ? '✓' : ''}</Text></View></Card>
             </Pressable>;
           })}
-          <Card style={styles.legalCard}><Text style={styles.legalTitle}>⚖️  Legal references</Text><Text style={styles.subtle}>{(legalGrounding[selectedCategories[0] || categories[0].key] || []).join('\n')}</Text></Card>
           <Button title={domain === 'NOISE' ? 'Continue to audio capture →' : 'Continue to camera →'} onPress={() => { if (!selectedCategories.length) setSelectedCategories([categories[0].key]); setPage(domain === 'NOISE' ? 'noise' : 'guidance'); }} />
         </ScrollView>
       </>}
 
       {page === 'guidance' && <>
-        <PageHeader title="Capture evidence" subtitle="One clear photo is enough to prepare a notice" onBack={() => setPage('category')} />
+        <PageHeader title="Capture evidence" subtitle={domain === 'TREES' ? 'Two photos: overall view, then a close-up' : 'One clear photo is enough to prepare a notice'} onBack={() => setPage('category')} />
         <ScrollView onScroll={onContentScroll} scrollEventThrottle={16} contentContainerStyle={styles.scroll}>
           <Card style={styles.locationCard}><Text style={styles.locationLabel}>ISSUE SELECTED</Text><Text style={styles.locationTitle}>{categoryLabel(category)}</Text><Text style={styles.subtle}>Capture the concern and a nearby landmark from a safe place. AI will describe the visible evidence for your complaint.</Text></Card>
-          {(categories.find((item) => item.key === category)?.guides ?? categories[0].guides).slice(0, 1).map((guide, index) => <Card key={guide.badge} style={styles.guideCard}><View style={styles.stepNumber}><Text style={styles.stepNumberText}>{index + 1}</Text></View><View style={{ flex: 1 }}><Text style={styles.guideBadge}>{guide.badge.toUpperCase()}</Text><Text style={styles.cardTitle}>{guide.title}</Text><Text style={styles.categoryDesc}>{guide.instruction}</Text></View></Card>)}
+          {photoGuides.slice(0, domain === 'TREES' ? 2 : 1).map((guide, index) => <Card key={guide.badge} style={styles.guideCard}><View style={styles.stepNumber}><Text style={styles.stepNumberText}>{index + 1}</Text></View><View style={{ flex: 1 }}><Text style={styles.guideBadge}>{guide.badge.toUpperCase()}</Text><Text style={styles.cardTitle}>{guide.title}</Text><Text style={styles.categoryDesc}>{guide.instruction}</Text></View></Card>)}
           <Card style={styles.infoCard}><Text style={styles.infoTitle}>📍  Location is attached</Text><Text style={styles.subtle}>Allow foreground location access so your report includes GPS coordinates and a nearby address.</Text></Card>
-          <Button title="Open camera" onPress={() => void openCamera()} />
+          <Button title={domain === 'TREES' ? (photos.length === 0 ? 'Take photo 1: whole tree & location' : 'Take photo 2: close-up of issue') : 'Open camera'} onPress={() => void openCamera()} />
           <Button title="Choose existing photos" onPress={() => void choosePhotos()} secondary />
         </ScrollView>
       </>}
@@ -421,10 +427,10 @@ export default function HomeScreen() {
         <PageHeader title="Review evidence" subtitle="Step 3 of 5 · Check your photos and add context" onBack={() => setPage('guidance')} />
         <ScrollView onScroll={onContentScroll} scrollEventThrottle={16} contentContainerStyle={styles.scroll}>
           <Card style={styles.locationCard}><Text style={styles.locationLabel}>📍 GPS LOCATION</Text><Text style={styles.locationTitle}>{location?.address ?? 'GPS position required'}</Text><Text style={styles.subtle}>{location ? `${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}` : 'Acquire GPS before continuing'}</Text></Card>
-          <View style={styles.photoGrid}>{photos.map((photo, index) => <View key={`${photo.uri}-${index}`} style={styles.photoItem}><Image source={{ uri: photo.uri }} style={styles.photoThumb} /><Text style={styles.photoCaption}>{index + 1}. {(categories.find((item) => item.key === category)?.guides ?? categories[0].guides)[index]?.badge}</Text><Pressable onPress={() => void openCamera(index)}><Text style={styles.removeText}>Retake</Text></Pressable></View>)}</View>
+          <View style={styles.photoGrid}>{photos.map((photo, index) => <View key={`${photo.uri}-${index}`} style={styles.photoItem}><Image source={{ uri: photo.uri }} style={styles.photoThumb} /><Text style={styles.photoCaption}>{index + 1}. {photoGuides[index]?.badge}</Text><Pressable onPress={() => void openCamera(index)}><Text style={styles.removeText}>Retake</Text></Pressable></View>)}</View>
           {nearbyComplaints.length > 0 && <Card style={styles.warningCard}><Text style={styles.warningTitle}>📍  Nearby reports within 30 m</Text><Text style={styles.subtle}>A similar open report may already cover this location. Add your name as a witness or continue with your own evidence.</Text>{nearbyComplaints.map((item) => <View key={item.id} style={styles.duplicateRow}><View style={{ flex: 1 }}><Text style={styles.cardTitle}>{categoryLabel(item.issue_type)}</Text><Text style={styles.reportMeta}>{item.tracking_id} · {item.distance_meters.toFixed(0)} m · {item.witness_count} witnesses</Text></View><Pressable onPress={() => void upvoteNearby(item.id)}><Text style={styles.witnessButton}>+ Witness</Text></Pressable></View>)}</Card>}
           <Card style={styles.infoCard}><Text style={styles.infoTitle}>AI prepares your observations</Text><Text style={styles.subtle}>Your photos are analyzed to fill the complaint template. Add notes only for details the photos cannot show.</Text></Card>
-          {photos.length < 3 && <Button title={`Add another evidence photo (${photos.length}/3)`} onPress={() => void openCamera()} disabled={busy} secondary />}
+          {photos.length < maxEvidencePhotos && <Button title={domain === 'TREES' ? 'Take the close-up photo' : `Add another evidence photo (${photos.length}/3)`} onPress={() => void openCamera()} disabled={busy} secondary />}
           <Field label="Your observations (optional)" value={notes} onChangeText={setNotes} placeholder="Describe the visible damage or immediate danger…" multiline />
           <Card style={styles.optionalCard}><View style={styles.aiRow}><Text style={{ fontSize: 21 }}>👷</Text><View><Text style={styles.cardTitle}>Offender or equipment evidence</Text><Text style={styles.subtle}>Optional · Do not approach unsafe activity</Text></View></View>
             <Field label="Person or contractor (optional)" value={perpetratorName} onChangeText={setPerpetratorName} placeholder="Name or identifying details" />
@@ -432,7 +438,7 @@ export default function HomeScreen() {
             <Button title={`＋  Add evidence photo (${perpetratorPhotos.length}/3)`} onPress={() => void attachOffenderPhoto()} secondary />
           </Card>
           <Card style={styles.noteCard}><Text style={styles.noteText}>A notice is generated from your selected issue and evidence. It requests authority inspection; it does not certify a violation.</Text></Card>
-          <Button title={busy ? 'Analyzing photos and drafting…' : 'Analyze photos & prepare notice →'} onPress={() => void prepareFastDraft()} disabled={busy || !photos.length} />
+          <Button title={busy ? 'Analyzing photos and drafting…' : 'Analyze photos & prepare notice →'} onPress={() => void prepareFastDraft()} disabled={busy || (domain === 'TREES' ? photos.length !== 2 : !photos.length)} />
           {busy && <ActivityIndicator color={green} />}
         </ScrollView>
       </>}
