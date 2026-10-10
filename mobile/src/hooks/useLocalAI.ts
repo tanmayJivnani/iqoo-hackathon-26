@@ -48,14 +48,14 @@ export function useLocalAI() {
     } catch (error) { Alert.alert('Model not imported', error instanceof Error ? error.message : 'Rebuild the app with GenieX support, then import the GGUF file.'); }
     finally { setImporting(false); }
   }
-  async function summarize(context: Record<string, unknown>, verification = false, media: { imageUris?: string[]; audioUri?: string } = {}) {
+  async function summarize(context: Record<string, unknown>, verification = false, media: { imageUris?: string[] } = {}) {
     if (loading || importing) throw new Error('Wait for AI settings to finish loading or importing.');
     const status = LocalTreeAI.getQwenStatus();
     if (!status.installed) throw new Error('Import Omni and its matching mmproj in AI settings before choosing local inference.');
     const images = media.imageUris || [];
     const tag = 'omni-inference';
     await activateKeepAwakeAsync(tag);
-    try { return parseLocalText(await LocalTreeAI.generateQwen(localTextPrompt(context, verification, { images: images.length, audio: Boolean(media.audioUri) }), images, media.audioUri || null)); }
+    try { return parseLocalText(await LocalTreeAI.generateQwen(localTextPrompt(context, verification, { images: images.length }), images, null)); }
     finally { await deactivateKeepAwake(tag); }
   }
   return { mode, installed, loading, importing, select, importModel, summarize };

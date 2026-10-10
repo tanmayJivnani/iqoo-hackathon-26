@@ -37,10 +37,7 @@ export function useComplaintDraft({ domain, category, location, noiseEvidence, s
     try {
       const localText = aiSettings.mode === 'LOCAL_QWEN_OMNI' ? await aiSettings.summarize({
         issue: category, address: location.address, citizen_observations: notes || 'No additional observations.',
-        recording: noiseEvidence ? { duration_ms: noiseEvidence.duration_ms, average_dbfs: noiseEvidence.average_dbfs,
-          peak_dbfs: noiseEvidence.peak_dbfs, near_sensitive_site: noiseEvidence.near_sensitive_site, site_label: noiseEvidence.site_label,
-          captured_at: noiseEvidence.captured_at, measurement_caveat: 'Uncalibrated microphone. dBFS is not dB(A) and cannot establish a legal threshold breach.' } : null,
-      }, false, { imageUris: photos.map(photo => photo.uri), audioUri: noiseEvidence?.uri }) : undefined;
+      }, false, { imageUris: photos.map(photo => photo.uri) }) : undefined;
       const audioBase64 = noiseEvidence ? await new File(noiseEvidence.uri).base64() : undefined;
       const videoBase64 = noiseEvidence?.video_uri ? await new File(noiseEvidence.video_uri).base64() : undefined;
       const response = await api<Draft>('/api/v1/complaints/fast-draft', { method: 'POST', signal: AbortSignal.timeout(100_000), body: JSON.stringify({

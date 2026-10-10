@@ -14,7 +14,7 @@ export function AiProviderSelector({ settings, disabled = false }: { settings: L
       </Pressable>)}
     </View>
     <Text style={tw`text-xs text-[#738078] mt-2 leading-5`}>{settings.mode === 'LOCAL_QWEN_OMNI'
-      ? 'Qwen2.5-Omni analyzes photos and audio on this phone. Keep the app open during analysis; the large model can take several minutes. Video files are attached but not directly analyzed. Your report and attachments are still saved to the backend.'
+      ? 'Qwen2.5-Omni analyzes photos on this phone. Noise recordings are not analyzed; only measured dB levels are used. Audio and video remain attached for authority review. Keep the app open during photo analysis; the large model can take several minutes.'
       : 'Cloud models analyze the evidence photos. Your choice is saved for future reports.'}</Text>
     {settings.installed && <Text style={tw`text-xs text-[#738078]`}>Qwen2.5-Omni-7B · model + projector installed</Text>}
   </View>;
