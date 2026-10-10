@@ -26,7 +26,7 @@ export function Field({ label, value, onChangeText, placeholder, keyboardType = 
 }
 
 export function Card({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
-  return <PaperCard mode="contained" style={styles.cardShell} contentStyle={[styles.card, style]}>{children}</PaperCard>;
+  return <PaperCard mode="contained" style={styles.cardShell}><View style={[styles.card, style]}>{children}</View></PaperCard>;
 }
 
 export function PageHeader({ title, subtitle, onBack }: { title: string; subtitle?: string; onBack?: () => void }) {
