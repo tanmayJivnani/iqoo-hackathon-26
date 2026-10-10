@@ -21,7 +21,7 @@ class AudioMeterWebModule extends NativeModule {
   async stopRecording(): Promise<AudioMeterResult> {
     throw new Error('AudioMeter is Android only.');
   }
-  cancelRecording(): boolean {
+  async cancelRecording(): Promise<boolean> {
     return false;
   }
 }

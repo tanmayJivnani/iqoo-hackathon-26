@@ -1,12 +1,13 @@
 import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, AppState, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import AudioMeter from '../../modules/audio-meter/src';
 import {
   evaluateNoiseActionability,
-  isUsableNoiseRecording,
-  estimateDbaFromDbfs,
+  summarizeLevels,
   DAYTIME_ACTIONABLE_DBA,
+  NIGHT_ACTIONABLE_DBA,
   type NoiseEvidence,
 } from '../lib/noise';
 
@@ -32,6 +33,12 @@ export function NoiseCapture({
 }) {
   const hasNativeMeter = AudioMeter != null && typeof AudioMeter.isAvailable === 'function' && AudioMeter.isAvailable();
   const [usingNative, setUsingNative] = useState(hasNativeMeter);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const [includeVideo, setIncludeVideo] = useState(Boolean(initialEvidence?.video_uri));
+  const [cameraReady, setCameraReady] = useState(false);
+  const camera = useRef<CameraView>(null);
+  const videoCamera = useRef<CameraView | null>(null);
+  const videoCapture = useRef<Promise<{ uri?: string; error?: string }> | null>(null);
 
   // Fallback recorder for non-native environments
   const recorder = useAudioRecorder({
@@ -46,12 +53,14 @@ export function NoiseCapture({
   const nativePollInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedAt = useRef('');
   const recording = useRef(false);
+  const engine = useRef<'native' | 'fallback'>('fallback');
   const finishing = useRef(false);
   const guidanceOpen = useRef(false);
   const mounted = useRef(true);
   const appActive = useRef(AppState.currentState === 'active');
 
   const [busy, setBusy] = useState(false);
+  const [nativeRecording, setNativeRecording] = useState(false);
   const [nearSite, setNearSite] = useState(initialEvidence?.near_sensitive_site || false);
   const [siteLabel, setSiteLabel] = useState(initialEvidence?.site_label || '');
   const [summary, setSummary] = useState<NoiseEvidence | null>(initialEvidence);
@@ -66,6 +75,7 @@ export function NoiseCapture({
     if (finishing.current || !recording.current) return;
     finishing.current = true;
     setBusy(true);
+    setNativeRecording(false);
 
     if (nativePollInterval.current) {
       clearInterval(nativePollInterval.current);
@@ -74,8 +84,11 @@ export function NoiseCapture({
 
     try {
       let evidence: NoiseEvidence;
+      const video = videoCapture.current;
+      videoCamera.current?.stopRecording();
+      videoCapture.current = null;
 
-      if (usingNative && AudioMeter) {
+      if (engine.current === 'native' && AudioMeter) {
         const res = await AudioMeter.stopRecording();
         recording.current = false;
         if (!mounted.current || !appActive.current) return;
@@ -102,47 +115,48 @@ export function NoiseCapture({
         if (!mounted.current || !appActive.current) return;
         if (duration < 5000 || !recorder.uri) throw new Error('Record at least five seconds before preparing the notice.');
 
-        const valid = fallbackSamples.current.filter(value => Number.isFinite(value) && value >= -160 && value <= 0);
-        if (valid.length < 2) throw new Error('Microphone readings were unavailable. Please record another sample.');
-        const meanPower = valid.reduce((sum, value) => sum + 10 ** (value / 10), 0) / valid.length;
-        const avgDbfs = 10 * Math.log10(meanPower);
-        const peakDbfs = Math.max(...valid);
-
         evidence = {
           uri: recorder.uri,
           captured_at: startedAt.current,
           duration_ms: Math.min(duration, 30_000),
-          average_dbfs: avgDbfs,
-          peak_dbfs: peakDbfs,
-          average_dba: estimateDbaFromDbfs(avgDbfs),
-          peak_dba: estimateDbaFromDbfs(peakDbfs),
-          sample_count: valid.length,
-          unit: 'dBFS',
+          ...summarizeLevels(fallbackSamples.current),
           near_sensitive_site: nearSite,
           site_label: siteLabel.trim() || undefined,
           measurement_method: 'EXPO_AUDIO_METERED',
         };
       }
+      if (video) {
+        const result = await video;
+        if (!mounted.current || !appActive.current) return;
+        if (!result.uri) throw new Error(result.error || 'Video capture failed. Please record again or use audio only.');
+        evidence.video_uri = result.uri;
+      }
 
       // Actionability & decibel restriction check
-      const isNight = isNightTimeNow();
+      const captureHour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', hourCycle: 'h23' }).format(new Date(startedAt.current)));
+      const isNight = captureHour >= 22 || captureHour < 6;
       const actionCheck = evaluateNoiseActionability(evidence, isNight, nearSite);
 
       if (!actionCheck.actionable) {
         setSummary(null);
         onCaptured(null);
-        setRetryMessage(actionCheck.reason || 'Noise level is below statutory threshold.');
-        Alert.alert('Noise below actionable threshold', actionCheck.reason);
+        setRetryMessage(actionCheck.reason || 'Please record again.');
+        Alert.alert('Please re-record', actionCheck.reason);
         return;
       }
 
       setSummary(evidence);
       onCaptured(evidence);
     } catch (error) {
+      videoCamera.current?.stopRecording(); videoCapture.current = null;
+      recording.current = false;
+      if (engine.current === 'native' && AudioMeter) void AudioMeter.cancelRecording().catch(() => undefined);
+      if (!mounted.current) return;
+      setSummary(null); onCaptured(null);
       Alert.alert('Recording incomplete', error instanceof Error ? error.message : 'Please retry.');
     } finally {
       finishing.current = false;
-      setBusy(false);
+      if (mounted.current) setBusy(false);
     }
   }
 
@@ -151,10 +165,7 @@ export function NoiseCapture({
     if (usingNative || !fallbackStatus.isRecording) return;
     if (fallbackStatus.metering != null) {
       fallbackSamples.current.push(fallbackStatus.metering);
-      setLiveDbfs(fallbackStatus.metering);
-      setLiveDba(estimateDbaFromDbfs(fallbackStatus.metering));
     }
-    setRecordingDurationMs(fallbackStatus.durationMillis);
     if (fallbackStatus.durationMillis >= 10_000) {
       const timeout = setTimeout(() => void finish(), 0);
       return () => clearTimeout(timeout);
@@ -167,9 +178,11 @@ export function NoiseCapture({
     const subscription = AppState.addEventListener('change', state => {
       appActive.current = state === 'active';
       if (state !== 'active' && recording.current) {
+        videoCamera.current?.stopRecording(); videoCapture.current = null;
         recording.current = false;
-        if (usingNative && AudioMeter) {
-          AudioMeter.cancelRecording();
+        setNativeRecording(false);
+        if (engine.current === 'native' && AudioMeter) {
+          void AudioMeter.cancelRecording().catch(() => undefined);
         } else {
           void recorder.stop().catch(() => undefined);
         }
@@ -187,8 +200,14 @@ export function NoiseCapture({
       mounted.current = false;
       subscription.remove();
       if (nativePollInterval.current) clearInterval(nativePollInterval.current);
+      if (recording.current) {
+        videoCamera.current?.stopRecording(); videoCapture.current = null;
+        recording.current = false;
+        if (engine.current === 'native' && AudioMeter) void AudioMeter.cancelRecording().catch(() => undefined);
+        else void recorder.stop().catch(() => undefined);
+      }
     };
-  }, [recorder, onCaptured, usingNative]);
+  }, [recorder, onCaptured]);
 
   async function start() {
     if (busy || recording.current) return;
@@ -206,17 +225,27 @@ export function NoiseCapture({
 
       startedAt.current = new Date().toISOString();
       const nativeAvailable = AudioMeter != null && AudioMeter.isAvailable();
+      if (includeVideo && (!nativeAvailable || !cameraReady || !camera.current)) throw new Error('Wait for the Android video preview to be ready before recording.');
       setUsingNative(nativeAvailable);
+      engine.current = nativeAvailable ? 'native' : 'fallback';
+      setLiveDba(null); setLiveDbfs(null); setRecordingDurationMs(0);
 
       if (nativeAvailable && AudioMeter) {
         await AudioMeter.startRecording();
+        if (!mounted.current || !appActive.current) { await AudioMeter.cancelRecording(); return; }
         recording.current = true;
+        if (includeVideo && camera.current) {
+          videoCamera.current = camera.current;
+          videoCapture.current = camera.current.recordAsync({ maxDuration: 12, maxFileSize: 7 * 1024 * 1024 }).then(result => ({ uri: result?.uri }), error => ({ error: error instanceof Error ? error.message : 'Video recording failed.' }));
+        }
+        setNativeRecording(true);
         setRecordingDurationMs(0);
 
         const meter = AudioMeter;
         nativePollInterval.current = setInterval(() => {
           if (!recording.current || !mounted.current || !meter) return;
           const level = meter.getCurrentLevel();
+          if (!level.isRecording) { void finish(); return; }
           setLiveDbfs(level.currentDbfs);
           setLiveDba(level.currentDba);
           setRecordingDurationMs(level.durationMs);
@@ -233,9 +262,12 @@ export function NoiseCapture({
         recording.current = true;
       }
     } catch (error) {
+      recording.current = false;
+      videoCamera.current?.stopRecording(); videoCapture.current = null;
+      if (engine.current === 'native' && AudioMeter) void AudioMeter.cancelRecording().catch(() => undefined);
       Alert.alert('Could not record', error instanceof Error ? error.message : 'Please retry.');
     } finally {
-      setBusy(false);
+      if (mounted.current) setBusy(false);
     }
   }
 
@@ -253,14 +285,25 @@ export function NoiseCapture({
     );
   }
 
-  const isRecordingState = recording.current || fallbackStatus.isRecording;
+  const isRecordingState = nativeRecording || fallbackStatus.isRecording;
   const isNight = isNightTimeNow();
+
+  async function toggleVideo() {
+    if (busy || nativeRecording || fallbackStatus.isRecording) return;
+    if (!includeVideo && !cameraPermission?.granted) {
+      const result = await requestCameraPermission();
+      if (!mounted.current) return;
+      if (!result.granted) { Alert.alert('Camera access needed', 'Allow camera access to add video, or continue with audio only.'); return; }
+    }
+    setCameraReady(false); setIncludeVideo(value => !value);
+    setSummary(null); onCaptured(null); setRetryMessage(null);
+  }
 
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>
-          {isRecordingState ? 'Measuring noise…' : summary ? 'Noise evidence verified' : 'Capture 10-second noise sample'}
+          {isRecordingState ? 'Measuring noise…' : summary ? 'Audio evidence captured' : 'Capture 10-second noise sample'}
         </Text>
         {usingNative && (
           <View style={styles.badge}>
@@ -271,31 +314,40 @@ export function NoiseCapture({
 
       <Text style={styles.level}>
         {isRecordingState && liveDba != null
-          ? `${liveDba.toFixed(1)} dB(A)`
+          ? `~${liveDba.toFixed(1)} dB(A)`
           : summary && summary.average_dba != null
-          ? `${summary.average_dba.toFixed(1)} dB(A)`
+          ? `~${summary.average_dba.toFixed(1)} dB(A)`
+          : !usingNative && fallbackStatus.isRecording && fallbackStatus.metering != null
+          ? `${fallbackStatus.metering.toFixed(1)} dBFS`
+          : summary ? `${summary.average_dbfs.toFixed(1)} dBFS`
           : '🎙️'}
       </Text>
 
       {liveDbfs != null && (
         <Text style={styles.sublevel}>
           {summary
-            ? `Peak: ${summary.peak_dba ? summary.peak_dba.toFixed(1) : (summary.peak_dbfs + 96).toFixed(1)} dB(A) · ${summary.average_dbfs.toFixed(1)} dBFS digital`
+            ? `Digital peak: ${summary.peak_dbfs.toFixed(1)} dBFS`
             : `Live digital level: ${liveDbfs.toFixed(1)} dBFS`}
         </Text>
       )}
 
-      {isNight ? (
+      <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: includeVideo }} disabled={busy || isRecordingState} onPress={() => void toggleVideo()}><Text style={styles.text}>{includeVideo ? '☑' : '☐'} Record video alongside audio (optional)</Text></Pressable>
+      {includeVideo && cameraPermission?.granted && <>
+        <View style={styles.cameraPreview}><CameraView ref={camera} style={StyleSheet.absoluteFill} facing="back" mode="video" mute videoQuality="480p" videoBitrate={1_500_000} onCameraReady={() => setCameraReady(true)} onMountError={() => { setCameraReady(false); Alert.alert('Camera unavailable', 'Please disable video and record audio only, or retry.'); }} /></View>
+        <Text style={styles.text}>{summary?.video_uri ? 'Video and audio captured.' : cameraReady ? 'Video ready. Point the camera toward the noise source.' : 'Starting camera…'} Video and audio are saved as separate attachments.</Text>
+      </>}
+
+      {isNight && (
         <View style={styles.curfewBanner}>
           <Text style={styles.curfewText}>
             🌙 Night curfew active (10 PM–6 AM): Loudspeakers are restricted under Rule 5.
           </Text>
         </View>
-      ) : (
-        <Text style={styles.text}>
-          Statutory threshold: {DAYTIME_ACTIONABLE_DBA} dB(A). Filing is restricted to verifiable high-decibel disturbances.
-        </Text>
       )}
+      <Text style={styles.text}>To prepare a complaint, the estimated average must exceed {isNight ? NIGHT_ACTIONABLE_DBA : DAYTIME_ACTIONABLE_DBA} dB(A). At or below the limit, record again. This is an approximate app filter.</Text>
+      <Text style={styles.text}>{usingNative ? 'Estimated A-weighted level using an assumed microphone offset. This phone is not calibrated; the reading cannot establish a legal threshold breach.' : 'Digital microphone level only. dBFS is not dB(A) and cannot be compared with residential limits.'}</Text>
+      <Text style={styles.text}>Point your microphone toward the noise source and keep it uncovered.</Text>
+      {summary?.video_uri && <Text style={styles.text}>Video and audio captured as separate evidence attachments.</Text>}
 
       {retryMessage && (
         <View style={styles.alertBox}>
@@ -307,7 +359,7 @@ export function NoiseCapture({
 
       <Text style={styles.text}>
         {isRecordingState
-          ? `${(recordingDurationMs / 1000).toFixed(1)} / 10 seconds`
+          ? `${((usingNative ? recordingDurationMs : fallbackStatus.durationMillis) / 1000).toFixed(1)} / 10 seconds`
           : summary
           ? `Recorded ${(summary.duration_ms / 1000).toFixed(1)}s sample. Bound to timestamp and GPS.`
           : 'Hold phone steady. Audio, timestamp, and location will be attached to the police dispatch.'}
@@ -320,7 +372,7 @@ export function NoiseCapture({
         onPress={() => setNearSite(value => !value)}
       >
         <Text style={styles.text}>
-          {nearSite ? '☑' : '☐'} Near a hospital, school or sensitive site (50 dB(A) threshold)
+          {nearSite ? '☑' : '☐'} Near a hospital, school or similar site (your observation)
         </Text>
       </Pressable>
 
@@ -337,7 +389,7 @@ export function NoiseCapture({
 
       <Pressable
         accessibilityRole="button"
-        disabled={busy || (isRecordingState && recordingDurationMs < 5000)}
+        disabled={busy || (!isRecordingState && includeVideo && !cameraReady) || (isRecordingState && (usingNative ? recordingDurationMs : fallbackStatus.durationMillis) < 5000)}
         onPress={() => {
           if (isRecordingState) void finish();
           else askToRecord();
@@ -359,6 +411,7 @@ export function NoiseCapture({
 }
 
 const styles = StyleSheet.create({
+  cameraPreview: { height: 300, borderRadius: 12, overflow: 'hidden', backgroundColor: '#19392A' },
   card: { backgroundColor: 'white', padding: 20, borderRadius: 20, gap: 12 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontSize: 18, fontWeight: '700', color: '#19392A', flex: 1 },

@@ -8,7 +8,7 @@ import { photoBytes, mediaPath } from './media';
 import type { Complaint } from './types';
 
 export function evidenceDigest(c: Complaint) {
-  return createHash('sha256').update(JSON.stringify({ tracking_id: c.tracking_id, latitude: c.latitude, longitude: c.longitude, created_at: c.created_at, draft_body_en: c.draft_body_en, draft_summary_mr: c.draft_summary_mr, photo_urls: c.photo_urls, captured_at: c.captured_at, audio_sha256: c.audio_sha256, noise_evidence: c.noise_evidence })).digest('hex');
+  return createHash('sha256').update(JSON.stringify({ tracking_id: c.tracking_id, latitude: c.latitude, longitude: c.longitude, created_at: c.created_at, draft_body_en: c.draft_body_en, draft_summary_mr: c.draft_summary_mr, photo_urls: c.photo_urls, captured_at: c.captured_at, audio_sha256: c.audio_sha256, video_sha256: c.video_sha256, noise_evidence: c.noise_evidence })).digest('hex');
 }
 export function pdfPath(c: Complaint) { return path.join(config.mediaDir, `${c.id.replace(/[^a-zA-Z0-9-]/g, '_')}_Notice.pdf`); }
 export async function generatePdf(c: Complaint) {
@@ -31,10 +31,15 @@ export async function generatePdf(c: Complaint) {
     const audioFileName = c.audio_url.split('/').at(-1)!;
     const audioExt = audioFileName.endsWith('.wav') ? 'wav' : 'm4a';
     const dbaText = c.noise_evidence.average_dba != null
-      ? `Estimated A-weighted sound level: ${c.noise_evidence.average_dba.toFixed(1)} dB(A) average / ${(c.noise_evidence.peak_dba ?? (c.noise_evidence.peak_dbfs + 96)).toFixed(1)} dB(A) peak.\n`
+      ? `Estimated A-weighted sound level: ${c.noise_evidence.average_dba.toFixed(1)} dB(A) average. Uncalibrated microphone with an assumed sensitivity offset; not a verified acoustic measurement or legal threshold test.\n`
       : '';
     body(`Recording: ${c.noise_evidence.duration_ms / 1000} seconds\nCaptured (device-reported): ${c.captured_at}\n${dbaText}Digital microphone level: ${c.noise_evidence.average_dbfs.toFixed(1)} dBFS average / ${c.noise_evidence.peak_dbfs.toFixed(1)} dBFS peak\nMeasurement method: ${c.noise_evidence.measurement_method === 'KOTLIN_AUDIO_RECORD_A_WEIGHTED' ? 'IEC 61672 A-weighted digital filter (Android AudioRecord)' : 'Uncalibrated mobile sensor'}\nSHA-256 audio digest: ${c.audio_sha256}\nThe audio recording is embedded as a file attachment in this PDF.`);
     doc.file(await readFile(mediaPath(audioFileName)), { name: `${c.tracking_id}.${audioExt}`, description: 'Citizen-recorded ambient audio evidence.' });
+  }
+  if (c.video_url) {
+    heading('Video evidence');
+    body(`Video was captured alongside the separate audio sample. SHA-256 video digest: ${c.video_sha256}. The video is embedded as a file attachment.`);
+    doc.file(await readFile(mediaPath(c.video_url.split('/').at(-1)!)), { name: `${c.tracking_id}.mp4`, description: 'Citizen-recorded visual evidence; audio is attached separately.' });
   }
   heading('Routing references'); c.legal_citations.forEach(citation => body(citation));
   heading('Marathi summary'); doc.font('Marathi').fontSize(11).fillColor('#202b24').text(c.draft_summary_mr, { lineGap: 4 });

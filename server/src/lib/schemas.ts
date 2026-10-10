@@ -35,14 +35,15 @@ export const fastDraftSchema = metadata.extend({
   issue_type: z.enum([...categories, ...civicCategories]),
   captured_at: z.iso.datetime(), gps_accuracy_m: z.number().finite().nonnegative().max(10_000).nullish(),
   photos_base64: z.array(photo).max(6).default([]), citizen_notes: optionalText,
-  audio_base64: z.string().max(2_000_000).optional(),
+  audio_base64: z.string().max(4_200_000).optional(),
+  video_base64: z.string().max(11_200_000).optional(),
   noise_evidence: z.object({
     duration_ms: z.number().int().min(5000).max(30_000),
     average_dbfs: z.number().finite().min(-160).max(0), peak_dbfs: z.number().finite().min(-160).max(0),
     average_dba: z.number().finite().min(0).max(160).optional(), peak_dba: z.number().finite().min(0).max(160).optional(),
     sample_count: z.number().int().min(2).max(10_000_000), unit: z.literal('dBFS'),
     near_sensitive_site: z.boolean().default(false), site_label: z.string().trim().max(150).optional(),
-    measurement_method: z.string().max(50).optional(),
+    measurement_method: z.enum(['KOTLIN_AUDIO_RECORD_A_WEIGHTED', 'EXPO_AUDIO_METERED']).optional(),
   }).optional(),
 });
 export const dispatchSchema = z.object({

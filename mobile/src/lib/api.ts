@@ -8,7 +8,7 @@ export type Complaint = {
 export type RoutingAuthority = { name: string; role: string; email: string; whatsapp?: string | null; emergency_phone?: string | null };
 export type Draft = {
   domain?: 'TREES' | 'ROADS' | 'GARBAGE' | 'NOISE'; reverification_required?: boolean;
-  audio_url?: string | null; captured_at?: string;
+  audio_url?: string | null; video_url?: string | null; captured_at?: string;
   complaint_id: string; tracking_id: string; issue_type: string; urgency_level: string;
   felling_stage: string; is_cognizable_offence: boolean; sensor_tilt_angle?: number | null;
   citizen_selected_category?: string | null; is_category_mismatch?: boolean; ai_suggested_category?: string | null;

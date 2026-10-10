@@ -25,19 +25,34 @@ test('silent evidence is rejected and a subsequent audible recording can be used
   assert.equal(isUsableNoiseRecording({ peak_dbfs: 1 }), false);
 });
 
-test('actionability rejects low-volume daytime noise but accepts loud disturbances and night curfew violations', () => {
-  // Low daytime noise: ~56 dB(A) (below 65 dB(A) limit)
+test('approximate residential policy uses average levels, excludes equality and rejects missing estimates', () => {
+  // Nominal estimates cannot certify a breach or disqualify an otherwise usable recording.
   const quietDaytime = { average_dbfs: -40, peak_dbfs: -35, average_dba: 56, peak_dba: 61 };
   const quietCheck = evaluateNoiseActionability(quietDaytime, false, false);
-  assert.equal(quietCheck.actionable, false);
-  assert.ok(quietCheck.reason?.includes(`below the statutory actionable daytime limit of ${DAYTIME_ACTIONABLE_DBA}`));
+  assert.equal(quietCheck.actionable, true);
+  assert.equal(quietCheck.thresholdDba, 55);
+  assert.equal(DAYTIME_ACTIONABLE_DBA, 55);
 
-  // Loud daytime DJ: ~76 dB(A) (above 65 dB(A) limit)
+  // The same quality check applies to loud samples.
   const loudDaytime = { average_dbfs: -20, peak_dbfs: -15, average_dba: 76, peak_dba: 81 };
   const loudCheck = evaluateNoiseActionability(loudDaytime, false, false);
   assert.equal(loudCheck.actionable, true);
 
-  // Night curfew: same 56 dB(A) noise is actionable at night because Rule 5 prohibits night loudspeakers
+  // Nighttime changes the reference value, not confidence in an uncalibrated sensor.
   const nightCheck = evaluateNoiseActionability(quietDaytime, true, false);
   assert.equal(nightCheck.actionable, true);
+  assert.equal(nightCheck.thresholdDba, 45);
+  const silent = summarizeLevels([-160, -160]);
+  for (const isNight of [false, true]) {
+    assert.equal(evaluateNoiseActionability(silent, isNight, true).actionable, false);
+  }
+  assert.equal('average_dba' in summarizeLevels([-40, -35]), false);
+  for (const [isNight, limit] of [[false, 55], [true, 45]] as const) {
+    const evidence = { average_dbfs: -35, peak_dbfs: -10, average_dba: limit, peak_dba: 100 };
+    assert.equal(evaluateNoiseActionability(evidence, isNight, true).actionable, false);
+    assert.equal(evaluateNoiseActionability({ ...evidence, average_dba: limit - 0.1 }, isNight, false).actionable, false);
+    assert.equal(evaluateNoiseActionability({ ...evidence, average_dba: limit + 0.1 }, isNight, false).actionable, true);
+    assert.equal(evaluateNoiseActionability(summarizeLevels([-20, -15]), isNight, false).actionable, false);
+    assert.equal(evaluateNoiseActionability({ ...evidence, average_dba: NaN }, isNight, false).actionable, false);
+  }
 });

@@ -6,7 +6,7 @@ declare class AudioMeterNativeModule extends NativeModule {
   startRecording(): Promise<{ started: boolean; sampleRate: number }>;
   getCurrentLevel(): AudioMeterLiveLevel;
   stopRecording(): Promise<AudioMeterResult>;
-  cancelRecording(): boolean;
+  cancelRecording(): Promise<boolean>;
 }
 
 let nativeModule: AudioMeterNativeModule | null = null;

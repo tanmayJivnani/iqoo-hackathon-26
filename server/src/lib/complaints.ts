@@ -1,8 +1,9 @@
 import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import { stat } from 'node:fs/promises';
-import { analyzePhotos, comparePhotos } from './ai';
+import { analyzePhotos, comparePhotos, describeCivicPhotos } from './ai';
 import { ApiError } from './http';
-import { decodePhoto, savePhoto, decodeAudio, saveAudio } from './media';
+import { decodePhoto, savePhoto, decodeAudio, saveAudio, decodeVideo, saveVideo } from './media';
+import { evaluateResidentialNoiseEstimate } from '../../../shared/noise-policy';
 import { generatePdf } from './pdf';
 import { repository } from './repository';
 import { routeIssue } from './routing';
@@ -54,11 +55,18 @@ export async function fastDraft(input: z.infer<typeof fastDraftSchema>) {
     if (!input.audio_base64 || !input.noise_evidence) throw new ApiError(422, 'Noise reports require an audio recording and microphone readings.');
     decodeAudio(input.audio_base64);
     if (input.noise_evidence.average_dbfs > input.noise_evidence.peak_dbfs) throw new ApiError(422, 'Average audio level cannot exceed its peak.');
+    const levels = input.noise_evidence;
+    if ((levels.average_dba != null || levels.peak_dba != null) && (levels.measurement_method !== 'KOTLIN_AUDIO_RECORD_A_WEIGHTED' || levels.average_dba == null || levels.peak_dba == null || levels.average_dba > levels.peak_dba)) throw new ApiError(422, 'A-weighted estimates require the native measurement method and consistent average/peak readings.');
+    const policy = evaluateResidentialNoiseEstimate(levels.average_dba, isNightTime(input.captured_at));
+    if (!policy.allowed) throw new ApiError(422, policy.reason!);
+    if (levels.peak_dbfs <= -60) throw new ApiError(422, 'The recording is too quiet. Please re-record.');
+    if (input.video_base64) decodeVideo(input.video_base64);
   } else {
     if (!input.photos_base64.length) throw new ApiError(422, 'A photo of the concern is required.');
-    if (input.audio_base64 || input.noise_evidence) throw new ApiError(422, 'Use a noise category for microphone evidence.');
+    if (input.audio_base64 || input.video_base64 || input.noise_evidence) throw new ApiError(422, 'Use a noise category for microphone/video evidence.');
   }
   input.photos_base64.forEach(decodePhoto);
+  const analysis = !isNoise ? await describeCivicPhotos(input.issue_type, input.photos_base64, input.citizen_notes) : null;
   const route = routeIssue(input.issue_type), tracking = trackingId('FAST');
   if (domain === 'TREES') {
     // Fast reports have no verified permit status or legal finding. Keep inherited
@@ -73,14 +81,16 @@ export async function fastDraft(input: z.infer<typeof fastDraftSchema>) {
   const landmark = input.address_landmark || locate(input.latitude, input.longitude).address_landmark;
   const recording = input.noise_evidence;
   const evidenceText = recording ? `Audio recording: ${recording.duration_ms / 1000} seconds. Uncalibrated microphone readings: average ${recording.average_dbfs.toFixed(1)} dBFS, peak ${recording.peak_dbfs.toFixed(1)} dBFS. These are digital levels, not calibrated dB(A) sound-pressure measurements and do not establish a legal threshold breach.\nDevice-reported capture time: ${input.captured_at}; ${isNightTime(input.captured_at) ? 'within' : 'outside'} the usual 22:00–06:00 IST night period.\n${recording.near_sensitive_site ? `Citizen reports a nearby sensitive site: ${recording.site_label || 'hospital, school or similar site'}. Please verify the location and whether it is a notified silence zone.` : 'Silence-zone status has not been verified.'}` : `${input.photos_base64.length} photograph(s) attached. Evidence intake (device-reported): ${input.captured_at}. GPS is the phone location at intake; original timestamps and locations of imported photos have not been verified. The selected issue and observations are citizen-reported; please verify on site.`;
-  const c = buildComplaint({ ...input, complaint_id: '', draft_subject_en: `${title} — request for action [${tracking}]`, draft_body_en: `To ${route.routed_authority.name},\n\nI report a ${title.toLowerCase()} at ${landmark}.\nGPS: ${input.latitude.toFixed(5)}, ${input.longitude.toFixed(5)}${input.gps_accuracy_m != null ? ` (device-reported accuracy ±${input.gps_accuracy_m.toFixed(0)} m)` : ''}.\n\n${evidenceText}\n${input.citizen_notes ? `\nMy observations: ${input.citizen_notes}\n` : ''}\nApplicable references: ${route.legal_citations.join('; ')}.\n${route.prayer_en}\n\nPlease acknowledge receipt, confirm jurisdiction and provide an action-taken response and expected timeline. The app's follow-up reminder is not a statutory deadline.\n\nSincerely,\n${input.citizen_name || 'Concerned Pune Citizen'}${input.citizen_phone ? `\nPhone: ${input.citizen_phone}` : ''}\nReference: ${tracking}`, draft_summary_mr: route.prayer_mr }, randomUUID(), tracking);
-  c.tree_detected = false; c.is_cognizable_offence = false; c.evidence_classification = 'CITIZEN_REPORTED'; c.is_fallback = false; c.ai_provider = 'FAST_TEMPLATE';
+  const c = buildComplaint({ ...input, complaint_id: '', draft_subject_en: `${title} — request for action [${tracking}]`, draft_body_en: `To ${route.routed_authority.name},\n\nI report a ${title.toLowerCase()} at ${landmark}.\nGPS: ${input.latitude.toFixed(5)}, ${input.longitude.toFixed(5)}${input.gps_accuracy_m != null ? ` (device-reported accuracy ±${input.gps_accuracy_m.toFixed(0)} m)` : ''}.\n\n${evidenceText}\n${analysis ? `\nAI observations from the attached photos (subject to authority verification):\n${analysis.result.observations_en}\n` : ''}${input.citizen_notes ? `\nMy observations: ${input.citizen_notes}\n` : ''}\nApplicable references: ${route.legal_citations.join('; ')}.\n${route.prayer_en}\n\nPlease acknowledge receipt, confirm jurisdiction and provide an action-taken response and expected timeline. The app's follow-up reminder is not a statutory deadline.\n\nSincerely,\n${input.citizen_name || 'Concerned Pune Citizen'}${input.citizen_phone ? `\nPhone: ${input.citizen_phone}` : ''}\nReference: ${tracking}`, draft_summary_mr: analysis ? `${analysis.result.observations_mr}\n\n${route.prayer_mr}` : route.prayer_mr }, randomUUID(), tracking);
+  c.tree_detected = domain === 'TREES' && Boolean(analysis); c.is_cognizable_offence = false; c.evidence_classification = analysis ? 'AI_ASSISTED_VISUAL' : 'CITIZEN_REPORTED'; c.is_fallback = false; c.ai_provider = analysis?.provider || 'MEASURED_NOISE_TEMPLATE';
+  c.visual_damage_summary = analysis?.result.observations_en || null;
   c.legal_citations = route.legal_citations; c.routed_authority = route.routed_authority; c.routed_authority_role = route.routed_authority.role;
   c.citizen_selected_category = input.issue_type; c.captured_at = input.captured_at; c.gps_accuracy_m = input.gps_accuracy_m ?? null;
   c.photo_urls = await Promise.all(input.photos_base64.map(savePhoto));
   if (isNoise && input.audio_base64 && recording) {
     const audio = await saveAudio(input.audio_base64); c.audio_url = audio.url; c.audio_sha256 = audio.sha256;
     c.noise_evidence = { ...recording, night_time: isNightTime(input.captured_at) };
+    if (input.video_base64) { const video = await saveVideo(input.video_base64); c.video_url = video.url; c.video_sha256 = video.sha256; }
   }
   if (!c.reverification_required) { c.reverification_due_at = null; c.verification_status = 'REPORTED'; }
   repository().save(c); return draftResponse(c);
@@ -126,12 +136,16 @@ export async function renderPdf(input: RenderInput) {
 }
 export async function prepareDispatch(input: z.infer<typeof dispatchSchema>) {
   const c = getComplaint(input.complaint_id);
+  if (c.domain === 'NOISE' || domainFor(c.issue_type) === 'NOISE') {
+    const policy = evaluateResidentialNoiseEstimate(c.noise_evidence?.average_dba, isNightTime(c.captured_at || c.created_at));
+    if (!policy.allowed) throw new ApiError(422, policy.reason!);
+  }
   if (!c.pdf_path) throw new ApiError(409, 'Generate the complaint PDF before preparing to share.');
   try { await stat(c.pdf_path); } catch { throw new ApiError(409, 'The PDF is missing. Generate it again before sharing.'); }
   const subject = c.draft_subject_en.includes(c.tracking_id) ? c.draft_subject_en : `[${c.tracking_id}] ${c.draft_subject_en}`;
   const body = `${c.draft_body_en}\n\nतक्रार गोषवारा:\n${c.draft_summary_mr}`;
   const pdfUrl = `/api/v1/complaints/${encodeURIComponent(c.id)}/download-pdf`;
-  const email = input.channels.includes('EMAIL') ? { ready: true, sent: false, recipient: c.target_email, subject, body, pdf_attached: false, attachment_url: pdfUrl, audio_attachment_url: c.audio_url || null, deep_link_url: `mailto:${encodeURIComponent(c.target_email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}` } : null;
+  const email = input.channels.includes('EMAIL') ? { ready: true, sent: false, recipient: c.target_email, subject, body, pdf_attached: false, attachment_url: pdfUrl, audio_attachment_url: c.audio_url || null, video_attachment_url: c.video_url || null, deep_link_url: `mailto:${encodeURIComponent(c.target_email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}` } : null;
   if (input.channels.includes('WHATSAPP') && !c.target_whatsapp) throw new ApiError(422, 'A WhatsApp contact is not configured for this authority. Use email or the police phone shortcut.');
   const waText = `PUNE FAST COMPLAINT\nRef: ${c.tracking_id}\nCategory: ${c.issue_type}\nLocation: ${c.address_landmark}\nGPS: ${c.latitude.toFixed(5)}, ${c.longitude.toFixed(5)}\n\n${c.draft_summary_mr}`;
   const tweet = `Civic concern: ${c.issue_type.replaceAll('_', ' ')} at ${c.address_landmark}. Ref: ${c.tracking_id}. #PuneFastComplaint`.slice(0, 280);

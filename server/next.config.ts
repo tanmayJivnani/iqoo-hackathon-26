@@ -6,6 +6,6 @@ const config: NextConfig = {
   distDir: process.env.NEXT_BUILD_DIR || '.next',
   serverExternalPackages: ['pdfkit', 'qrcode'],
   outputFileTracingExcludes: { '/*': ['./data/**/*'] },
-  turbopack: { root: path.resolve(process.cwd()) },
+  turbopack: { root: path.resolve(process.cwd(), '..') },
 };
 export default config;
