@@ -22,10 +22,10 @@ export function NoticeScreen({ detail, setDetail, setPage, draft, noiseEvidence,
           <Card><Text style={styles.locationLabel}>ISSUE</Text><Text style={styles.cardTitle}>{categoryLabel(detail.issue_type)}</Text><Text style={styles.subtle}>📍 {detail.address_landmark}</Text><Text style={styles.reportMeta}>Status: {verificationLabel(detail.verification_status, detail.reverification_due_at)}</Text></Card>
           <Card><Text style={styles.legalTitle}>Routed authority</Text><Text style={styles.cardTitle}>{typeof detail.routed_authority === 'string' ? detail.routed_authority : detail.routed_authority?.name ?? 'PMC Tree Authority'}</Text><Text style={styles.subtle}>{detail.target_email ?? (typeof detail.routed_authority === 'object' ? detail.routed_authority?.email : '')}</Text></Card>
           <AdditionalIssues key={`issues-${detail.id}`} report={detail} onSaved={saved => setDetail({ ...detail, ...saved })} disabled={busy || editing} onSavingChange={setAddingIssue} />
-          <NoticeDraft key={detail.id} report={detail} onSaved={saved => setDetail({ ...detail, ...saved })} disabled={busy || addingIssue} onEditingChange={setEditing} />
+          <NoticeDraft key={`notice-detail-${detail.id}`} report={detail} onSaved={saved => setDetail({ ...detail, ...saved })} disabled={busy || addingIssue} onEditingChange={setEditing} />
           {detail.pdf_path && <Button title="Open report PDF" onPress={() => openReportPdf(detail.id)} disabled={blocked} secondary />}
           {detail.reverification_required !== false && <Button disabled={isTimelocked(detail.verification_status, detail.reverification_due_at)} title={isTimelocked(detail.verification_status, detail.reverification_due_at) ? reverificationMessage(detail.reverification_due_at) : "Reverify this concern"} onPress={() => { setVerificationPhoto(null); setVerificationResult(null); setVerificationNote(''); setPage('verify'); }} />}
-          {(detail.audio_url || detail.video_url) && <RecordingPlayback key={detail.id}
+          {(detail.audio_url || detail.video_url) && <RecordingPlayback key={`recording-detail-${detail.id}`}
             audioUri={detail.audio_url ? `${API_BASE}${detail.audio_url}` : undefined}
             videoUri={detail.video_url ? `${API_BASE}${detail.video_url}` : undefined} disabled={busy} />}
           <Button title={busy ? 'Preparing email…' : 'Send email'} onPress={() => void sendDispatch('EMAIL', detail)} disabled={blocked} />
@@ -35,7 +35,7 @@ export function NoticeScreen({ detail, setDetail, setPage, draft, noiseEvidence,
         <PageHeader title="Review your notice" subtitle="Check the recipient and statement before sharing" onBack={() => setPage(domain === 'NOISE' ? 'noise' : 'review')} />
         <ScrollView onScroll={onContentScroll} scrollEventThrottle={16} contentContainerStyle={styles.scroll}>
           <View style={styles.trackingBanner}><Text style={styles.locationLabel}>TRACKING NUMBER</Text><Text style={styles.trackingId}>{draft.tracking_id}</Text><Text style={styles.subtle}>{draft.ai_provider === 'FAST_TEMPLATE' ? 'Prepared from your evidence and observations' : draft.ai_provider ? `Prepared with ${draft.ai_provider.replaceAll('_', ' ')}` : 'AI-assisted draft'}{draft.is_fallback ? ' · Offline draft' : ''}</Text></View>
-          {(draft.audio_url || draft.video_url || (domain === 'NOISE' && noiseEvidence)) && <RecordingPlayback key={draft.tracking_id}
+          {(draft.audio_url || draft.video_url || (domain === 'NOISE' && noiseEvidence)) && <RecordingPlayback key={`recording-draft-${draft.tracking_id}`}
             audioUri={draft.audio_url ? `${API_BASE}${draft.audio_url}` : undefined}
             videoUri={draft.video_url ? `${API_BASE}${draft.video_url}` : undefined}
             localAudioUri={domain === 'NOISE' ? noiseEvidence?.uri : undefined}
@@ -49,7 +49,7 @@ export function NoticeScreen({ detail, setDetail, setPage, draft, noiseEvidence,
           </Card>}
           <Card style={styles.locationCard}><Text style={styles.locationLabel}>{draft.ai_provider === 'LOCAL_QWEN_OMNI' ? 'LOCAL OMNI · EVIDENCE OBSERVATIONS' : draft.ai_provider === 'LOCAL_QWEN_TEXT' ? 'LOCAL QWEN · CITIZEN OBSERVATIONS' : draft.ai_provider === 'FAST_TEMPLATE' ? 'REPORTED ISSUE' : 'ANALYSIS'}</Text><Text style={styles.cardTitle}>{categoryLabel(draft.issue_type)}</Text><Text style={styles.subtle}>Urgency: {draft.urgency_level.replaceAll('_', ' ')}{draft.estimated_tree_species ? `  ·  ${draft.estimated_tree_species}` : ''}</Text><Text style={styles.bodyText}>{draft.visual_damage_summary}</Text></Card>
           <Card><Text style={styles.legalTitle}>📍  Location and statutory route</Text><Text style={styles.cardTitle}>{draft.address_landmark}</Text><Text style={styles.subtle}>{draft.latitude.toFixed(5)}, {draft.longitude.toFixed(5)} · {draft.ward_name}</Text><View style={styles.divider} /><Text style={styles.cardTitle}>{draft.routed_authority?.name ?? 'PMC Tree Authority'}</Text><Text style={styles.subtle}>{draft.routed_authority?.role}</Text><Text style={styles.reportMeta}>{draft.routed_authority?.email}</Text></Card>
-          <NoticeDraft key={draft.tracking_id} report={draft} onSaved={setDraft} disabled={busy || addingIssue} onEditingChange={setEditing} />
+          <NoticeDraft key={`notice-draft-${draft.tracking_id}`} report={draft} onSaved={setDraft} disabled={busy || addingIssue} onEditingChange={setEditing} />
           {draft.complaint_id && <Button title={busy ? 'Generating report PDF…' : 'Generate full report PDF with photos'} onPress={() => void generateReportPdf(draft.complaint_id!, { draft_subject_en: draft.draft_subject_en, draft_body_en: draft.draft_body_en, draft_summary_mr: draft.draft_summary_mr, photos_base64: photos.map(photoBase64), perpetrator_photos_base64: perpetratorPhotos.map(photoBase64) })} disabled={blocked} secondary />}
           <Button title="Continue to dispatch  →" onPress={() => setPage('dispatch')} disabled={blocked} />
         </ScrollView>
