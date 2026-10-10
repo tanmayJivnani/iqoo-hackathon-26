@@ -21,6 +21,8 @@ npm --prefix mobile install
 npm run android
 ```
 
+Running `npm start` or `npm run android` in `mobile/` sets up backend port 3000 forwarding for connected Android devices. If USB is disconnected and reconnected while the app is running, run `npm run connect:backend` in `mobile/` to restore the connection.
+
 The Expo app defaults to this local backend. `EXPO_PUBLIC_API_URL` selects another address for Wi-Fi or an HTTPS tunnel. The laptop must remain awake with the server running. The native app requires Android SDK/NDK installation; Expo Go cannot load the custom MediaPipe module.
 
 ## Project layout

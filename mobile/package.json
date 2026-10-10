@@ -46,6 +46,8 @@
   },
   "scripts": {
     "start": "expo start",
+    "prestart": "node ./scripts/connect-backend.js",
+    "connect:backend": "node ./scripts/connect-backend.js",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "node ./scripts/run-android.js",
     "prebuild:android": "expo prebuild --platform android",

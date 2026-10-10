@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { connectBackend } = require('./connect-backend');
 
 const preferredNdkVersion = '30.0.16248370';
 const requestedNdkVersion = process.env.ANDROID_NDK_VERSION;
@@ -76,6 +77,8 @@ if (java17Home) {
 console.log(`Using Android SDK: ${sdkRoot}`);
 console.log(`Using NDK: ${ndkVersion}`);
 if (env.JAVA_HOME) console.log(`Using Java: ${env.JAVA_HOME}`);
+
+connectBackend({ sdkRoot, env });
 
 const expoCli = path.join(__dirname, '..', 'node_modules', 'expo', 'bin', 'cli');
 const result = spawnSync(process.execPath, [expoCli, 'run:android', ...process.argv.slice(2)], {
