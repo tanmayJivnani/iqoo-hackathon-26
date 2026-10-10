@@ -2,13 +2,15 @@ import type { ReactNode } from 'react';
 import { StyleSheet, View, Text, type StyleProp, type ViewStyle, type TextInputProps } from 'react-native';
 import { Button as PaperButton, Card as PaperCard, IconButton, TextInput as PaperInput } from 'react-native-paper';
 import { colors, radii } from '../../theme';
+import { useCategoryPalette } from '../../theme/CategoryTheme';
 
 export function Button({ title, onPress, secondary = false, disabled = false, tone = 'default' }: {
   title: string; onPress: () => void; secondary?: boolean; disabled?: boolean; tone?: 'default' | 'neutral';
 }) {
+  const palette = useCategoryPalette();
   return <PaperButton mode={secondary ? 'contained-tonal' : 'contained'} onPress={onPress}
-    disabled={disabled} buttonColor={tone === 'neutral' ? colors.neutralContainer : secondary ? colors.primaryContainer : colors.primary}
-    textColor={tone === 'neutral' ? colors.neutralText : secondary ? colors.primary : '#FFFFFF'} style={styles.button}
+    disabled={disabled} buttonColor={tone === 'neutral' ? colors.neutralContainer : secondary ? palette.primaryContainer : palette.button}
+    textColor={tone === 'neutral' ? colors.neutralText : secondary ? palette.primary : palette.buttonText} style={styles.button}
     contentStyle={styles.buttonContent} labelStyle={styles.buttonLabel}>{title}</PaperButton>;
 }
 
@@ -17,11 +19,12 @@ export function Field({ label, value, onChangeText, placeholder, keyboardType = 
   label: string; value: string; onChangeText: (value: string) => void; placeholder?: string;
   keyboardType?: TextInputProps['keyboardType']; multiline?: boolean; editable?: boolean; maxLength?: number;
 }) {
+  const palette = useCategoryPalette();
   return <PaperInput mode="outlined" label={label} value={value} onChangeText={onChangeText}
     placeholder={placeholder} keyboardType={keyboardType} editable={editable} maxLength={maxLength}
     autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'} multiline={multiline}
     textAlignVertical={multiline ? 'top' : 'center'} outlineColor={colors.inputBorder}
-    activeOutlineColor={colors.primary} textColor={colors.text}
+    activeOutlineColor={palette.primary} textColor={palette.text}
     style={[styles.input, multiline && styles.multiline]} outlineStyle={styles.inputOutline} />;
 }
 
@@ -30,9 +33,10 @@ export function Card({ children, style }: { children: ReactNode; style?: StylePr
 }
 
 export function PageHeader({ title, subtitle, onBack }: { title: string; subtitle?: string; onBack?: () => void }) {
+  const palette = useCategoryPalette();
   return <View style={styles.header}>
-    {onBack && <IconButton icon="chevron-left" accessibilityLabel="Go back" onPress={onBack} iconColor={colors.primary} size={28} style={styles.back} />}
-    <View style={styles.headerText}><Text style={styles.title}>{title}</Text>{subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}</View>
+    {onBack && <IconButton icon="chevron-left" accessibilityLabel="Go back" onPress={onBack} iconColor={palette.primary} size={28} style={styles.back} />}
+    <View style={styles.headerText}><Text style={[styles.title, { color: palette.text }]}>{title}</Text>{subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}</View>
   </View>;
 }
 

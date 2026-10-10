@@ -1,4 +1,4 @@
-import { colors } from '../theme';
+import { colors, categoryPalettes } from '../theme';
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { tabs, type CivicDomain } from '../data/civic';
@@ -36,13 +36,13 @@ export function CategoryTabs({ domain, disabled, onSelect }: {
     <View style={styles.shadow}>
       <View style={styles.pill} onLayout={event => setWidth(event.nativeEvent.layout.width)}>
         {width > 0 && <Animated.View pointerEvents="none" style={[
-          styles.selection, { width: tabWidth - 4, transform: [{ translateX: offset }] },
+          styles.selection, { width: tabWidth - 4, backgroundColor: categoryPalettes[domain].primaryContainer, transform: [{ translateX: offset }] },
         ]} />}
         {tabs.map(tab => <Pressable key={tab.key} accessibilityRole="tab" accessibilityLabel={tab.title}
           accessibilityState={{ selected: domain === tab.key, disabled }} disabled={disabled}
           onPress={() => onSelect(tab.key)} style={({ pressed }) => [styles.tab, pressed && styles.pressed]}>
           <Text style={styles.icon}>{tab.emoji}</Text>
-          <Text style={[styles.label, domain === tab.key && styles.selectedLabel]}>{tab.title}</Text>
+          <Text style={[styles.label, domain === tab.key && { color: categoryPalettes[tab.key].primary, fontWeight: '800' }]}>{tab.title}</Text>
         </Pressable>)}
       </View>
     </View>

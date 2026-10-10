@@ -12,6 +12,8 @@ import { useComplaintFlow } from '../hooks/useComplaintFlow';
 import { useScrollChrome } from '../hooks/useScrollChrome';
 import { styles } from '../features/complaints/styles';
 import { colors } from '../theme';
+import { categoryPalettes } from '../theme';
+import { CategoryTheme } from '../theme/CategoryTheme';
 import { TrackerScreen } from '../features/complaints/screens/TrackerScreen';
 import { PublicMapScreen } from '../features/complaints/screens/PublicMapScreen';
 import { PdfScreen } from '../features/complaints/screens/PdfScreen';
@@ -26,19 +28,20 @@ import { NoiseScreen } from '../features/complaints/screens/NoiseScreen';
 const green = colors.primary;
 export default function HomeScreen() {
   const flow = useComplaintFlow();
+  const palette = categoryPalettes[flow.domain];
   const { page, domain, profile, profileOpen, closeProfile, profileDraft, setProfileDraft, setProfileOpen, setPendingProfileStart, saveProfile, busy, loading, refresh, startComplaint, setDomain, setPage, setDetail, setDraft, setNoiseEvidence } = flow;
   const blurTarget = useRef<View | null>(null);
   const insets = useSafeAreaInsets();
   const { homeHeaderHeight, setHomeHeaderHeight, heroHeight, setHeroHeight, heroScrollY,
     navHidden, heroCompact, refreshAtTop, onContentScroll, onTrackerScroll } = useScrollChrome(page, domain);
   if (!flow.sessionReady) return <SafeAreaView style={[styles.safe, { alignItems: 'center', justifyContent: 'center' }]}><ActivityIndicator color={green} /></SafeAreaView>;
-  return <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+  return <CategoryTheme domain={domain}><SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
     <RefreshControl refreshing={page === 'tracker' && loading} onRefresh={refresh}
-      enabled={page === 'tracker' && (refreshAtTop || loading)} colors={[green]} progressBackgroundColor="#F6FCF8"
+      enabled={page === 'tracker' && (refreshAtTop || loading)} colors={[palette.primary]} progressBackgroundColor={palette.canvas}
       progressViewOffset={insets.top + 12 + homeHeaderHeight + 16} style={{ flex: 1, marginTop: -insets.top, marginLeft: -insets.left, marginRight: -insets.right }}>
     {/* SwipeRefreshLayout requires one stable native content child; prevent RN flattening it. */}
     <View collapsable={false} style={{ flex: 1 }}>
-    <BlurTargetView ref={blurTarget} style={{ flex: 1, backgroundColor: colors.canvas, marginTop: insets.top + 12, marginLeft: insets.left, marginRight: insets.right }}>
+    <BlurTargetView ref={blurTarget} style={{ flex: 1, backgroundColor: palette.canvas, marginTop: insets.top + 12, marginLeft: insets.left, marginRight: insets.right }}>
     <KeyboardAvoidingView style={{ flex: 1, paddingTop: 0 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {page === 'tracker' && <TrackerScreen {...flow} onTrackerScroll={onTrackerScroll} homeHeaderHeight={homeHeaderHeight} heroHeight={heroHeight} />}
 
@@ -67,11 +70,12 @@ export default function HomeScreen() {
       headerHidden={navHidden} headerHeight={homeHeaderHeight} onExpandedHeight={setHeroHeight} onReport={startComplaint} />}
     {page === 'tracker' && <ScrollHeader hidden={navHidden} height={homeHeaderHeight} onHeight={setHomeHeaderHeight}>
       {page === 'tracker' && <View style={styles.homeHeader}>
-        <View style={styles.brandMark}><Text style={{ fontSize: 22 }}>🌳</Text></View>
-        <View style={{ flex: 1 }}><Text style={styles.brand}>Pune Fast Complaint</Text><Text style={styles.subtle}>{tabs.find(tab => tab.key === domain)?.caption}</Text></View>
-        <Pressable onPress={() => { setPendingProfileStart(false); setProfileDraft(profile); setProfileOpen(true); }} style={styles.avatar}><Text style={styles.avatarText}>{profile.name ? profile.name[0].toUpperCase() : '👤'}</Text></Pressable>
-        <Pressable onPress={() => void refresh()} style={styles.refresh}><Text style={{ color: green, fontSize: 22 }}>⟳</Text></Pressable>
+        <View style={[styles.brandMark, { backgroundColor: palette.primaryContainer }]}><Text style={{ fontSize: 22 }}>{tabs.find(tab => tab.key === domain)?.emoji}</Text></View>
+        <View style={{ flex: 1 }}><Text style={[styles.brand, { color: palette.text }]}>Pune Fast Complaint</Text><Text style={styles.subtle}>Super Fast and Easy complaint filing</Text></View>
+        <Pressable onPress={() => { setPendingProfileStart(false); setProfileDraft(profile); setProfileOpen(true); }} style={[styles.avatar, { backgroundColor: palette.primaryContainer }]}><Text style={[styles.avatarText, { color: palette.primary }]}>{profile.name ? profile.name[0].toUpperCase() : '👤'}</Text></Pressable>
+        <Pressable onPress={() => void refresh()} style={styles.refresh}><Text style={{ color: palette.primary, fontSize: 22 }}>⟳</Text></Pressable>
       </View>}
+    <View style={{ paddingHorizontal: 20, paddingBottom: 14 }}><Button title="Open public map" onPress={() => setPage('map')} secondary tone="neutral" /></View>
     <CategoryTabs domain={domain} disabled={busy} onSelect={(nextDomain) => {
       setDomain(nextDomain); setPage('tracker'); setDetail(null); setDraft(null); setNoiseEvidence(null);
     }} />
@@ -85,6 +89,6 @@ export default function HomeScreen() {
         <Field label="Email (optional)" value={profileDraft.email} onChangeText={(email) => setProfileDraft((p) => ({ ...p, email }))} placeholder="you@example.com" keyboardType="email-address" />
         <Button title="Save profile" onPress={() => void saveProfile()} /><Button title="Cancel" onPress={closeProfile} secondary />
     </ProfileSheet>
-  </SafeAreaView>;
+  </SafeAreaView></CategoryTheme>;
 }
 

@@ -1,4 +1,4 @@
-import { colors } from '../theme';
+import { categoryPalettes } from '../theme';
 import { BlurView } from 'expo-blur';
 import { useEffect, useState, type RefObject } from 'react';
 import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -17,6 +17,7 @@ export function ReportHero({ domain, scrollY, compact, blurTarget, headerHidden,
   onReport: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const palette = categoryPalettes[domain];
   const headerOffset = useSharedValue(headerHeight + 20);
   const [textHeight, setTextHeight] = useState(180);
   const [width, setWidth] = useState(344);
@@ -57,7 +58,7 @@ export function ReportHero({ domain, scrollY, compact, blurTarget, headerHidden,
     return { left: inset, right: inset, bottom: 23 * (1 - p), height: 50 - 6 * p };
   });
   const labelStyle = useAnimatedStyle(() => ({
-    color: interpolateColor(progress.get(), [0, 1], ['#FFFFFF', colors.primary]),
+    color: interpolateColor(progress.get(), [0, 1], [palette.buttonText, palette.primary]),
     fontSize: 14 - progress.get(),
   }));
 
@@ -66,7 +67,7 @@ export function ReportHero({ domain, scrollY, compact, blurTarget, headerHidden,
     { top: insets.top + 12, left: insets.left + 20, right: insets.right + 20 }, positionStyle,
   ]} pointerEvents="box-none" onLayout={event => setWidth(event.nativeEvent.layout.width)}>
     <Animated.View pointerEvents="box-none" style={[styles.card, cardStyle]}>
-      <Animated.View pointerEvents="none" style={[styles.solidCard, solidStyle]} />
+      <Animated.View pointerEvents="none" style={[styles.solidCard, { backgroundColor: palette.hero }, solidStyle]} />
       <Animated.View pointerEvents="none" accessibilityElementsHidden={compact}
         importantForAccessibility={compact ? 'no-hide-descendants' : 'auto'} style={[styles.copyPosition, copyStyle]}>
         <View style={styles.copy} onLayout={event => {
@@ -74,21 +75,18 @@ export function ReportHero({ domain, scrollY, compact, blurTarget, headerHidden,
           setTextHeight(height);
           onExpandedHeight(height + 12 + 50 + 46);
         }}>
-          <Text style={styles.eyebrow}>PUNE • {domain}</Text>
-          <Text style={styles.title}>{'Capture it.\nMake it count.'}</Text>
-          <Text style={styles.description}>{domain === 'NOISE'
-            ? 'A short audio sample, GPS and a ready-to-send police complaint.'
-            : 'One photo, GPS and a ready-to-send civic notice. No legal writing required.'}</Text>
+          <Text style={[styles.eyebrow, { color: palette.primary }]}>PUNE • {domain}</Text>
+          <Text style={[styles.title, { color: palette.text }]}>{'Report it.\nDrive accountability.'}</Text>
         </View>
       </Animated.View>
       <Animated.View style={[styles.buttonPosition, buttonStyle]}>
         <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, glassStyle]}>
           <View style={styles.glass}>
             <BlurView pointerEvents="none" blurTarget={blurTarget} blurMethod="dimezisBlurView" intensity={70} tint="light" style={StyleSheet.absoluteFill} />
-            <View style={styles.frost} />
+            <View style={[styles.frost, { backgroundColor: palette.frost }]} />
           </View>
         </Animated.View>
-        <Animated.View pointerEvents="none" style={[styles.solidButton, solidStyle]} />
+        <Animated.View pointerEvents="none" style={[styles.solidButton, { backgroundColor: palette.button }, solidStyle]} />
         <Pressable accessibilityRole="button" onPress={onReport}
           style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
           <Animated.Text numberOfLines={1} adjustsFontSizeToFit style={[styles.buttonText, labelStyle]}>＋  Report a concern</Animated.Text>
@@ -101,12 +99,12 @@ export function ReportHero({ domain, scrollY, compact, blurTarget, headerHidden,
 const styles = StyleSheet.create({
   position: { position: 'absolute' },
   card: { borderRadius: 25, overflow: 'hidden' },
-  solidCard: { ...StyleSheet.absoluteFill, backgroundColor: colors.text },
+  solidCard: { ...StyleSheet.absoluteFill },
   copyPosition: { position: 'absolute', left: 23, right: 23, top: 23 },
   buttonPosition: { position: 'absolute', borderRadius: 25, overflow: 'hidden' },
   glass: { ...StyleSheet.absoluteFill, borderRadius: 25, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.75)' },
   frost: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(36,107,69,0.17)' },
-  solidButton: { ...StyleSheet.absoluteFill, backgroundColor: colors.primary, borderRadius: 25 },
+  solidButton: { ...StyleSheet.absoluteFill, borderRadius: 25 },
   copy: { gap: 12 }, eyebrow: { color: '#ACD6B6', fontWeight: '800', letterSpacing: 1.6, fontSize: 10 },
   title: { color: '#FFF', fontSize: 28, fontWeight: '800', lineHeight: 33 },
   description: { color: '#CFDED3', lineHeight: 21, fontSize: 14, marginBottom: 4 },

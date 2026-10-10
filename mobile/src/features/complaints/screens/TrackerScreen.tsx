@@ -13,7 +13,6 @@ export function TrackerScreen({ domain, visibleComplaints, trackerError, refresh
   return (<>
         <Reanimated.ScrollView key={domain} onScroll={onTrackerScroll} scrollEventThrottle={16} contentContainerStyle={[styles.scroll, { paddingTop: homeHeaderHeight + 20 }]}>
           <View style={{ height: heroHeight + 24 }} />
-          <Button title="Open public map" onPress={() => setPage('map')} secondary />
           <View style={styles.sectionTitleRow}><Text style={styles.sectionTitle}>Your reports</Text><Text style={styles.count}>{visibleComplaints.length} {visibleComplaints.length === 1 ? 'report' : 'reports'}</Text></View>
           {trackerError && <Card style={styles.warningCard}><Text style={styles.warningTitle}>Reports unavailable</Text><Text style={styles.bodyText}>{trackerError}</Text><Button title="Retry" onPress={() => void refresh()} secondary /></Card>}
           {loading && !visibleComplaints.length ? <ActivityIndicator color={green} style={{ marginTop: 30 }} /> : !visibleComplaints.length && !trackerError ? <Card style={styles.emptyCard}><Text style={styles.emptyIcon}>{tabs.find(tab => tab.key === domain)?.emoji}</Text><Text style={styles.cardTitle}>No reports yet</Text><Text style={styles.subtleCenter}>Reports in this tab will appear here with their status.</Text><Button title="Start your first report" onPress={startComplaint} secondary /></Card> : visibleComplaints.map((item) => <Pressable key={item.id} onPress={() => void openDetail(item.id)}><Card style={styles.reportCard}>
