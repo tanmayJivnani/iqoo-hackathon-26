@@ -415,7 +415,7 @@ export default function HomeScreen() {
       progressViewOffset={insets.top + 12 + homeHeaderHeight + 16} style={{ flex: 1, marginTop: -insets.top, marginLeft: -insets.left, marginRight: -insets.right }}>
     {/* SwipeRefreshLayout requires one stable native content child; prevent RN flattening it. */}
     <View collapsable={false} style={{ flex: 1 }}>
-    <BlurTargetView ref={blurTarget} style={{ flex: 1, marginTop: insets.top + 12, marginLeft: insets.left, marginRight: insets.right }}>
+    <BlurTargetView ref={blurTarget} style={{ flex: 1, backgroundColor: '#F6F8F4', marginTop: insets.top + 12, marginLeft: insets.left, marginRight: insets.right }}>
     <KeyboardAvoidingView style={{ flex: 1, paddingTop: 0 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {page === 'tracker' && <>
         <Reanimated.ScrollView key={domain} onScroll={onTrackerScroll} scrollEventThrottle={16} contentContainerStyle={[styles.scroll, { paddingTop: homeHeaderHeight + 20 }]}>
@@ -592,14 +592,14 @@ export default function HomeScreen() {
     </BlurTargetView>
     {page === 'tracker' && <ReportHero key={domain} domain={domain} scrollY={heroScrollY} compact={heroCompact} blurTarget={blurTarget}
       headerHidden={navHidden} headerHeight={homeHeaderHeight} onExpandedHeight={setHeroHeight} onReport={startComplaint} />}
-    {page === 'tracker' && <ScrollHeader hidden={navHidden} height={homeHeaderHeight} blurTarget={blurTarget} onHeight={setHomeHeaderHeight}>
+    {page === 'tracker' && <ScrollHeader hidden={navHidden} height={homeHeaderHeight} onHeight={setHomeHeaderHeight}>
       {page === 'tracker' && <View style={styles.homeHeader}>
         <View style={styles.brandMark}><Text style={{ fontSize: 22 }}>🌳</Text></View>
         <View style={{ flex: 1 }}><Text style={styles.brand}>Pune Fast Complaint</Text><Text style={styles.subtle}>{tabs.find(tab => tab.key === domain)?.caption}</Text></View>
         <Pressable onPress={() => { setPendingProfileStart(false); setProfileDraft(profile); setProfileOpen(true); }} style={styles.avatar}><Text style={styles.avatarText}>{profile.name ? profile.name[0].toUpperCase() : '👤'}</Text></Pressable>
         <Pressable onPress={() => void refresh()} style={styles.refresh}><Text style={{ color: green, fontSize: 22 }}>⟳</Text></Pressable>
       </View>}
-    <CategoryTabs domain={domain} disabled={busy} blurTarget={blurTarget} onSelect={(nextDomain) => {
+    <CategoryTabs domain={domain} disabled={busy} onSelect={(nextDomain) => {
       setDomain(nextDomain); setPage('tracker'); setDetail(null); setDraft(null); setNoiseEvidence(null);
     }} />
     </ScrollHeader>}
@@ -633,7 +633,7 @@ const styles = StyleSheet.create({
   frameTopRight: { top: 20, right: 20, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 8 },
   frameBottomLeft: { bottom: 20, left: 20, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 8 },
   frameBottomRight: { bottom: 20, right: 20, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 8 },
-  safe: { flex: 1, backgroundColor: '#F6F8F4' }, scroll: { padding: 20, paddingBottom: 40, gap: 13 },
+  safe: { flex: 1, backgroundColor: '#FFFFFF' }, scroll: { padding: 20, paddingBottom: 40, gap: 13 },
   homeHeader: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 18 },
   brandMark: { width: 42, height: 42, borderRadius: 14, backgroundColor: '#E5F1E8', alignItems: 'center', justifyContent: 'center' },
   brand: { fontSize: 17, fontWeight: '800', color: dark }, subtle: { color: '#738078', fontSize: 12, lineHeight: 18 },

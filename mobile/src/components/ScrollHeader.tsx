@@ -1,12 +1,10 @@
-import { BlurView } from 'expo-blur';
-import { useEffect, useState, type ReactNode, type RefObject } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, Animated, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export function ScrollHeader({ hidden, height, blurTarget, onHeight, children }: {
+export function ScrollHeader({ hidden, height, onHeight, children }: {
   hidden: boolean;
   height: number;
-  blurTarget: RefObject<View | null>;
   onHeight: (height: number) => void;
   children: ReactNode;
 }) {
@@ -38,16 +36,12 @@ export function ScrollHeader({ hidden, height, blurTarget, onHeight, children }:
       opacity: visibility,
       transform: [{ translateY: visibility.interpolate({ inputRange: [0, 1], outputRange: [-height, 0] }) }],
     }}>
-    <View style={styles.glass} onLayout={event => onHeight(event.nativeEvent.layout.height)}>
-      <BlurView pointerEvents="none" blurTarget={blurTarget} blurMethod="dimezisBlurView" intensity={70} tint="light"
-        style={StyleSheet.absoluteFill} />
-      <View pointerEvents="none" style={styles.frost} />
+    <View style={styles.surface} onLayout={event => onHeight(event.nativeEvent.layout.height)}>
       {children}
     </View>
   </Animated.View>;
 }
 
 const styles = StyleSheet.create({
-  glass: { overflow: 'hidden', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.75)' },
-  frost: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(255,255,255,0.17)' },
+  surface: { backgroundColor: '#FFFFFF', overflow: 'hidden', borderBottomWidth: 1, borderBottomColor: '#E9EEE9' },
 });
