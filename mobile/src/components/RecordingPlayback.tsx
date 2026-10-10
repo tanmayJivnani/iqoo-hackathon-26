@@ -1,10 +1,10 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useEvent, useEventListener } from 'expo';
-import { getRecordingPermissionsAsync, setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { File } from 'expo-file-system';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Platform, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Pressable, Text, View } from 'react-native';
 import tw, { style as twStyle } from 'twrnc';
 import { wavWaveform, waveformHeights } from '../lib/audio-waveform';
 
@@ -90,7 +90,8 @@ export function RecordingPlayback({ audioUri, videoUri, localAudioUri, localVide
     let cancelled = false;
     const controller = new AbortController();
     if (!audioSource) return;
-    // Decode WAV upfront so the waveform is available before pressing play.
+    // Use one decoded waveform for the recording. Playback changes only its progress color.
+    // Compressed formats keep a neutral baseline when PCM peaks are unavailable.
     void (async () => {
       const bytes = audioSource.startsWith('file:')
         ? await new File(audioSource).bytes()
@@ -104,30 +105,6 @@ export function RecordingPlayback({ audioUri, videoUri, localAudioUri, localVide
     })().catch(() => undefined);
     return () => { cancelled = true; controller.abort(); };
   }, [audioSource]);
-
-  useEffect(() => {
-    let cancelled = false;
-    let subscription: { remove(): void } | undefined;
-    if (!audioSource || !audioStatus.isLoaded) return;
-    // M4A has no PCM header; fill its waveform from actual decoded playback samples.
-    void (async () => {
-      if (Platform.OS === 'android' && !(await getRecordingPermissionsAsync()).granted) return;
-      if (cancelled || !audio.isAudioSamplingSupported) return;
-      audio.setAudioSamplingEnabled(true);
-      subscription = audio.addListener('audioSampleUpdate', sample => {
-        const frames = sample.channels[0]?.frames;
-        if (!frames?.length || audio.duration <= 0) return;
-        const bin = Math.min(BINS - 1, Math.max(0, Math.floor(audio.currentTime / audio.duration * BINS)));
-        let peak = 0;
-        for (const frame of frames) peak = Math.max(peak, Math.abs(frame));
-        setPeaks(previous => {
-          if (previous[bin] >= peak) return previous;
-          const next = [...previous]; next[bin] = peak; return next;
-        });
-      });
-    })().catch(() => undefined);
-    return () => { cancelled = true; subscription?.remove(); };
-  }, [audio, audioSource, audioStatus.isLoaded]);
 
   async function seek(seconds: number, resume = wanted) {
     if (blocked.current || actionInFlight.current || !ready) return;
