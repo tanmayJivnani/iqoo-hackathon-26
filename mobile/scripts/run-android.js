@@ -62,6 +62,13 @@ const java17Home = java17Candidates.find((candidate) => {
     && fs.existsSync(release) && /^JAVA_VERSION="17[."]/m.test(fs.readFileSync(release, 'utf8'));
 });
 if (java17Home) {
+  // Android Studio's daemon JVM criteria take precedence over JAVA_HOME.
+  // Preserve conflicting criteria as a backup so this script can use JDK 17.
+  const daemonCriteria = path.join(__dirname, '..', 'android', 'gradle', 'gradle-daemon-jvm.properties');
+  if (fs.existsSync(daemonCriteria)) {
+    fs.renameSync(daemonCriteria, `${daemonCriteria}.disabled-${Date.now()}`);
+    console.log('Disabled Gradle daemon JVM override; using the selected JDK 17.');
+  }
   env.JAVA_HOME = java17Home;
   env.PATH = `${path.join(java17Home, 'bin')}${path.delimiter}${env.PATH}`;
 }
