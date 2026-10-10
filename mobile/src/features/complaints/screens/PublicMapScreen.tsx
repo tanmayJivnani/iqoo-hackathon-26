@@ -47,7 +47,7 @@ export function PublicMapScreen({ setPage }: Pick<ComplaintFlow, 'setPage'>) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.canvas },
   webview: { flex: 1, backgroundColor: colors.canvas },
-  loading: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.canvas },
+  loading: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.canvas },
   error: { flex: 1, padding: 20, justifyContent: 'center' },
   errorTitle: { color: colors.text, fontSize: 20, fontWeight: '800' },
   errorText: { color: colors.muted, fontSize: 14, lineHeight: 21 },
