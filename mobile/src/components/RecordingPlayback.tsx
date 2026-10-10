@@ -47,7 +47,8 @@ export function RecordingPlayback({ audioUri, videoUri, localAudioUri, localVide
   const duration = audioSource ? audioStatus.duration : video.duration;
   const position = audioSource ? audioStatus.currentTime : videoTime?.currentTime ?? 0;
   const progress = duration > 0 ? Math.min(1, position / duration) : 0;
-  const ready = (!audioSource || audioStatus.isLoaded) && (!videoSource || videoStatus === 'readyToPlay');
+  // Audio is the playback master when present; a slow or unavailable video must not block its controls.
+  const ready = audioSource ? audioStatus.isLoaded : (!videoSource || videoStatus === 'readyToPlay');
   const waiting = !ready || Boolean(audioSource && audioStatus.isBuffering);
   const heights = useMemo(() => waveformHeights(peaks), [peaks]);
 
@@ -79,7 +80,7 @@ export function RecordingPlayback({ audioUri, videoUri, localAudioUri, localVide
 
   useEventListener(video, 'playToEnd', () => { setWanted(false); audio.pause(); });
   useEventListener(video, 'statusChange', ({ status, error: videoError }) => {
-    if (status === 'error' || videoError) setError('Recording could not be played. Reconnect and reload.');
+    if ((status === 'error' || videoError) && !audioSource) setError('Recording could not be played. Reconnect and reload.');
   });
   useEventListener(audio, 'playbackStatusUpdate', status => {
     if (status.didJustFinish) { setWanted(false); video.pause(); }
