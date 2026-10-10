@@ -22,7 +22,7 @@ import { ReportHero } from '../components/ReportHero';
 import { evaluateNoiseActionability, QUIET_RECORDING_MESSAGE, type NoiseEvidence } from '../lib/noise';
 import { API_BASE, api, asDataUri, type Complaint, type ComplaintDetail, type Draft } from '../lib/api';
 
-type Page = 'tracker' | 'category' | 'guidance' | 'review' | 'noise' | 'draft' | 'dispatch' | 'verify';
+type Page = 'tracker' | 'category' | 'guidance' | 'capture' | 'review' | 'noise' | 'draft' | 'dispatch' | 'verify';
 type Profile = { name: string; phone: string; email: string };
 type Photo = { uri: string; base64: string };
 type EvidenceLocation = { latitude: number; longitude: number; address: string; accuracy?: number | null };
@@ -158,8 +158,8 @@ export default function HomeScreen() {
   useEffect(() => {
     if (page === 'tracker') return;
     const backTargets: Record<Page, Page> = {
-      tracker: 'tracker', category: 'tracker', guidance: 'category', noise: 'category',
-      review: 'guidance', draft: detail ? 'tracker' : domain === 'NOISE' ? 'noise' : 'review', dispatch: 'draft', verify: detail ? 'draft' : 'tracker',
+      tracker: 'tracker', category: 'tracker', guidance: 'category', capture: 'guidance', noise: 'category',
+      review: 'capture', draft: detail ? 'tracker' : domain === 'NOISE' ? 'noise' : 'review', dispatch: 'draft', verify: detail ? 'draft' : 'tracker',
     };
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (page === 'draft' && detail) setDetail(null);
@@ -241,13 +241,13 @@ export default function HomeScreen() {
     setCapturedAt(new Date().toISOString());
     setPhotos(current => replaceIndex === null ? [...current, photo].slice(0, maxEvidencePhotos)
       : current.map((existing, index) => index === replaceIndex ? photo : existing));
-    setPage(domain === 'TREES' && replaceIndex === null && photos.length === 0 ? 'guidance' : 'review');
+    setPage(domain === 'TREES' && replaceIndex === null && photos.length === 0 ? 'capture' : 'review');
     if (!location) void getLocation();
   };
 
-  const choosePhotos = async () => {
+  const choosePhotos = async (replaceIndex: number | null = null) => {
     if (captureRef.current) return;
-    const remaining = maxEvidencePhotos - photos.length;
+    const remaining = replaceIndex === null ? maxEvidencePhotos - photos.length : 1;
     if (remaining <= 0) { setPage('review'); return; }
     captureRef.current = true;
     try {
@@ -259,9 +259,10 @@ export default function HomeScreen() {
       const chosen = result.assets.slice(0, domain === 'TREES' ? 1 : remaining)
         .filter(asset => asset.base64).map(asset => ({ uri: asset.uri, base64: asset.base64! }));
       if (!chosen.length) { Alert.alert('Photo required', 'Please select a readable photo.'); return; }
-      const nextPhotos = [...photos, ...chosen].slice(0, maxEvidencePhotos);
+      const nextPhotos = replaceIndex === null ? [...photos, ...chosen].slice(0, maxEvidencePhotos)
+        : photos.map((photo, index) => index === replaceIndex ? chosen[0] : photo);
       setCapturedAt(new Date().toISOString()); setPhotos(nextPhotos);
-      setPage(domain === 'TREES' && nextPhotos.length < 2 ? 'guidance' : 'review');
+      setPage(domain === 'TREES' && nextPhotos.length < 2 ? 'capture' : 'review');
       if (!location) void getLocation();
     } catch (error) {
       Alert.alert('Could not select photo', error instanceof Error ? error.message : 'Please try again.');
@@ -443,16 +444,43 @@ export default function HomeScreen() {
       </>}
 
       {page === 'guidance' && <>
-        <PageHeader title={currentPhotoGuide.title} subtitle={domain === 'TREES' ? `Photo ${currentPhotoIndex + 1}` : 'Capture evidence'} onBack={() => setPage('category')} />
-        <ScrollView key={`${domain}-${currentPhotoIndex}`} onScroll={onContentScroll} scrollEventThrottle={16} contentContainerStyle={styles.scroll}>
-          <Card style={styles.guideCard}><Text style={styles.categoryDesc}>{currentPhotoGuide.instruction}</Text></Card>
-          <Button title="Take photo" onPress={() => void openCamera()} />
-          <Button title={domain === 'TREES' ? 'Choose existing photo' : 'Choose existing photos'} onPress={() => void choosePhotos()} secondary />
+        <PageHeader title="Pune Fast Complaint" subtitle={categoryLabel(category)} onBack={() => setPage('category')} />
+        <ScrollView contentContainerStyle={styles.captureScroll}>
+          <View style={styles.captureIntro}>
+            <Text style={styles.captureEyebrow}>PHOTO EVIDENCE</Text>
+            <Text style={styles.captureTitle}>{domain === 'TREES' ? 'Two photos.\nA clearer picture.' : 'Show the concern.'}</Text>
+            <Text style={styles.captureDescription}>{domain === 'TREES' ? 'Capture the whole tree and its surroundings, then the issue up close.' : 'Take a clear photo from a safe place.'}</Text>
+          </View>
+          {(domain === 'TREES' ? photoGuides : photoGuides.slice(0, 1)).map((guide, index) => <Card key={guide.badge} style={styles.captureGuideRow}>
+            <View style={styles.captureStepNumber}><Text style={styles.captureStepText}>{index + 1}</Text></View>
+            <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{guide.title}</Text><Text style={styles.subtle}>{index === 0 ? 'Include the surroundings and a nearby landmark.' : 'Make the damage or concern easy to see.'}</Text></View>
+          </Card>)}
         </ScrollView>
+        <View style={[styles.captureActions, { paddingBottom: insets.bottom + 20 }]}><Button title="Begin capture" onPress={() => setPage('capture')} /></View>
+      </>}
+
+      {page === 'capture' && <>
+        <PageHeader title="Pune Fast Complaint" subtitle={categoryLabel(category)} onBack={() => setPage('guidance')} />
+        <ScrollView key={`${domain}-${currentPhotoIndex}`} contentContainerStyle={styles.captureScroll}>
+          <View style={styles.captureIntro}>
+            <Text style={styles.captureEyebrow}>{domain === 'TREES' ? `PHOTO ${currentPhotoIndex + 1} OF 2` : 'PHOTO EVIDENCE'}</Text>
+            <Text style={styles.captureTitle}>{currentPhotoGuide.title}</Text>
+            <Text style={styles.captureDescription}>{currentPhotoGuide.instruction}</Text>
+          </View>
+          <View style={styles.captureIllustration} accessibilityElementsHidden>
+            <View style={[styles.frameCorner, styles.frameTopLeft]} /><View style={[styles.frameCorner, styles.frameTopRight]} />
+            <Text style={styles.captureIllustrationIcon}>{currentPhotoIndex === 0 ? (domain === 'TREES' ? '🌳' : '📷') : '🔍'}</Text>
+            <View style={[styles.frameCorner, styles.frameBottomLeft]} /><View style={[styles.frameCorner, styles.frameBottomRight]} />
+          </View>
+        </ScrollView>
+        <View style={[styles.captureActions, { paddingBottom: insets.bottom + 20 }]}>
+          <Button title="Take photo" onPress={() => void openCamera(photos.length >= maxEvidencePhotos ? currentPhotoIndex : null)} />
+          <Button title={domain === 'TREES' ? 'Upload photo' : 'Choose existing photos'} onPress={() => void choosePhotos(photos.length >= maxEvidencePhotos ? currentPhotoIndex : null)} secondary />
+        </View>
       </>}
 
       {page === 'review' && <>
-        <PageHeader title="Review evidence" subtitle="Step 3 of 5 · Check your photos and add context" onBack={() => setPage('guidance')} />
+        <PageHeader title="Review evidence" subtitle="Step 3 of 5 · Check your photos and add context" onBack={() => setPage('capture')} />
         <ScrollView onScroll={onContentScroll} scrollEventThrottle={16} contentContainerStyle={styles.scroll}>
           <Card style={styles.locationCard}><Text style={styles.locationLabel}>📍 GPS LOCATION</Text><Text style={styles.locationTitle}>{location?.address ?? 'GPS position required'}</Text><Text style={styles.subtle}>{location ? `${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}` : 'Acquire GPS before continuing'}</Text>{!location && <Button title="Retry GPS location" onPress={() => void getLocation()} secondary />}</Card>
           <View style={styles.photoGrid}>{photos.map((photo, index) => <View key={`${photo.uri}-${index}`} style={styles.photoItem}><Image source={{ uri: photo.uri }} style={styles.photoThumb} /><Text style={styles.photoCaption}>{index + 1}. {photoGuides[index]?.badge}</Text><Pressable onPress={() => void openCamera(index)}><Text style={styles.removeText}>Retake</Text></Pressable></View>)}</View>
@@ -571,6 +599,22 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  captureScroll: { padding: 24, gap: 16, flexGrow: 1 },
+  captureIntro: { gap: 12, paddingTop: 16, paddingBottom: 12 },
+  captureEyebrow: { color: green, fontSize: 11, fontWeight: '800', letterSpacing: 1.5 },
+  captureTitle: { color: dark, fontSize: 30, lineHeight: 36, fontWeight: '800' },
+  captureDescription: { color: '#66776C', fontSize: 15, lineHeight: 23 },
+  captureGuideRow: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 20 },
+  captureStepNumber: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#E5F1E8', alignItems: 'center', justifyContent: 'center' },
+  captureStepText: { color: green, fontSize: 16, fontWeight: '800' },
+  captureActions: { paddingHorizontal: 24, paddingTop: 12, gap: 8, backgroundColor: '#F6F8F4' },
+  captureIllustration: { minHeight: 210, flex: 1, maxHeight: 300, marginVertical: 12, marginHorizontal: 16, borderRadius: 24, backgroundColor: '#EAF2E9', alignItems: 'center', justifyContent: 'center' },
+  captureIllustrationIcon: { fontSize: 72 },
+  frameCorner: { position: 'absolute', width: 28, height: 28, borderColor: '#8DBB99' },
+  frameTopLeft: { top: 20, left: 20, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 8 },
+  frameTopRight: { top: 20, right: 20, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 8 },
+  frameBottomLeft: { bottom: 20, left: 20, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 8 },
+  frameBottomRight: { bottom: 20, right: 20, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 8 },
   safe: { flex: 1, backgroundColor: '#F6F8F4' }, scroll: { padding: 20, paddingBottom: 40, gap: 13 },
   homeHeader: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 18 },
   brandMark: { width: 42, height: 42, borderRadius: 14, backgroundColor: '#E5F1E8', alignItems: 'center', justifyContent: 'center' },
