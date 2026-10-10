@@ -7,7 +7,7 @@
       "android"
     ],
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/civic-logo.png",
     "scheme": "punetrees",
     "userInterfaceStyle": "light",
     "ios": {
@@ -16,16 +16,14 @@
     "android": {
       "package": "org.punetrees.app",
       "adaptiveIcon": {
-        "backgroundColor": "#19392A",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#F7F5EE",
+        "foregroundImage": "./assets/images/civic-logo.png"
       },
       "predictiveBackGestureEnabled": true
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/civic-logo.png"
     },
     "plugins": [
       "expo-router",
@@ -53,8 +51,8 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#19392A",
-          "image": "./assets/images/splash-icon.png",
+          "backgroundColor": "#F7F5EE",
+          "image": "./assets/images/civic-logo.png",
           "imageWidth": 76
         }
       ],

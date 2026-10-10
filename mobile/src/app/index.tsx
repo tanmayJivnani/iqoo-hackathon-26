@@ -1,13 +1,12 @@
 import { BlurTargetView } from 'expo-blur';
 import { useRef } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, RefreshControl, Text, View } from 'react-native';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, RefreshControl, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, Field } from '../components/ui';
 import { ProfileSheet } from '../components/ProfileSheet';
 import { CategoryTabs } from '../components/CategoryTabs';
 import { ScrollHeader } from '../components/ScrollHeader';
 import { ReportHero } from '../components/ReportHero';
-import { tabs } from '../data/civic';
 import { useComplaintFlow } from '../hooks/useComplaintFlow';
 import { useScrollChrome } from '../hooks/useScrollChrome';
 import { styles } from '../features/complaints/styles';
@@ -70,7 +69,7 @@ export default function HomeScreen() {
       headerHidden={navHidden} headerHeight={homeHeaderHeight} onExpandedHeight={setHeroHeight} onReport={startComplaint} />}
     {page === 'tracker' && <ScrollHeader hidden={navHidden} height={homeHeaderHeight} onHeight={setHomeHeaderHeight}>
       {page === 'tracker' && <View style={styles.homeHeader}>
-        <View style={[styles.brandMark, { backgroundColor: palette.primaryContainer }]}><Text style={{ fontSize: 22 }}>{tabs.find(tab => tab.key === domain)?.emoji}</Text></View>
+        <View style={[styles.brandMark, { backgroundColor: '#F7F5EE' }]}><Image source={require('../../assets/images/civic-logo.png')} accessibilityLabel="Pune Fast Complaint logo" style={{ width: 48, height: 48 }} resizeMode="contain" /></View>
         <View style={{ flex: 1 }}><Text style={[styles.brand, { color: palette.text }]}>Pune Fast Complaint</Text><Text style={styles.subtle}>Super Fast and Easy complaint filing</Text></View>
         <Pressable onPress={() => { setPendingProfileStart(false); setProfileDraft(profile); setProfileOpen(true); }} style={[styles.avatar, { backgroundColor: palette.primaryContainer }]}><Text style={[styles.avatarText, { color: palette.primary }]}>{profile.name ? profile.name[0].toUpperCase() : '👤'}</Text></Pressable>
         <Pressable onPress={() => void refresh()} style={styles.refresh}><Text style={{ color: palette.primary, fontSize: 22 }}>⟳</Text></Pressable>
