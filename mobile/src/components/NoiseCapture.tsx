@@ -331,7 +331,7 @@ export function NoiseCapture({
         </Text>
       )}
 
-      <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: includeVideo }} disabled={busy || isRecordingState} onPress={() => void toggleVideo()}><Text style={styles.text}>{includeVideo ? '☑' : '☐'} Record video alongside audio (optional)</Text></Pressable>
+      <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: includeVideo }} disabled={busy || isRecordingState} onPress={() => void toggleVideo()}><Text style={styles.text}>{includeVideo ? '☑' : '☐'} Record video alongside audio for email (optional)</Text></Pressable>
       {includeVideo && cameraPermission?.granted && <>
         <View style={styles.cameraPreview}><CameraView ref={camera} style={StyleSheet.absoluteFill} facing="back" mode="video" mute videoQuality="480p" videoBitrate={1_500_000} onCameraReady={() => setCameraReady(true)} onMountError={() => { setCameraReady(false); Alert.alert('Camera unavailable', 'Please disable video and record audio only, or retry.'); }} /></View>
         <Text style={styles.text}>{summary?.video_uri ? 'Video and audio captured.' : cameraReady ? 'Video ready. Point the camera toward the noise source.' : 'Starting camera…'} Video and audio are saved as separate attachments.</Text>
@@ -347,7 +347,7 @@ export function NoiseCapture({
       <Text style={styles.text}>To prepare a complaint, the estimated average must exceed {isNight ? NIGHT_ACTIONABLE_DBA : DAYTIME_ACTIONABLE_DBA} dB(A). At or below the limit, record again. This is an approximate app filter.</Text>
       <Text style={styles.text}>{usingNative ? 'Estimated A-weighted level using an assumed microphone offset. This phone is not calibrated; the reading cannot establish a legal threshold breach.' : 'Digital microphone level only. dBFS is not dB(A) and cannot be compared with residential limits.'}</Text>
       <Text style={styles.text}>Point your microphone toward the noise source and keep it uncovered.</Text>
-      {summary?.video_uri && <Text style={styles.text}>Video and audio captured as separate evidence attachments.</Text>}
+      {summary?.video_uri && <Text style={styles.text}>Audio and video will both be attached to your report email.</Text>}
 
       {retryMessage && (
         <View style={styles.alertBox}>

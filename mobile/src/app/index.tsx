@@ -13,6 +13,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Reanimated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { apiDate, isResolved, isTimelocked } from '../lib/complaint-flow';
+import { emailAttachmentPlan, prepareEmailAttachments, type EmailEvidencePayload } from '../lib/email-evidence';
 import { categoriesByDomain, allCategories, tabs, domainFor, categoryLabel, legalGrounding, type CivicDomain } from '../data/civic';
 import { NoiseCapture } from '../components/NoiseCapture';
 import { ProfileSheet } from '../components/ProfileSheet';
@@ -326,42 +327,43 @@ export default function HomeScreen() {
     } finally { operationRef.current = false; setBusy(false); }
   };
 
-  const sendDispatch = async (channel: 'EMAIL' | 'WHATSAPP') => {
-    if (!draft || operationRef.current) return;
+  const sendDispatch = async (channel: 'EMAIL' | 'WHATSAPP', report: Draft | ComplaintDetail | null = draft) => {
+    if (!report || operationRef.current) return;
     operationRef.current = true;
     setBusy(true);
     try {
       if (channel === 'EMAIL' && !(await MailComposer.isAvailableAsync())) {
         throw new Error('Set up an email app on this phone before sharing the report by email.');
       }
-      const complaintId = draft.complaint_id || `loc-${draft.tracking_id}`;
+      const complaintId = report.complaint_id || ('id' in report ? report.id : `loc-${report.tracking_id}`);
+      const isCurrentDraft = report === draft;
       const pdf = await api<{ complaint_id: string; pdf_url: string }>('/api/v1/complaints/render-pdf', {
         method: 'POST', body: JSON.stringify({
-          ...draft, complaint_id: complaintId,
-          photo_base64: photos[0] ? photoBase64(photos[0]) : undefined,
-          photos_base64: photos.map(photoBase64), perpetrator_photos_base64: perpetratorPhotos.map(photoBase64),
+          ...report, complaint_id: complaintId,
+          photo_base64: isCurrentDraft && photos[0] ? photoBase64(photos[0]) : undefined,
+          photos_base64: isCurrentDraft ? photos.map(photoBase64) : undefined, perpetrator_photos_base64: isCurrentDraft ? perpetratorPhotos.map(photoBase64) : undefined,
         }),
       });
       // Keep the registered ID for retrying a failed dispatch without creating another report.
-      setDraft({ ...draft, complaint_id: pdf.complaint_id });
-      const result = await api<{ email?: { ready: boolean; recipient: string; subject: string; body: string; attachment_url: string; audio_attachment_url?: string | null; video_attachment_url?: string | null }; whatsapp?: { deep_link_url: string } }>(
+      setDraft(current => current?.tracking_id === report.tracking_id ? { ...current, complaint_id: pdf.complaint_id } : current);
+      setDetail(current => current?.id === pdf.complaint_id ? { ...current, pdf_path: pdf.pdf_url } : current);
+      const result = await api<{ email?: EmailEvidencePayload; whatsapp?: { deep_link_url: string } }>(
         '/api/v1/complaints/dispatch', { method: 'POST', body: JSON.stringify({
           complaint_id: pdf.complaint_id, confirmed_by_citizen: true, channels: [channel],
         }) },
       );
       if (channel === 'EMAIL') {
         if (!result.email?.ready) throw new Error('The email could not be prepared. Your report is saved; please retry.');
-        const attachment = await File.downloadFileAsync(
-          `${API_BASE}${result.email.attachment_url}`,
-          new File(Paths.cache, `${draft.tracking_id}.pdf`),
+        const plan = emailAttachmentPlan({ ...report, domain: domainFor(report.issue_type) }, result.email);
+        const attachments = await prepareEmailAttachments(plan, attachment => File.downloadFileAsync(
+          `${API_BASE}${attachment.url}`,
+          new File(Paths.cache, attachment.filename),
           { idempotent: true, signal: AbortSignal.timeout(60_000) },
-        );
-        const audioExtension = result.email.audio_attachment_url?.endsWith('.wav') ? 'wav' : 'm4a';
-        const audioAttachment = result.email.audio_attachment_url ? await File.downloadFileAsync(`${API_BASE}${result.email.audio_attachment_url}`, new File(Paths.cache, `${draft.tracking_id}.${audioExtension}`), { idempotent: true, signal: AbortSignal.timeout(30_000) }) : null;
-        const videoAttachment = result.email.video_attachment_url ? await File.downloadFileAsync(`${API_BASE}${result.email.video_attachment_url}`, new File(Paths.cache, `${draft.tracking_id}.mp4`), { idempotent: true, signal: AbortSignal.timeout(60_000) }) : null;
+        ));
         await MailComposer.composeAsync({
           recipients: [result.email.recipient], subject: result.email.subject,
-          body: result.email.body, attachments: [attachment.uri, ...(audioAttachment ? [audioAttachment.uri] : []), ...(videoAttachment ? [videoAttachment.uri] : [])],
+          body: `${result.email.body}\n\nAttached evidence:\n${plan.map(attachment => attachment.filename).join('\n')}`,
+          attachments,
         });
       } else {
         if (!result.whatsapp?.deep_link_url) throw new Error('The WhatsApp summary could not be prepared.');
@@ -511,6 +513,7 @@ export default function HomeScreen() {
           {detail.reverification_required !== false && <Button disabled={isTimelocked(detail.verification_status, detail.reverification_due_at)} title={isTimelocked(detail.verification_status, detail.reverification_due_at) ? "Photo check available after the reminder" : "📸  Submit ground re-audit"} onPress={() => { setVerificationPhoto(null); setVerificationResult(null); setVerificationNote(''); setPage('verify'); }} />}
           {detail.audio_url && <Button title="Open audio evidence" onPress={() => void Linking.openURL(`${API_BASE}${detail.audio_url}`)} secondary />}
           {detail.video_url && <Button title="Open video evidence" onPress={() => void Linking.openURL(`${API_BASE}${detail.video_url}`)} secondary />}
+          {domainFor(detail.issue_type) === 'NOISE' && <Button title={busy ? 'Preparing email…' : detail.video_url ? 'Email PDF, audio and video' : 'Email PDF and audio recording'} onPress={() => void sendDispatch('EMAIL', detail)} disabled={busy} />}
           <Button title="Back to tracker" onPress={() => { setDetail(null); setPage('tracker'); }} secondary />
         </ScrollView>
       </> : draft ? <>
@@ -540,7 +543,14 @@ export default function HomeScreen() {
           <Card><Text style={styles.legalTitle}>EMAIL RECIPIENT</Text><Text style={styles.cardTitle}>{draft.routed_authority?.name ?? 'PMC Tree Authority'}</Text><Text style={styles.subtle}>{draft.routed_authority?.email}</Text></Card>
           {draft.routed_authority?.whatsapp && <Card><Text style={styles.legalTitle}>WHATSAPP SUMMARY</Text><Text style={styles.bodyText}>{draft.draft_summary_mr}</Text><Text style={styles.subtle}>Tracking: {draft.tracking_id}</Text></Card>}
           <Card style={styles.infoCard}><Text style={styles.infoTitle}>🔒  Review before sharing</Text><Text style={styles.subtle}>Your report includes GPS coordinates, your evidence, complaint text and any contact details you provided.</Text></Card>
-          <Button title={busy ? 'Preparing…' : 'Open email with evidence'} onPress={() => void sendDispatch('EMAIL')} disabled={busy} />
+          {(draft.audio_url || draft.video_url) && <Card>
+            <Text style={styles.legalTitle}>Email attachments</Text>
+            <Text style={styles.subtle}>Report PDF</Text>
+            {draft.audio_url && <Text style={styles.subtle}>Audio recording ({draft.audio_url.endsWith('.wav') ? 'WAV' : 'M4A'})</Text>}
+            {draft.video_url && <Text style={styles.subtle}>Video recording (MP4)</Text>}
+            <Text style={styles.subtle}>These files are attached together when you open the email.</Text>
+          </Card>}
+          <Button title={busy ? 'Preparing email…' : draft.video_url ? 'Email PDF, audio and video' : draft.audio_url ? 'Email PDF and audio recording' : 'Open email with evidence'} onPress={() => void sendDispatch('EMAIL')} disabled={busy} />
           {draft.routed_authority?.whatsapp && <Button title="Open WhatsApp summary" onPress={() => void sendDispatch('WHATSAPP')} disabled={busy} secondary />}
           {draft.domain === 'NOISE' && <Button title="Open police dialler · 112" onPress={() => void Linking.openURL('tel:112')} secondary />}
           {busy && <ActivityIndicator color={green} />}
