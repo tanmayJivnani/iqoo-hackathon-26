@@ -21,3 +21,23 @@ export function apiDate(value: string): Date {
 export function isTimelocked(status?: string, dueAt?: string | null, now = Date.now()): boolean {
   return status === 'PENDING_TIMELOCK' && !!dueAt && apiDate(dueAt).getTime() > now;
 }
+
+export function verificationLabel(status?: string, dueAt?: string | null): string {
+  if (status === 'PENDING_TIMELOCK') return isTimelocked(status, dueAt) ? 'Reverify later' : 'Ready to reverify';
+  const labels: Record<string, string> = {
+    REPORTED: 'Reported', VERIFIED_RESOLVED: 'Resolved',
+    VERIFIED_UNRESOLVED_ESCALATED: 'Unresolved · Follow-up requested',
+    VERIFIED_INCONCLUSIVE: 'Needs another photo check',
+    AWAITING_CITIZEN_PHOTO: 'Needs another photo check',
+  };
+  return labels[status || ''] || (status ? status.toLowerCase().replaceAll('_', ' ') : 'Reported');
+}
+
+export function reverificationMessage(dueAt?: string | null): string {
+  if (!dueAt) return 'Reverify this concern';
+  const date = apiDate(dueAt);
+  if (!Number.isFinite(date.getTime())) return 'Reverify later';
+  if (date.getTime() <= Date.now()) return 'Ready to reverify';
+  const when = new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' }).format(date);
+  return `Reverify after ${when}`;
+}

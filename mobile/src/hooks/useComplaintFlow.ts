@@ -5,7 +5,7 @@ import * as SecureStore from 'expo-secure-store';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, BackHandler, Keyboard, Linking } from 'react-native';
 import { categoriesByDomain, domainFor, type CivicDomain } from '../data/civic';
-import { isTimelocked } from '../lib/complaint-flow';
+import { isTimelocked, reverificationMessage } from '../lib/complaint-flow';
 import { emailAttachmentPlan, prepareEmailAttachments, type EmailEvidencePayload } from '../lib/email-evidence';
 import type { NoiseEvidence } from '../lib/noise';
 import { API_BASE, api, type Complaint, type ComplaintDetail, type Draft } from '../lib/api';
@@ -179,12 +179,12 @@ export function useComplaintFlow() {
   };
   const submitVerification = async () => {
     if (aiSettings.loading || aiSettings.importing) { Alert.alert('AI settings loading', 'Wait for model settings to finish loading.'); return; }
-    if (isTimelocked(detail?.verification_status, detail?.reverification_due_at)) { Alert.alert('Re-audit locked', 'Please wait until the follow-up deadline shown on the tracker.'); return; }
+    if (isTimelocked(detail?.verification_status, detail?.reverification_due_at)) { Alert.alert('Reverify later', reverificationMessage(detail?.reverification_due_at)); return; }
     if (!detail || !verificationPhoto) { Alert.alert('Photo required', 'Take a new on-site photo before running the check.'); return; }
     setBusy(true);
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
-      if (permission.status !== 'granted') throw new Error('Location access is required for an on-site re-audit.');
+      if (permission.status !== 'granted') throw new Error('Location access is required to reverify the concern on site.');
       const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       const localText = aiSettings.mode === 'LOCAL_QWEN' ? await aiSettings.summarize({ issue: detail.issue_type, address: detail.address_landmark, original_observations: detail.visual_damage_summary, citizen_followup: verificationNote || 'No follow-up observations provided.' }, true) : undefined;
       const result = await api<{ ai_verdict: string; ai_confidence: number; ai_notes_en: string; ai_notes_mr: string; final_status: string; gps_valid: boolean; distance_from_original_m: number; reopen_count: number }>(`/api/v1/complaints/${detail.id}/verify`, { method: 'POST', body: JSON.stringify({

@@ -3,12 +3,12 @@ import { StyleSheet, View, Text, type StyleProp, type ViewStyle, type TextInputP
 import { Button as PaperButton, Card as PaperCard, IconButton, TextInput as PaperInput } from 'react-native-paper';
 import { colors, radii } from '../../theme';
 
-export function Button({ title, onPress, secondary = false, disabled = false }: {
-  title: string; onPress: () => void; secondary?: boolean; disabled?: boolean;
+export function Button({ title, onPress, secondary = false, disabled = false, tone = 'default' }: {
+  title: string; onPress: () => void; secondary?: boolean; disabled?: boolean; tone?: 'default' | 'neutral';
 }) {
   return <PaperButton mode={secondary ? 'contained-tonal' : 'contained'} onPress={onPress}
-    disabled={disabled} buttonColor={secondary ? colors.primaryContainer : colors.primary}
-    textColor={secondary ? colors.primary : '#FFFFFF'} style={styles.button}
+    disabled={disabled} buttonColor={tone === 'neutral' ? colors.neutralContainer : secondary ? colors.primaryContainer : colors.primary}
+    textColor={tone === 'neutral' ? colors.neutralText : secondary ? colors.primary : '#FFFFFF'} style={styles.button}
     contentStyle={styles.buttonContent} labelStyle={styles.buttonLabel}>{title}</PaperButton>;
 }
 

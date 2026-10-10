@@ -6,6 +6,7 @@ export const colors = {
   surface: '#FFFFFF', muted: '#738078', border: '#E9EEE9',
   primaryContainer: '#E8F0EA', input: '#FBFCFA', inputBorder: '#DDE4DD',
   evidenceBackground: '#E5EAE5', evidenceCaption: '#516157', danger: '#B84D40',
+  neutralContainer: '#E8EBEF', neutralText: '#495463',
 };
 export const spacing = { small: 8, medium: 16, large: 24 };
 export const radii = { control: 15, card: 18 };
