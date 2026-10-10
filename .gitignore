@@ -42,5 +42,8 @@ __pycache__/
 *.db
 backend/media/
 media/
+# Include the media API source while keeping uploaded evidence ignored.
+!server/src/app/api/v1/media/
+!server/src/app/api/v1/media/**
 tools/
 
