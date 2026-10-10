@@ -19,7 +19,24 @@ export function getComplaint(id: string) {
   return c;
 }
 export function complaintSummary(c: Complaint) {
-  return { id: c.id, tracking_id: c.tracking_id, domain: c.domain || domainFor(c.issue_type), reverification_required: c.reverification_required ?? requiresReverification(c.issue_type), issue_type: c.issue_type, urgency_level: c.urgency_level, address_landmark: c.address_landmark, verification_status: c.verification_status, reverification_due_at: c.reverification_due_at, created_at: c.created_at };
+  return {
+    id: c.id,
+    tracking_id: c.tracking_id,
+    domain: c.domain || domainFor(c.issue_type),
+    reverification_required: c.reverification_required ?? requiresReverification(c.issue_type),
+    issue_type: c.issue_type,
+    urgency_level: c.urgency_level,
+    address_landmark: c.address_landmark,
+    verification_status: c.verification_status,
+    reverification_due_at: c.reverification_due_at,
+    created_at: c.created_at,
+    latitude: c.latitude,
+    longitude: c.longitude,
+    ward_name: c.ward_name,
+    has_photos: Boolean(c.photo_urls && c.photo_urls.length > 0),
+    has_audio: Boolean(c.audio_url),
+    witness_count: c.witness_count,
+  };
 }
 export function draftResponse(c: Complaint) {
   return { ...c, pdf_path: c.pdf_path ? `/api/v1/complaints/${encodeURIComponent(c.id)}/download-pdf` : null, is_category_mismatch: false, ai_suggested_category: null, mismatch_reason_en: null, mismatch_reason_mr: null, rejection_reason: null, perpetrator_observed: Boolean(c.perpetrator_name || c.perpetrator_phone), reverification_due_date: c.reverification_due_at };
