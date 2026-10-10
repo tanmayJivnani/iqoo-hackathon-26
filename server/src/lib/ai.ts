@@ -35,6 +35,15 @@ export function parseAudit(value: unknown): z.infer<typeof auditSchema> { return
 async function modelJson<T>(prompt: string, images: string[], schema: z.ZodType<T>): Promise<{ result: T; provider: string } | undefined> {
   const uris = await Promise.all(images.map(photoDataUri));
   const providers: { name: string; url: string; headers: Record<string, string>; body: unknown; extract: (data: unknown) => string }[] = [];
+  if (config.openrouterKey) providers.push({
+    name: 'OPENROUTER', url: 'https://openrouter.ai/api/v1/chat/completions',
+    headers: { Authorization: `Bearer ${config.openrouterKey}` },
+    body: { model: config.openrouterModel, messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, ...uris.map(url => ({ type: 'image_url', image_url: { url } }))] }], temperature: 0.1, max_tokens: 4096 },
+    extract: data => {
+      const response = data as { choices?: { message?: { content?: string } }[] };
+      return response.choices?.[0]?.message?.content || '';
+    },
+  });
   if (config.geminiKey) providers.push({
     name: 'GEMINI', url: `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.geminiModel)}:generateContent`,
     headers: { 'x-goog-api-key': config.geminiKey },
@@ -43,15 +52,6 @@ async function modelJson<T>(prompt: string, images: string[], schema: z.ZodType<
     extract: data => {
       const response = data as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
       return response.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
-    },
-  });
-  if (config.openrouterKey) providers.push({
-    name: 'OPENROUTER', url: 'https://openrouter.ai/api/v1/chat/completions',
-    headers: { Authorization: `Bearer ${config.openrouterKey}` },
-    body: { model: config.openrouterModel, messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, ...uris.map(url => ({ type: 'image_url', image_url: { url } }))] }], temperature: 0.1, max_tokens: 4096 },
-    extract: data => {
-      const response = data as { choices?: { message?: { content?: string } }[] };
-      return response.choices?.[0]?.message?.content || '';
     },
   });
   for (const provider of providers) {
