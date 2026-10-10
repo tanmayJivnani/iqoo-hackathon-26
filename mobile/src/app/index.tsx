@@ -1,6 +1,6 @@
 import { BlurTargetView } from 'expo-blur';
 import { useRef } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, RefreshControl, Text, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, RefreshControl, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, Field } from '../components/ui';
 import { ProfileSheet } from '../components/ProfileSheet';
@@ -14,6 +14,7 @@ import { styles } from '../features/complaints/styles';
 import { colors } from '../theme';
 import { TrackerScreen } from '../features/complaints/screens/TrackerScreen';
 import { PublicMapScreen } from '../features/complaints/screens/PublicMapScreen';
+import { PdfScreen } from '../features/complaints/screens/PdfScreen';
 import { CategoryScreen } from '../features/complaints/screens/CategoryScreen';
 import { GuidanceScreen } from '../features/complaints/screens/GuidanceScreen';
 import { CaptureScreen } from '../features/complaints/screens/CaptureScreen';
@@ -30,6 +31,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { homeHeaderHeight, setHomeHeaderHeight, heroHeight, setHeroHeight, heroScrollY,
     navHidden, heroCompact, refreshAtTop, onContentScroll, onTrackerScroll } = useScrollChrome(page, domain);
+  if (!flow.sessionReady) return <SafeAreaView style={[styles.safe, { alignItems: 'center', justifyContent: 'center' }]}><ActivityIndicator color={green} /></SafeAreaView>;
   return <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
     <RefreshControl refreshing={page === 'tracker' && loading} onRefresh={refresh}
       enabled={page === 'tracker' && (refreshAtTop || loading)} colors={[green]} progressBackgroundColor="#F6FCF8"
@@ -41,6 +43,7 @@ export default function HomeScreen() {
       {page === 'tracker' && <TrackerScreen {...flow} onTrackerScroll={onTrackerScroll} homeHeaderHeight={homeHeaderHeight} heroHeight={heroHeight} />}
 
       {page === 'map' && <PublicMapScreen setPage={setPage} />}
+      {page === 'pdf' && <PdfScreen complaintId={flow.pdfComplaintId} onBack={() => setPage('draft')} />}
 
       {page === 'category' && <CategoryScreen {...flow} onContentScroll={onContentScroll} />}
 

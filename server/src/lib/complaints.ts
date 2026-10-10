@@ -16,7 +16,13 @@ import type { z } from 'zod';
 export function getComplaint(id: string) {
   const c = repository().get(id);
   if (!c) throw new ApiError(404, 'Complaint not found.');
+  cleanNotice(c);
   return c;
+}
+function capitalizeSubject(value: string) { return value.trim().replace(/^([a-z])/, letter => letter.toUpperCase()); }
+function cleanNotice(c: Complaint) {
+  c.draft_subject_en = capitalizeSubject(c.draft_subject_en);
+  c.draft_body_en = c.draft_body_en.replace(/\s*The app['’]s follow[- ]up reminder is not a statutory deadline\./g, '');
 }
 export function complaintSummary(c: Complaint) {
   return {
@@ -39,6 +45,7 @@ export function complaintSummary(c: Complaint) {
   };
 }
 export function draftResponse(c: Complaint) {
+  cleanNotice(c);
   return { ...c, pdf_path: c.pdf_path ? `/api/v1/complaints/${encodeURIComponent(c.id)}/download-pdf` : null, is_category_mismatch: false, ai_suggested_category: null, mismatch_reason_en: null, mismatch_reason_mr: null, rejection_reason: null, perpetrator_observed: Boolean(c.perpetrator_name || c.perpetrator_phone), reverification_due_date: c.reverification_due_at };
 }
 function buildComplaint(input: RenderInput, id: string, trackingId: string): Complaint {
@@ -102,7 +109,7 @@ export async function fastDraft(input: z.infer<typeof fastDraftSchema>) {
   const landmark = input.address_landmark || locate(input.latitude, input.longitude).address_landmark;
   const recording = input.noise_evidence;
   const evidenceText = recording ? `Audio recording: ${recording.duration_ms / 1000} seconds. Uncalibrated microphone readings: average ${recording.average_dbfs.toFixed(1)} dBFS, peak ${recording.peak_dbfs.toFixed(1)} dBFS. These are digital levels, not calibrated dB(A) sound-pressure measurements and do not establish a legal threshold breach.\nDevice-reported capture time: ${input.captured_at}; ${isNightTime(input.captured_at) ? 'within' : 'outside'} the usual 22:00–06:00 IST night period.\n${recording.near_sensitive_site ? `Citizen reports a nearby sensitive site: ${recording.site_label || 'hospital, school or similar site'}. Please verify the location and whether it is a notified silence zone.` : 'Silence-zone status has not been verified.'}` : `${input.photos_base64.length} photograph(s) attached. Evidence intake (device-reported): ${input.captured_at}. GPS is the phone location at intake; original timestamps and locations of imported photos have not been verified. The selected issue and observations are citizen-reported; please verify on site.`;
-  const c = buildComplaint({ ...input, complaint_id: '', draft_subject_en: `${title} — request for action [${tracking}]`, draft_body_en: `To ${route.routed_authority.name},\n\nI report a ${title.toLowerCase()} at ${landmark}.\nGPS: ${input.latitude.toFixed(5)}, ${input.longitude.toFixed(5)}${input.gps_accuracy_m != null ? ` (device-reported accuracy ±${input.gps_accuracy_m.toFixed(0)} m)` : ''}.\n\n${evidenceText}\n${local ? `\n${omni ? 'Observations from supplied photos/audio (subject to authority verification)' : 'Summary of citizen observations and measurements (photos/audio not analyzed)'}:\n${input.local_text!.observations_en}\n` : ''}${analysis ? `\nObservations from the attached photos (subject to authority verification):\n${analysis.result.observations_en}\n` : ''}${input.citizen_notes ? `\nMy observations: ${input.citizen_notes}\n` : ''}\nApplicable references: ${route.legal_citations.join('; ')}.\n${route.prayer_en}\n\nPlease acknowledge receipt, confirm jurisdiction and provide an action-taken response and expected timeline. The app's follow-up reminder is not a statutory deadline.\n\nSincerely,\n${input.citizen_name || 'Concerned Pune Citizen'}${input.citizen_phone ? `\nPhone: ${input.citizen_phone}` : ''}\nReference: ${tracking}`, draft_summary_mr: local ? `${input.local_text!.observations_mr}\n\n${route.prayer_mr}` : analysis ? `${analysis.result.observations_mr}\n\n${route.prayer_mr}` : route.prayer_mr }, randomUUID(), tracking);
+  const c = buildComplaint({ ...input, complaint_id: '', draft_subject_en: `${capitalizeSubject(title)} — request for action [${tracking}]`, draft_body_en: `To ${route.routed_authority.name},\n\nI report a ${title.toLowerCase()} at ${landmark}.\nGPS: ${input.latitude.toFixed(5)}, ${input.longitude.toFixed(5)}${input.gps_accuracy_m != null ? ` (device-reported accuracy ±${input.gps_accuracy_m.toFixed(0)} m)` : ''}.\n\n${evidenceText}\n${local ? `\n${omni ? 'Observations from supplied photos/audio (subject to authority verification)' : 'Summary of citizen observations and measurements (photos/audio not analyzed)'}:\n${input.local_text!.observations_en}\n` : ''}${analysis ? `\nObservations from the attached photos (subject to authority verification):\n${analysis.result.observations_en}\n` : ''}${input.citizen_notes ? `\nMy observations: ${input.citizen_notes}\n` : ''}\nApplicable references: ${route.legal_citations.join('; ')}.\n${route.prayer_en}\n\nPlease acknowledge receipt, confirm jurisdiction and provide an action-taken response and expected timeline.\n\nSincerely,\n${input.citizen_name || 'Concerned Pune Citizen'}${input.citizen_phone ? `\nPhone: ${input.citizen_phone}` : ''}\nReference: ${tracking}`, draft_summary_mr: local ? `${input.local_text!.observations_mr}\n\n${route.prayer_mr}` : analysis ? `${analysis.result.observations_mr}\n\n${route.prayer_mr}` : route.prayer_mr }, randomUUID(), tracking);
   c.tree_detected = domain === 'TREES' && Boolean(analysis); c.is_cognizable_offence = false; c.evidence_classification = analysis || (omni && !isNoise) ? 'AI_ASSISTED_VISUAL' : 'CITIZEN_REPORTED'; c.is_fallback = false; c.ai_provider = local ? omni ? 'LOCAL_QWEN_OMNI' : 'LOCAL_QWEN_TEXT' : analysis?.provider || 'MEASURED_NOISE_TEMPLATE';
   c.visual_damage_summary = local ? `${omni ? "Local Omni evidence observations" : "Citizen-reported; photos not analyzed"}: ${input.local_text!.observations_en}` : analysis?.result.observations_en || null;
   c.additional_issues = (analysis?.result.additional_issues || (omni ? input.local_text?.additional_issues : []) || []).filter((item, index, items) => item.category !== input.issue_type && domainFor(item.category) === domain && items.findIndex(other => other.category === item.category) === index);
@@ -153,6 +160,7 @@ export function updateDraft(input: z.infer<typeof updateDraftSchema>) {
       c.draft_summary_mr += `\n\nमी पुष्टी केलेली अतिरिक्त समस्या:\n${issue.reason_mr}\nकृपया या समस्येचीही प्रत्यक्ष पाहणी करून योग्य कार्यवाही करावी.`;
     }
     c.accepted_additional_categories = accepted;
+    cleanNotice(c);
     c.pdf_path = null;
     c.updated_at = new Date().toISOString();
     repository().save(c);
@@ -178,6 +186,7 @@ export async function renderPdf(input: RenderInput) {
   if (input.estimated_tree_species != null) c.estimated_tree_species = input.estimated_tree_species;
   if (input.visual_damage_summary != null) c.visual_damage_summary = input.visual_damage_summary;
   if (photoInputs.length && (newRecord || !c.photo_urls.length)) c.photo_urls = await Promise.all(photoInputs.map(savePhoto));
+  cleanNotice(c);
   const pdf = await generatePdf(c);
   // Re-read counters after asynchronous PDF work so a concurrent witness/audit isn't overwritten.
   const latest = repository().get(c.id);

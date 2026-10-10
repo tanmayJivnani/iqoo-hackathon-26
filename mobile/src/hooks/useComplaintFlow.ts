@@ -14,9 +14,12 @@ import { useEvidenceLocation } from './useEvidenceLocation';
 import { useEvidenceCapture } from './useEvidenceCapture';
 import { useLocalAI } from './useLocalAI';
 import { useComplaintDraft } from './useComplaintDraft';
+import { useComplaintSession } from './useComplaintSession';
 export function useComplaintFlow() {
   const aiSettings = useLocalAI();
   const [page, setPage] = useState<Page>('tracker');
+  const [pdfComplaintId, setPdfComplaintId] = useState('');
+  const openReportPdf = (id: string) => { setPdfComplaintId(id); setPage('pdf'); };
   const [domain, setDomain] = useState<CivicDomain>('TREES');
   const { location, setLocation, nearbyComplaints, setNearbyComplaints, getLocation } = useEvidenceLocation(domain);
   const { photos, setPhotos, perpetratorPhotos, setPerpetratorPhotos, capturedAt, setCapturedAt,
@@ -55,6 +58,21 @@ export function useComplaintFlow() {
     setNoiseEvidence, photos, perpetratorPhotos, capturedAt, profile, notes, perpetratorName, perpetratorPhone,
     refresh, operationRef, setBusy, setPage, aiSettings });
   const visibleComplaints = complaints.filter(item => (item.domain || domainFor(item.issue_type)) === domain);
+  const sessionReady = useComplaintSession({ page, domain, pdfComplaintId, selectedCategories, notes, perpetratorName, perpetratorPhone,
+    photos, perpetratorPhotos, capturedAt, location, noiseEvidence, draft, detail, verificationPhoto, verificationNote, verificationResult }, async saved => {
+    if (!['tracker', 'map', 'pdf', 'category', 'guidance', 'capture', 'review', 'noise', 'draft', 'dispatch', 'verify'].includes(saved.page) || !['TREES', 'ROADS', 'GARBAGE', 'NOISE'].includes(saved.domain)) return;
+    const readPhoto = async (photo: Photo): Promise<Photo> => ({ uri: photo.uri, base64: await new File(photo.uri).base64() });
+    const restoredPhotos = await Promise.all((saved.photos || []).map(readPhoto));
+    const restoredOffenderPhotos = await Promise.all((saved.perpetratorPhotos || []).map(readPhoto));
+    const restoredVerification = saved.verificationPhoto ? await readPhoto(saved.verificationPhoto) : null;
+    setDomain(saved.domain); setSelectedCategories(saved.selectedCategories || []); setNotes(saved.notes || '');
+    setPerpetratorName(saved.perpetratorName || ''); setPerpetratorPhone(saved.perpetratorPhone || '');
+    setPhotos(restoredPhotos); setPerpetratorPhotos(restoredOffenderPhotos); setCapturedAt(saved.capturedAt || '');
+    setLocation(saved.location); setNoiseEvidence(saved.noiseEvidence); setDraft(saved.draft); setDetail(saved.detail);
+    setVerificationPhoto(restoredVerification); setVerificationNote(saved.verificationNote || ''); setVerificationResult(saved.verificationResult);
+    setPdfComplaintId(saved.pdfComplaintId || '');
+    setPage(saved.page === 'pdf' && !saved.pdfComplaintId ? 'draft' : saved.page);
+  });
 
   async function refresh() {
     setLoading(true);
@@ -117,7 +135,7 @@ export function useComplaintFlow() {
         method: 'POST', body: JSON.stringify({ ...reportFields, complaint_id: complaintId }),
       });
       setDetail(current => current?.id === complaintId ? { ...current, pdf_path: pdf.pdf_url } : current);
-      await Linking.openURL(`${API_BASE}${pdf.pdf_url}`);
+      openReportPdf(complaintId);
     } catch (error) {
       Alert.alert('Could not generate report PDF', error instanceof Error ? error.message : 'Reconnect to the backend and try again.');
     } finally { operationRef.current = false; setBusy(false); }
@@ -208,6 +226,9 @@ export function useComplaintFlow() {
   };
 
   return {
+    sessionReady,
+    pdfComplaintId,
+    openReportPdf,
     aiSettings,
     page,
     domain,

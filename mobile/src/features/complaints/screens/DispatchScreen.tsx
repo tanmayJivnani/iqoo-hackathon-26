@@ -25,8 +25,8 @@ export function DispatchScreen({ draft, noiseEvidence, busy, sendDispatch, setPa
             {draft.video_url && <Text style={styles.subtle}>Video recording (MP4)</Text>}
             <Text style={styles.subtle}>These files are attached together when you open the email.</Text>
           </Card>}
-          <Button title={busy ? 'Preparing email…' : draft.video_url ? 'Email PDF, audio and video' : draft.audio_url ? 'Email PDF and audio recording' : 'Open email with evidence'} onPress={() => void sendDispatch('EMAIL')} disabled={busy} />
-          {draft.routed_authority?.whatsapp && <Button title="Open WhatsApp summary" onPress={() => void sendDispatch('WHATSAPP')} disabled={busy} secondary />}
+          <Button title={busy ? 'Preparing email…' : 'Send email'} onPress={() => void sendDispatch('EMAIL')} disabled={busy} />
+          {draft.routed_authority?.whatsapp && <Button title="Send WhatsApp complaint" onPress={() => void sendDispatch('WHATSAPP')} disabled={busy} secondary />}
           {draft.domain === 'NOISE' && <Button title="Open police dialler · 112" onPress={() => void Linking.openURL('tel:112')} secondary />}
           {busy && <ActivityIndicator color={green} />}
           <Button title="Back to draft" onPress={() => setPage('draft')} />

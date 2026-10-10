@@ -3,6 +3,7 @@ import { analyze, fastDraft, complaintSummary, draftResponse, duplicates, getCom
 import { ApiError, corsHeaders, handle, parseBody } from '../../../../../lib/http';
 import { evidenceDigest, pdfPath } from '../../../../../lib/pdf';
 import { repository } from '../../../../../lib/repository';
+import { pdfViewer, pdfViewerAsset } from '../../../../../lib/pdf-viewer';
 import { analyzeSchema, fastDraftSchema, dispatchSchema, duplicateSchema, renderSchema, verifySchema, witnessSchema, updateDraftSchema } from '../../../../../lib/schemas';
 
 export const runtime = 'nodejs';
@@ -11,6 +12,12 @@ type Context = { params: Promise<{ path?: string[] }> };
 export async function GET(request: Request, context: Context) {
   return handle(request, async () => {
     const segments = (await context.params).path || [];
+    if (segments.length === 2 && segments[0] === 'pdf-assets') return pdfViewerAsset(segments[1]);
+    if (segments.length === 2 && segments[1] === 'view-pdf') {
+      const c = getComplaint(segments[0]);
+      if (!c.pdf_path) throw new ApiError(404, 'PDF not yet generated.');
+      return pdfViewer(c.id);
+    }
     if (!segments.length) return repository().list().map(complaintSummary);
     if (segments.length === 1) return draftResponse(getComplaint(segments[0]));
     if (segments.length === 2 && segments[0] === 'verify') {

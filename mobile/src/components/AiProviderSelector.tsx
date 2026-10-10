@@ -7,8 +7,8 @@ export function AiProviderSelector({ settings, disabled = false }: { settings: L
     <Text style={tw`text-[#246B45] text-sm font-bold mb-2`}>AI model</Text>
     <View style={tw`flex-row`}>
       {([{ mode: 'CLOUD', label: 'Cloud AI' }, { mode: 'LOCAL_QWEN_OMNI', label: 'Local Omni' }] as const).map(option => <Pressable key={option.mode}
-        accessibilityRole="radio" accessibilityState={{ checked: settings.mode === option.mode, disabled: blocked }}
-        disabled={blocked} onPress={() => void settings.select(option.mode)}
+        accessibilityRole="radio" accessibilityState={{ checked: settings.mode === option.mode, disabled: blocked || (option.mode === 'LOCAL_QWEN_OMNI' && !settings.installed) }}
+        disabled={blocked || (option.mode === 'LOCAL_QWEN_OMNI' && !settings.installed)} onPress={() => void settings.select(option.mode)}
         style={[tw`flex-1 rounded-full py-3 px-3 items-center mr-2`, settings.mode === option.mode ? tw`bg-[#246B45]` : tw`bg-[#E8F0EA]`]}>
         <Text style={[tw`text-sm font-bold`, settings.mode === option.mode ? tw`text-white` : tw`text-[#246B45]`]}>{option.label}</Text>
       </Pressable>)}
@@ -16,9 +16,6 @@ export function AiProviderSelector({ settings, disabled = false }: { settings: L
     <Text style={tw`text-xs text-[#738078] mt-2 leading-5`}>{settings.mode === 'LOCAL_QWEN_OMNI'
       ? 'Qwen2.5-Omni analyzes photos and audio on this phone. Keep the app open during analysis; the large model can take several minutes. Video files are attached but not directly analyzed. Your report and attachments are still saved to the backend.'
       : 'Cloud models analyze the evidence photos. Your choice is saved for future reports.'}</Text>
-    <Pressable accessibilityRole="button" disabled={blocked} onPress={() => void settings.importModel()} style={tw`min-h-[44px] justify-center`}>
-      <Text style={tw`text-sm font-bold text-[#246B45]`}>{settings.importing ? 'Importing GGUF model…' : settings.installed ? 'Replace Omni model + mmproj' : 'Import Omni GGUF, then matching mmproj'}</Text>
-    </Pressable>
     {settings.installed && <Text style={tw`text-xs text-[#738078]`}>Qwen2.5-Omni-7B · model + projector installed</Text>}
   </View>;
 }

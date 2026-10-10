@@ -18,7 +18,7 @@ export function useLocalAI() {
       try {
         const saved = await SecureStore.getItemAsync('ai-provider');
         const status = LocalTreeAI.getQwenStatus();
-        if (active) { setInstalled(status.installed); setMode(saved === 'CLOUD' ? 'CLOUD' : saved === 'LOCAL_QWEN' || saved === 'LOCAL_QWEN_OMNI' || status.installed ? 'LOCAL_QWEN_OMNI' : 'CLOUD'); }
+        if (active) { setInstalled(status.installed); setMode(status.installed && saved !== 'CLOUD' ? 'LOCAL_QWEN_OMNI' : 'CLOUD'); }
       } catch { /* Older native builds remain usable with Cloud until rebuilt. */ }
       finally { if (active) setLoading(false); }
     })();

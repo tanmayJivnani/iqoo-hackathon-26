@@ -2,17 +2,17 @@ import { RecordingPlayback } from "../../../components/RecordingPlayback";
 import { EvidencePhotos } from '../../../components/EvidencePhotos';
 import { useState } from 'react';
 import { NoticeDraft, AdditionalIssues } from '../../../components/NoticeDraft';
-import { Linking, ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { Button, Card, PageHeader } from '../../../components/ui';
 import { isTimelocked, verificationLabel, reverificationMessage } from '../../../lib/complaint-flow';
 import { API_BASE } from '../../../lib/api';
-import { categoryLabel, domainFor } from '../../../data/civic';
+import { categoryLabel } from '../../../data/civic';
 import { photoBase64 } from '../types';
 import { styles } from '../styles';
 import type { ComplaintFlow } from '../../../hooks/useComplaintFlow';
 import type { ScreenChrome } from './types';
-type Props = Pick<ComplaintFlow, 'detail' | 'setDetail' | 'setPage' | 'draft' | 'noiseEvidence' | 'domain' | 'busy' | 'generateReportPdf' | 'sendDispatch' | 'photos' | 'photoGuides' | 'setDraft' | 'perpetratorPhotos' | 'setVerificationPhoto' | 'setVerificationResult' | 'setVerificationNote'> & Pick<ScreenChrome, 'onContentScroll'>;
-export function NoticeScreen({ detail, setDetail, setPage, draft, noiseEvidence, domain, busy, generateReportPdf, sendDispatch, photos, photoGuides, setDraft, perpetratorPhotos, setVerificationPhoto, setVerificationResult, setVerificationNote, onContentScroll }: Props) {
+type Props = Pick<ComplaintFlow, 'detail' | 'setDetail' | 'setPage' | 'draft' | 'noiseEvidence' | 'domain' | 'busy' | 'generateReportPdf' | 'openReportPdf' | 'sendDispatch' | 'photos' | 'photoGuides' | 'setDraft' | 'perpetratorPhotos' | 'setVerificationPhoto' | 'setVerificationResult' | 'setVerificationNote'> & Pick<ScreenChrome, 'onContentScroll'>;
+export function NoticeScreen({ detail, setDetail, setPage, draft, noiseEvidence, domain, busy, generateReportPdf, openReportPdf, sendDispatch, photos, photoGuides, setDraft, perpetratorPhotos, setVerificationPhoto, setVerificationResult, setVerificationNote, onContentScroll }: Props) {
   const [editing, setEditing] = useState(false);
   const [addingIssue, setAddingIssue] = useState(false);
   const blocked = busy || editing || addingIssue;
@@ -23,12 +23,12 @@ export function NoticeScreen({ detail, setDetail, setPage, draft, noiseEvidence,
           <Card><Text style={styles.legalTitle}>Routed authority</Text><Text style={styles.cardTitle}>{typeof detail.routed_authority === 'string' ? detail.routed_authority : detail.routed_authority?.name ?? 'PMC Tree Authority'}</Text><Text style={styles.subtle}>{detail.target_email ?? (typeof detail.routed_authority === 'object' ? detail.routed_authority?.email : '')}</Text></Card>
           <AdditionalIssues key={`issues-${detail.id}`} report={detail} onSaved={saved => setDetail({ ...detail, ...saved })} disabled={busy || editing} onSavingChange={setAddingIssue} />
           <NoticeDraft key={detail.id} report={detail} onSaved={saved => setDetail({ ...detail, ...saved })} disabled={busy || addingIssue} onEditingChange={setEditing} />
-          {detail.pdf_path && <Button title="Open report PDF" onPress={() => void Linking.openURL(`${API_BASE}/api/v1/complaints/${encodeURIComponent(detail.id)}/download-pdf`)} secondary />}
+          {detail.pdf_path && <Button title="Open report PDF" onPress={() => openReportPdf(detail.id)} disabled={blocked} secondary />}
           {detail.reverification_required !== false && <Button disabled={isTimelocked(detail.verification_status, detail.reverification_due_at)} title={isTimelocked(detail.verification_status, detail.reverification_due_at) ? reverificationMessage(detail.reverification_due_at) : "Reverify this concern"} onPress={() => { setVerificationPhoto(null); setVerificationResult(null); setVerificationNote(''); setPage('verify'); }} />}
           {(detail.audio_url || detail.video_url) && <RecordingPlayback key={detail.id}
             audioUri={detail.audio_url ? `${API_BASE}${detail.audio_url}` : undefined}
             videoUri={detail.video_url ? `${API_BASE}${detail.video_url}` : undefined} disabled={busy} />}
-          <Button title={busy ? 'Preparing email…' : domainFor(detail.issue_type) === 'NOISE' ? detail.video_url ? 'Email PDF, audio and video' : 'Email PDF and audio recording' : 'Email complaint with evidence'} onPress={() => void sendDispatch('EMAIL', detail)} disabled={blocked} />
+          <Button title={busy ? 'Preparing email…' : 'Send email'} onPress={() => void sendDispatch('EMAIL', detail)} disabled={blocked} />
           <Button title="Back to home page" onPress={() => { setDetail(null); setPage('tracker'); }} secondary />
         </ScrollView>
       </> : draft ? <>
@@ -50,7 +50,6 @@ export function NoticeScreen({ detail, setDetail, setPage, draft, noiseEvidence,
           <Card style={styles.locationCard}><Text style={styles.locationLabel}>{draft.ai_provider === 'LOCAL_QWEN_OMNI' ? 'LOCAL OMNI · EVIDENCE OBSERVATIONS' : draft.ai_provider === 'LOCAL_QWEN_TEXT' ? 'LOCAL QWEN · CITIZEN OBSERVATIONS' : draft.ai_provider === 'FAST_TEMPLATE' ? 'REPORTED ISSUE' : 'ANALYSIS'}</Text><Text style={styles.cardTitle}>{categoryLabel(draft.issue_type)}</Text><Text style={styles.subtle}>Urgency: {draft.urgency_level.replaceAll('_', ' ')}{draft.estimated_tree_species ? `  ·  ${draft.estimated_tree_species}` : ''}</Text><Text style={styles.bodyText}>{draft.visual_damage_summary}</Text></Card>
           <Card><Text style={styles.legalTitle}>📍  Location and statutory route</Text><Text style={styles.cardTitle}>{draft.address_landmark}</Text><Text style={styles.subtle}>{draft.latitude.toFixed(5)}, {draft.longitude.toFixed(5)} · {draft.ward_name}</Text><View style={styles.divider} /><Text style={styles.cardTitle}>{draft.routed_authority?.name ?? 'PMC Tree Authority'}</Text><Text style={styles.subtle}>{draft.routed_authority?.role}</Text><Text style={styles.reportMeta}>{draft.routed_authority?.email}</Text></Card>
           <NoticeDraft key={draft.tracking_id} report={draft} onSaved={setDraft} disabled={busy || addingIssue} onEditingChange={setEditing} />
-          <Card style={styles.legalCard}><Text style={styles.legalTitle}>⚖️  Legal grounding</Text>{draft.legal_citations.map((citation, index) => <Text key={index} style={styles.subtle}>•  {citation}</Text>)}</Card>
           {draft.complaint_id && <Button title={busy ? 'Generating report PDF…' : 'Generate full report PDF with photos'} onPress={() => void generateReportPdf(draft.complaint_id!, { draft_subject_en: draft.draft_subject_en, draft_body_en: draft.draft_body_en, draft_summary_mr: draft.draft_summary_mr, photos_base64: photos.map(photoBase64), perpetrator_photos_base64: perpetratorPhotos.map(photoBase64) })} disabled={blocked} secondary />}
           <Button title="Continue to dispatch  →" onPress={() => setPage('dispatch')} disabled={blocked} />
         </ScrollView>
