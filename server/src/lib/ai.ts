@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { config } from './config';
 import { ApiError } from './http';
-import { photoDataUri } from './media';
+import { aiPhotoDataUri } from './media';
 import { categories } from './routing';
 import type { AnalyzeInput } from './schemas';
 import type { Audit } from './types';
@@ -33,7 +33,7 @@ export function parseModelJson(text: string): unknown {
 }
 export function parseAudit(value: unknown): z.infer<typeof auditSchema> { return auditSchema.parse(value); }
 async function modelJson<T>(prompt: string, images: string[], schema: z.ZodType<T>, maxOutputTokens = 4096): Promise<{ result: T; provider: string } | undefined> {
-  const uris = await Promise.all(images.map(photoDataUri));
+  const uris = await Promise.all(images.map(aiPhotoDataUri));
   const providers: { name: string; url: string; headers: Record<string, string>; body: unknown; extract: (data: unknown) => string }[] = [];
   if (config.openrouterKey) providers.push({
     name: 'OPENROUTER', url: 'https://openrouter.ai/api/v1/chat/completions',
@@ -58,7 +58,9 @@ async function modelJson<T>(prompt: string, images: string[], schema: z.ZodType<
     const started = Date.now();
     let stage = 'waiting for provider response';
     try {
-      const response = await fetch(provider.url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...provider.headers }, body: JSON.stringify(provider.body), signal: AbortSignal.timeout(index === 0 ? 30_000 : 15_000), cache: 'no-store' });
+      const body = JSON.stringify(provider.body);
+      console.info(`${provider.name} photo analysis starting: ${images.length} photos, ${Math.round(Buffer.byteLength(body) / 1024)} KB request.`);
+      const response = await fetch(provider.url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...provider.headers }, body, signal: AbortSignal.timeout(index === 0 ? 30_000 : 15_000), cache: 'no-store' });
       if (!response.ok) {
         const detail = (await response.text()).replace(/\s+/g, ' ').slice(0, 300);
         console.warn(`${provider.name} returned HTTP ${response.status}: ${detail}`);
@@ -70,7 +72,9 @@ async function modelJson<T>(prompt: string, images: string[], schema: z.ZodType<
       return { result, provider: provider.name };
     } catch (error) {
       const detail = error instanceof Error ? error.message.slice(0, 240) : 'Unknown provider error';
-      console.warn(`${provider.name} photo analysis failed after ${Date.now() - started}ms (${stage}): ${detail}`);
+      const cause = error instanceof Error && error.cause instanceof Error
+        ? `${'code' in error.cause ? String(error.cause.code) : error.cause.name}: ${error.cause.message.slice(0, 240)}` : '';
+      console.warn(`${provider.name} photo analysis failed after ${Date.now() - started}ms (${stage}): ${detail}${cause ? `; ${cause}` : ''}`);
     }
   }
 }

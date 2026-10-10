@@ -55,7 +55,7 @@ export function CategoryTabs({ domain, disabled, blurTarget, onSelect }: {
 
 const styles = StyleSheet.create({
   container: { paddingHorizontal: 20, paddingBottom: 14, gap: 10 },
-  heading: { fontSize: 13, fontWeight: '700', color: '#19392A' },
+  heading: { fontSize: 13, fontWeight: '700', color: '#19392A', textAlign: 'center' },
   shadow: { borderRadius: 38, boxShadow: '0 6px 22px rgba(25, 57, 42, 0.15)' },
   pill: { flexDirection: 'row', padding: 6, borderRadius: 38, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.75)' },
   frost: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(255,255,255,0.17)' },

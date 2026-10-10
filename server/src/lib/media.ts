@@ -1,6 +1,7 @@
 import { randomUUID, createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import sharp from 'sharp';
 import { config } from './config';
 import { ApiError } from './http';
 
@@ -52,6 +53,16 @@ export async function saveAudio(value: string) {
 export async function photoDataUri(value: string) {
   const image = decodePhoto((await photoBytes(value)).toString('base64'));
   return `data:${image.mime};base64,${image.bytes.toString('base64')}`;
+}
+// Only the vision request uses this smaller copy; stored and exported evidence stays original.
+export async function aiPhotoDataUri(value: string) {
+  const bytes = await sharp(await photoBytes(value), { limitInputPixels: 100_000_000 })
+    .rotate()
+    .resize({ width: 1280, height: 1280, fit: 'inside', withoutEnlargement: true })
+    .flatten({ background: '#ffffff' })
+    .jpeg({ quality: 80 })
+    .toBuffer();
+  return `data:image/jpeg;base64,${bytes.toString('base64')}`;
 }
 export function decodeVideo(value: string) {
   const match = /^(?:data:video\/mp4;base64,)?([A-Za-z0-9+/]+={0,2})$/.exec(value);
