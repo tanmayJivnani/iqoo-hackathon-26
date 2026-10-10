@@ -1,3 +1,4 @@
+import { colors } from '../theme';
 import { BlurView } from 'expo-blur';
 import { useEffect, useState, type RefObject } from 'react';
 import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -56,7 +57,7 @@ export function ReportHero({ domain, scrollY, compact, blurTarget, headerHidden,
     return { left: inset, right: inset, bottom: 23 * (1 - p), height: 50 - 6 * p };
   });
   const labelStyle = useAnimatedStyle(() => ({
-    color: interpolateColor(progress.get(), [0, 1], ['#FFFFFF', '#246B45']),
+    color: interpolateColor(progress.get(), [0, 1], ['#FFFFFF', colors.primary]),
     fontSize: 14 - progress.get(),
   }));
 
@@ -100,12 +101,12 @@ export function ReportHero({ domain, scrollY, compact, blurTarget, headerHidden,
 const styles = StyleSheet.create({
   position: { position: 'absolute' },
   card: { borderRadius: 25, overflow: 'hidden' },
-  solidCard: { ...StyleSheet.absoluteFill, backgroundColor: '#19392A' },
+  solidCard: { ...StyleSheet.absoluteFill, backgroundColor: colors.text },
   copyPosition: { position: 'absolute', left: 23, right: 23, top: 23 },
   buttonPosition: { position: 'absolute', borderRadius: 25, overflow: 'hidden' },
   glass: { ...StyleSheet.absoluteFill, borderRadius: 25, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.75)' },
   frost: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(36,107,69,0.17)' },
-  solidButton: { ...StyleSheet.absoluteFill, backgroundColor: '#246B45', borderRadius: 25 },
+  solidButton: { ...StyleSheet.absoluteFill, backgroundColor: colors.primary, borderRadius: 25 },
   copy: { gap: 12 }, eyebrow: { color: '#ACD6B6', fontWeight: '800', letterSpacing: 1.6, fontSize: 10 },
   title: { color: '#FFF', fontSize: 28, fontWeight: '800', lineHeight: 33 },
   description: { color: '#CFDED3', lineHeight: 21, fontSize: 14, marginBottom: 4 },

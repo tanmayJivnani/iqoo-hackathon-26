@@ -1,3 +1,4 @@
+import { colors } from '../theme';
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { tabs, type CivicDomain } from '../data/civic';
@@ -50,11 +51,11 @@ export function CategoryTabs({ domain, disabled, onSelect }: {
 
 const styles = StyleSheet.create({
   container: { paddingHorizontal: 20, paddingBottom: 14, gap: 10 },
-  heading: { fontSize: 13, fontWeight: '700', color: '#19392A', textAlign: 'center' },
+  heading: { fontSize: 13, fontWeight: '700', color: colors.text, textAlign: 'center' },
   shadow: { borderRadius: 38, boxShadow: '0 6px 22px rgba(25, 57, 42, 0.15)' },
   pill: { backgroundColor: '#FFFFFF', flexDirection: 'row', padding: 6, borderRadius: 38, overflow: 'hidden', borderWidth: 1, borderColor: '#E9EEE9' },
   selection: { position: 'absolute', left: 8, top: 6, bottom: 6, borderRadius: 30, backgroundColor: 'rgba(204,231,214,0.60)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.65)' },
   tab: { flex: 1, minHeight: 60, alignItems: 'center', justifyContent: 'center', gap: 3, borderRadius: 30 },
   pressed: { opacity: 0.65 }, icon: { fontSize: 22 },
-  label: { fontSize: 11, fontWeight: '700', color: '#53665B' }, selectedLabel: { color: '#246B45', fontWeight: '800' },
+  label: { fontSize: 11, fontWeight: '700', color: '#53665B' }, selectedLabel: { color: colors.primary, fontWeight: '800' },
 });

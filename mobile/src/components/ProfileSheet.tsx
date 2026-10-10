@@ -1,3 +1,4 @@
+import { colors } from '../theme';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Animated, Dimensions, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, type PanResponderCallbacks } from 'react-native';
 
@@ -77,7 +78,7 @@ const styles = StyleSheet.create({
   body: { flexGrow: 0, flexShrink: 1 },
   fields: { gap: 10 },
   header: { gap: 10 },
-  title: { color: '#19392A', fontSize: 21, fontWeight: '800' },
+  title: { color: colors.text, fontSize: 21, fontWeight: '800' },
   subtitle: { color: '#738078', fontSize: 12, lineHeight: 18 },
   handle: { height: 4, width: 42, backgroundColor: '#D8DFD8', borderRadius: 4, alignSelf: 'center', marginBottom: 4 },
 });
