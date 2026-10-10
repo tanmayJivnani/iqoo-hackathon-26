@@ -3,7 +3,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
-const preferredNdkVersion = '27.1.12297006';
+const preferredNdkVersion = '30.0.16248370';
 const requestedNdkVersion = process.env.ANDROID_NDK_VERSION;
 const directories = (root) => fs.existsSync(root)
   ? fs.readdirSync(root, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => path.join(root, entry.name))

@@ -61,7 +61,16 @@
       "expo-sharing",
       "expo-mail-composer",
       "expo-secure-store",
-      ["expo-audio", { "microphonePermission": "Pune Fast Complaint records short audio samples for noise complaints.", "recordAudioAndroid": true, "enableBackgroundRecording": false, "enableBackgroundPlayback": false }]
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Pune Fast Complaint records short audio samples for noise complaints.",
+          "recordAudioAndroid": true,
+          "enableBackgroundRecording": false,
+          "enableBackgroundPlayback": false
+        }
+      ],
+      "./plugins/with-android-ndk"
     ],
     "experiments": {
       "typedRoutes": true,
