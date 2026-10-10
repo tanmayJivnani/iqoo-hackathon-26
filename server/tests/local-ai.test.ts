@@ -31,8 +31,10 @@ test('local reports save real attachments without any cloud call; local advisory
     const omni = await fastDraft(fastDraftSchema.parse({ ...base, ai_mode: 'LOCAL_QWEN_OMNI', local_text, photos_base64: [photo] }));
     assert.equal(calls, 0); assert.equal(omni.ai_provider, 'LOCAL_QWEN_OMNI');
     assert.equal(omni.evidence_classification, 'AI_ASSISTED_VISUAL');
-    assert.match(omni.draft_body_en, /Omni observations from supplied photos\/audio/);
+    assert.match(omni.draft_body_en, /Observations from supplied photos\/audio/);
     assert.doesNotMatch(omni.draft_body_en, /photos\/audio not analyzed/);
+    assert.doesNotMatch(omni.draft_body_en, /Qwen|Omni|OpenRouter|Gemini|Local AI/i);
+    assert.doesNotMatch(report.draft_body_en, /Qwen|Omni|OpenRouter|Gemini|Local AI/i);
     const stored = repository().get(report.complaint_id)!; stored.reverification_due_at = null; repository().save(stored);
     const result = await verify(report.complaint_id, verifySchema.parse({ complaint_id: report.complaint_id, latitude: 18.52, longitude: 73.85, photo_base64: photo, ai_mode: 'LOCAL_QWEN_OMNI', local_text, citizen_notes: 'resolved' }));
     assert.equal(calls, 0); assert.equal(result.ai_verdict, 'INCONCLUSIVE'); assert.equal(result.ai_confidence, 0);
