@@ -463,9 +463,8 @@ export default function HomeScreen() {
           <Card><Text style={styles.locationLabel}>ISSUE</Text><Text style={styles.cardTitle}>{categoryLabel(detail.issue_type)}</Text><Text style={styles.subtle}>📍 {detail.address_landmark}</Text><Text style={styles.reportMeta}>Status: {(detail.verification_status ?? 'PENDING_TIMELOCK').replaceAll('_', ' ')}</Text></Card>
           <Card><Text style={styles.legalTitle}>Routed authority</Text><Text style={styles.cardTitle}>{typeof detail.routed_authority === 'string' ? detail.routed_authority : detail.routed_authority?.name ?? 'PMC Tree Authority'}</Text><Text style={styles.subtle}>{detail.target_email ?? (typeof detail.routed_authority === 'object' ? detail.routed_authority?.email : '')}</Text></Card>
           <Card><Text style={styles.legalTitle}>Formal grievance</Text><Text style={styles.cardTitle}>{detail.draft_subject_en}</Text><Text style={styles.bodyText}>{detail.draft_body_en}</Text></Card>
-          {detail.pdf_path
-            ? <Button title="Open statutory PDF" onPress={() => void Linking.openURL(`${API_BASE}/api/v1/complaints/${encodeURIComponent(detail.id)}/download-pdf`)} secondary />
-            : <Button title={busy ? 'Generating report PDF…' : 'Generate full report PDF'} onPress={() => void generateReportPdf(detail.id)} disabled={busy} secondary />}
+          {detail.pdf_path && <Button title="Open report PDF" onPress={() => void Linking.openURL(`${API_BASE}/api/v1/complaints/${encodeURIComponent(detail.id)}/download-pdf`)} secondary />}
+          <Button title={busy ? 'Generating report PDF…' : detail.pdf_path ? 'Regenerate report PDF with photos' : 'Generate full report PDF with photos'} onPress={() => void generateReportPdf(detail.id)} disabled={busy} secondary />
           <Card><Text style={styles.legalTitle}>तक्रार गोषवारा</Text><Text style={styles.bodyText}>{detail.draft_summary_mr}</Text></Card>
           {detail.reverification_required !== false && <Button disabled={isTimelocked(detail.verification_status, detail.reverification_due_at)} title={isTimelocked(detail.verification_status, detail.reverification_due_at) ? "Photo check available after the reminder" : "📸  Submit ground re-audit"} onPress={() => { setVerificationPhoto(null); setVerificationResult(null); setVerificationNote(''); setPage('verify'); }} />}
           {detail.audio_url && <Button title="Open audio evidence" onPress={() => void Linking.openURL(`${API_BASE}${detail.audio_url}`)} secondary />}
@@ -487,7 +486,7 @@ export default function HomeScreen() {
           </Card>
           <Card><Text style={styles.legalTitle}>तक्रार गोषवारा (मराठी)</Text><Text style={styles.bodyText}>{draft.draft_summary_mr}</Text></Card>
           <Card style={styles.legalCard}><Text style={styles.legalTitle}>⚖️  Legal grounding</Text>{draft.legal_citations.map((citation, index) => <Text key={index} style={styles.subtle}>•  {citation}</Text>)}</Card>
-          {draft.complaint_id && <Button title={busy ? 'Generating report PDF…' : 'Generate full report PDF'} onPress={() => void generateReportPdf(draft.complaint_id!, { draft_subject_en: draft.draft_subject_en, draft_body_en: draft.draft_body_en, draft_summary_mr: draft.draft_summary_mr })} disabled={busy} secondary />}
+          {draft.complaint_id && <Button title={busy ? 'Generating report PDF…' : 'Generate full report PDF with photos'} onPress={() => void generateReportPdf(draft.complaint_id!, { draft_subject_en: draft.draft_subject_en, draft_body_en: draft.draft_body_en, draft_summary_mr: draft.draft_summary_mr, photos_base64: photos.map(photoBase64), perpetrator_photos_base64: perpetratorPhotos.map(photoBase64) })} disabled={busy} secondary />}
           <Button title="Continue to dispatch  →" onPress={() => setPage('dispatch')} />
         </ScrollView>
       </> : null)}

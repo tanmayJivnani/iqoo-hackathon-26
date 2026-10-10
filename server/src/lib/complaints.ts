@@ -115,7 +115,8 @@ export async function renderPdf(input: RenderInput) {
   let c = repository().get(input.complaint_id);
   if (!c && input.tracking_id) c = repository().get(input.tracking_id);
   const newRecord = !c;
-  const photoInputs = input.photos_base64?.length ? input.photos_base64 : input.photo_base64 ? [input.photo_base64] : [];
+  const reportPhotos = input.photos_base64?.length ? input.photos_base64 : input.photo_base64 ? [input.photo_base64] : [];
+  const photoInputs = [...reportPhotos, ...(input.perpetrator_photos_base64 || [])];
   photoInputs.forEach(decodePhoto);
   if (!c) {
     if (input.issue_type && domainFor(input.issue_type) !== 'TREES') throw new ApiError(422, 'Register civic evidence through fast-draft before rendering its PDF.');

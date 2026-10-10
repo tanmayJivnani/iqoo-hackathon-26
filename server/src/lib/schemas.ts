@@ -29,6 +29,7 @@ export const renderSchema = metadata.extend({
   complaint_id: z.string().min(1).max(120),
   latitude: coordinates.shape.latitude.optional(), longitude: coordinates.shape.longitude.optional(),
   photo_base64: photo.nullish(), photos_base64: photos,
+  perpetrator_photos_base64: z.array(photo).max(3).nullish(),
 });
 export const fastDraftSchema = metadata.extend({
   ...coordinates.shape,

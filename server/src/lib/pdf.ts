@@ -28,6 +28,7 @@ export async function generatePdf(c: Complaint) {
   body(`Citizen complaint | ${c.tracking_id}\nCreated: ${new Date(c.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST`);
   heading('Complaint details');
   body(`Category: ${c.issue_type.replaceAll('_', ' ')}\nUrgency: ${c.urgency_level.replaceAll('_', ' ')}\nLocation: ${c.address_landmark}\nGPS: ${c.latitude.toFixed(5)}, ${c.longitude.toFixed(5)}\nWard (approximate): ${c.ward_name}\nTo: ${c.routed_authority.name}\nEmail: ${c.target_email}`);
+  if (c.photo_urls.length) body(`Photo evidence: ${c.photo_urls.length} photograph(s) included on the following evidence pages.`);
   heading('Subject'); body(c.draft_subject_en);
   heading('Citizen statement'); body(c.draft_body_en);
   if (c.noise_evidence && c.audio_url) {
@@ -47,17 +48,17 @@ export async function generatePdf(c: Complaint) {
   }
   heading('Routing references'); c.legal_citations.forEach(citation => body(citation));
   heading('Marathi summary'); doc.font('Marathi').fontSize(11).fillColor('#202b24').text(c.draft_summary_mr, { lineGap: 4, features: devanagariFeatures });
-  doc.addPage(); heading('Evidence record');
-  body(`Reference: ${c.tracking_id}\nSHA-256 record digest: ${evidenceDigest(c)}\nThis digest identifies the current record; it is not a government-issued signature or certificate.`);
-  const qr = await QRCode.toBuffer(`${config.publicBaseUrl}/api/v1/complaints/verify/${encodeURIComponent(c.tracking_id)}`);
-  const y = doc.y + 12; doc.image(qr, 48, y, { width: 110 }); doc.y = y + 125;
-  body('Scan to retrieve the complaint record. The link works while this backend address is reachable.');
   for (let i = 0; i < c.photo_urls.length; i++) {
     doc.addPage(); heading(`Evidence photo ${i + 1} of ${c.photo_urls.length}`);
     body(`${c.tracking_id} | GPS: ${c.latitude.toFixed(5)}, ${c.longitude.toFixed(5)}`);
     try { doc.image(await photoBytes(c.photo_urls[i]), 48, doc.y + 20, { fit: [499, 580], align: 'center', valign: 'center' }); }
     catch { body('This historical image could not be decoded. Please recapture evidence before sharing.'); }
   }
+  doc.addPage(); heading('Evidence record');
+  body(`Reference: ${c.tracking_id}\nSHA-256 record digest: ${evidenceDigest(c)}\nThis digest identifies the current record; it is not a government-issued signature or certificate.`);
+  const qr = await QRCode.toBuffer(`${config.publicBaseUrl}/api/v1/complaints/verify/${encodeURIComponent(c.tracking_id)}`);
+  const y = doc.y + 12; doc.image(qr, 48, y, { width: 110 }); doc.y = y + 125;
+  body('Scan to retrieve the complaint record. The link works while this backend address is reachable.');
   doc.end();
   const bytes = await complete;
   const destination = pdfPath(c), temporary = `${destination}.${randomUUID()}.tmp`;
