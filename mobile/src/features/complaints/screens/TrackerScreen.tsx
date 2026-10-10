@@ -1,5 +1,4 @@
-import { ActivityIndicator, Alert, Linking, Pressable, Text, View } from 'react-native';
-import { API_BASE } from '../../../lib/api';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import Reanimated from 'react-native-reanimated';
 import { Button, Card } from '../../../components/ui';
 import { apiDate, isResolved, verificationLabel, reverificationMessage } from '../../../lib/complaint-flow';
@@ -9,12 +8,12 @@ import { colors } from '../../../theme';
 import type { ComplaintFlow } from '../../../hooks/useComplaintFlow';
 import type { ScreenChrome } from './types';
 const green = colors.primary;
-type Props = Pick<ComplaintFlow, 'domain' | 'visibleComplaints' | 'trackerError' | 'refresh' | 'loading' | 'startComplaint' | 'openDetail'> & Pick<ScreenChrome, 'onTrackerScroll' | 'homeHeaderHeight' | 'heroHeight'>;
-export function TrackerScreen({ domain, visibleComplaints, trackerError, refresh, loading, startComplaint, openDetail, onTrackerScroll, homeHeaderHeight, heroHeight }: Props) {
+type Props = Pick<ComplaintFlow, 'domain' | 'visibleComplaints' | 'trackerError' | 'refresh' | 'loading' | 'startComplaint' | 'openDetail' | 'setPage'> & Pick<ScreenChrome, 'onTrackerScroll' | 'homeHeaderHeight' | 'heroHeight'>;
+export function TrackerScreen({ domain, visibleComplaints, trackerError, refresh, loading, startComplaint, openDetail, setPage, onTrackerScroll, homeHeaderHeight, heroHeight }: Props) {
   return (<>
         <Reanimated.ScrollView key={domain} onScroll={onTrackerScroll} scrollEventThrottle={16} contentContainerStyle={[styles.scroll, { paddingTop: homeHeaderHeight + 20 }]}>
           <View style={{ height: heroHeight + 24 }} />
-          <Button title="Open public map" onPress={() => void Linking.openURL(`${API_BASE}/`).catch(() => Alert.alert('Map unavailable', 'Could not open the map in your browser.'))} secondary />
+          <Button title="Open public map" onPress={() => setPage('map')} secondary />
           <View style={styles.sectionTitleRow}><Text style={styles.sectionTitle}>Your reports</Text><Text style={styles.count}>{visibleComplaints.length} {visibleComplaints.length === 1 ? 'report' : 'reports'}</Text></View>
           {trackerError && <Card style={styles.warningCard}><Text style={styles.warningTitle}>Reports unavailable</Text><Text style={styles.bodyText}>{trackerError}</Text><Button title="Retry" onPress={() => void refresh()} secondary /></Card>}
           {loading && !visibleComplaints.length ? <ActivityIndicator color={green} style={{ marginTop: 30 }} /> : !visibleComplaints.length && !trackerError ? <Card style={styles.emptyCard}><Text style={styles.emptyIcon}>{tabs.find(tab => tab.key === domain)?.emoji}</Text><Text style={styles.cardTitle}>No reports yet</Text><Text style={styles.subtleCenter}>Reports in this tab will appear here with their status.</Text><Button title="Start your first report" onPress={startComplaint} secondary /></Card> : visibleComplaints.map((item) => <Pressable key={item.id} onPress={() => void openDetail(item.id)}><Card style={styles.reportCard}>

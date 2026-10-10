@@ -14,6 +14,7 @@ import { useScrollChrome } from '../hooks/useScrollChrome';
 import { styles } from '../features/complaints/styles';
 import { colors } from '../theme';
 import { TrackerScreen } from '../features/complaints/screens/TrackerScreen';
+import { PublicMapScreen } from '../features/complaints/screens/PublicMapScreen';
 import { CategoryScreen } from '../features/complaints/screens/CategoryScreen';
 import { GuidanceScreen } from '../features/complaints/screens/GuidanceScreen';
 import { CaptureScreen } from '../features/complaints/screens/CaptureScreen';
@@ -39,6 +40,8 @@ export default function HomeScreen() {
     <BlurTargetView ref={blurTarget} style={{ flex: 1, backgroundColor: colors.canvas, marginTop: insets.top + 12, marginLeft: insets.left, marginRight: insets.right }}>
     <KeyboardAvoidingView style={{ flex: 1, paddingTop: 0 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {page === 'tracker' && <TrackerScreen {...flow} onTrackerScroll={onTrackerScroll} homeHeaderHeight={homeHeaderHeight} heroHeight={heroHeight} />}
+
+      {page === 'map' && <PublicMapScreen setPage={setPage} />}
 
       {page === 'category' && <CategoryScreen {...flow} onContentScroll={onContentScroll} />}
 
