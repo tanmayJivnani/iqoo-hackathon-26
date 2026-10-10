@@ -3,6 +3,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { connectBackend } = require('./connect-backend');
+const { syncAndroidBuildProperties } = require('./android-build-properties');
 
 const preferredNdkVersion = '30.0.16248370';
 const requestedNdkVersion = process.env.ANDROID_NDK_VERSION;
@@ -78,6 +79,7 @@ console.log(`Using Android SDK: ${sdkRoot}`);
 console.log(`Using NDK: ${ndkVersion}`);
 if (env.JAVA_HOME) console.log(`Using Java: ${env.JAVA_HOME}`);
 
+syncAndroidBuildProperties();
 connectBackend({ sdkRoot, env });
 
 const expoCli = path.join(__dirname, '..', 'node_modules', 'expo', 'bin', 'cli');
