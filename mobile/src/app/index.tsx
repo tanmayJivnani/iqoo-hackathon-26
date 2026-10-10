@@ -523,6 +523,13 @@ export default function HomeScreen() {
           {!draft.complaint_id && <Card style={styles.warningCard}><Text style={styles.warningTitle}>⚠️ Local draft</Text><Text style={styles.subtle}>This draft is not yet saved on the server. Connect to the internet before expecting a server tracking record or PDF.</Text></Card>}
           {draft.is_category_mismatch && <Card style={styles.infoCard}><Text style={styles.legalTitle}>AI issue suggestion</Text><Text style={styles.cardTitle}>{categoryLabel(draft.ai_suggested_category ?? undefined)}</Text><Text style={styles.subtle}>{draft.mismatch_reason_en}</Text></Card>}
           {draft.ai_additional_category && <Card style={styles.infoCard}><Text style={styles.legalTitle}>Additional issue noticed</Text><Text style={styles.subtle}>{categoryLabel(draft.ai_additional_category)} · {draft.ai_additional_reason_en}</Text></Card>}
+          {photos.length > 0 && <Card>
+            <Text style={styles.legalTitle}>Evidence photos</Text>
+            <View style={styles.photoGrid}>{photos.map((photo, index) => <View key={`${photo.uri}-${index}`} style={styles.photoItem}>
+              <Image source={{ uri: photo.uri }} style={styles.analysisPhoto} resizeMode="contain" accessibilityLabel={photoGuides[index]?.badge ?? `Evidence photo ${index + 1}`} />
+              <Text style={styles.photoCaption}>{photoGuides[index]?.badge ?? `Photo ${index + 1}`}</Text>
+            </View>)}</View>
+          </Card>}
           <Card style={styles.locationCard}><Text style={styles.locationLabel}>{draft.ai_provider === 'FAST_TEMPLATE' ? 'REPORTED ISSUE' : 'ANALYSIS'}</Text><Text style={styles.cardTitle}>{categoryLabel(draft.issue_type)}</Text><Text style={styles.subtle}>Urgency: {draft.urgency_level.replaceAll('_', ' ')}{draft.estimated_tree_species ? `  ·  ${draft.estimated_tree_species}` : ''}</Text><Text style={styles.bodyText}>{draft.visual_damage_summary}</Text></Card>
           <Card><Text style={styles.legalTitle}>📍  Location and statutory route</Text><Text style={styles.cardTitle}>{draft.address_landmark}</Text><Text style={styles.subtle}>{draft.latitude.toFixed(5)}, {draft.longitude.toFixed(5)} · {draft.ward_name}</Text><View style={styles.divider} /><Text style={styles.cardTitle}>{draft.routed_authority?.name ?? 'PMC Tree Authority'}</Text><Text style={styles.subtle}>{draft.routed_authority?.role}</Text><Text style={styles.reportMeta}>{draft.routed_authority?.email}</Text></Card>
           <Card><Text style={styles.legalTitle}>Formal notice (English)</Text>
@@ -609,6 +616,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  analysisPhoto: { width: '100%', height: 180, borderRadius: 13, backgroundColor: '#E5EAE5' },
   captureScroll: { padding: 24, gap: 16, flexGrow: 1 },
   captureIntro: { gap: 12, paddingTop: 16, paddingBottom: 12 },
   captureEyebrow: { color: green, fontSize: 11, fontWeight: '800', letterSpacing: 1.5 },
