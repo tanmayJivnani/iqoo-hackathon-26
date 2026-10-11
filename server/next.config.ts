@@ -1,12 +1,18 @@
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import type { NextConfig } from 'next';
+
+const require = createRequire(import.meta.url);
+const pdfAssets = ['pdf.mjs', 'pdf.worker.mjs'].map(name =>
+  path.relative(process.cwd(), require.resolve(`pdfjs-dist/legacy/build/${name}`)).split(path.sep).join('/'));
 
 const config: NextConfig = {
   poweredByHeader: false,
   distDir: process.env.NEXT_BUILD_DIR || '.next',
-  serverExternalPackages: ['pdfkit', 'qrcode'],
+  serverExternalPackages: ['pdfkit', 'qrcode', 'pdfjs-dist'],
   outputFileTracingExcludes: { '/*': ['./data/**/*'] },
-  outputFileTracingIncludes: { '/*': ['./node_modules/pdfjs-dist/legacy/build/pdf.mjs', './node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs'] },
+  outputFileTracingRoot: path.resolve(process.cwd(), '..'),
+  outputFileTracingIncludes: { '/*': pdfAssets },
   turbopack: { root: path.resolve(process.cwd(), '..') },
 };
 export default config;

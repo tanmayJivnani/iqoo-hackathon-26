@@ -1,10 +1,12 @@
 import { readFile } from 'node:fs/promises';
-import path from 'node:path';
+import { createRequire } from 'node:module';
 import { ApiError } from './http';
+
+const require = createRequire(import.meta.url);
 
 export async function pdfViewerAsset(name: string) {
   if (!['pdf.mjs', 'pdf.worker.mjs'].includes(name)) throw new ApiError(404, 'PDF asset not found.');
-  const bytes = await readFile(path.join(/* turbopackIgnore: true */ process.cwd(), 'node_modules/pdfjs-dist/legacy/build', name));
+  const bytes = await readFile(require.resolve(/* webpackIgnore: true */ /* turbopackIgnore: true */ `pdfjs-dist/legacy/build/${name}`));
   return new Response(new Uint8Array(bytes), { headers: { 'Content-Type': 'text/javascript; charset=utf-8' } });
 }
 
