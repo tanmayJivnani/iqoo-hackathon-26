@@ -7,10 +7,10 @@ import { API_BASE } from '../../../lib/api';
 import { colors } from '../../../theme';
 import type { ComplaintFlow } from '../../../hooks/useComplaintFlow';
 
-const mapUrl = `${API_BASE}/`;
-const backendOrigin = new URL(mapUrl).origin;
+const backendOrigin = new URL(API_BASE).origin;
 
-export function PublicMapScreen({ setPage }: Pick<ComplaintFlow, 'setPage'>) {
+export function PublicMapScreen({ setPage, complaintId = '' }: Pick<ComplaintFlow, 'setPage'> & { complaintId?: string }) {
+  const mapUrl = `${API_BASE}/${complaintId ? `?complaint=${encodeURIComponent(complaintId)}` : ''}`;
   const insets = useSafeAreaInsets();
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -38,7 +38,7 @@ export function PublicMapScreen({ setPage }: Pick<ComplaintFlow, 'setPage'>) {
       renderLoading={() => <View style={styles.loading}><ActivityIndicator color={colors.primary} size="large" /></View>}
       onError={() => setFailed(true)}
       onHttpError={event => {
-        if (event.nativeEvent.url.replace(/\/$/, '') === API_BASE && event.nativeEvent.statusCode >= 400) setFailed(true);
+        if (event.nativeEvent.statusCode >= 400 && new URL(event.nativeEvent.url).pathname === '/') setFailed(true);
       }}
     />}
   </View>;

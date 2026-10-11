@@ -88,6 +88,7 @@ export async function fastDraft(input: z.infer<typeof fastDraftSchema>) {
   } else {
     if (!input.photos_base64.length) throw new ApiError(422, 'A photo of the concern is required.');
     if (domain === 'TREES' && input.photos_base64.length !== 2) throw new ApiError(422, 'Tree reports require two photos: the whole tree and location, then a close-up of the issue.');
+    if (input.issue_type === 'ROAD_POTHOLE' && input.photos_base64.length !== 2) throw new ApiError(422, 'Pothole reports require two photos: a close-up, then a wider road and location view.');
     if (input.audio_base64 || input.video_base64 || input.noise_evidence) throw new ApiError(422, 'Use a noise category for microphone/video evidence.');
   }
   const allPhotos = [...input.photos_base64, ...input.perpetrator_photos_base64];

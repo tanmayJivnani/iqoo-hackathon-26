@@ -11,7 +11,10 @@ const photoIssue = (key: string, title: string, emoji: string, description: stri
 export const categoriesByDomain: Record<CivicDomain, TreeCategory[]> = {
   TREES: treeCategories,
   ROADS: [
-    photoIssue('ROAD_POTHOLE', 'Pothole', '🕳️', 'Damaged road surface or a dangerous road crater.', 'From a safe place, show the pothole and a nearby landmark. Do not enter traffic.'),
+    { ...photoIssue('ROAD_POTHOLE', 'Pothole', '🕳️', 'Damaged road surface or a dangerous road crater.', ''), guides: [
+      { title: 'Close-up of the pothole', badge: 'Close-up', instruction: 'From a safe place, show the pothole and damaged road surface clearly. Do not enter traffic.' },
+      { title: 'Road and location', badge: 'Location view', instruction: 'Step back safely and show the pothole with the surrounding road, a junction, building or nearby landmark so the location is recognizable.' },
+    ] },
     photoIssue('OPEN_MANHOLE', 'Open manhole / drain', '⚠️', 'An uncovered opening or damaged drain cover.', 'Keep your distance. Show the opening and its position beside the road or footpath.'),
     photoIssue('FOOTPATH_ENCROACHMENT', 'Blocked footpath', '🚶', 'Obstructions or debris preventing safe pedestrian access.', 'Show the blockage and the available pedestrian passage. Do not confront anyone.'),
   ],

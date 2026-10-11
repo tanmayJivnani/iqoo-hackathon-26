@@ -7,8 +7,8 @@ import { colors } from '../../../theme';
 import type { ComplaintFlow } from '../../../hooks/useComplaintFlow';
 import type { ScreenChrome } from './types';
 const green = colors.primary;
-type Props = Pick<ComplaintFlow, 'draft' | 'noiseEvidence' | 'busy' | 'sendDispatch' | 'setPage' | 'setDraft'> & Pick<ScreenChrome, 'onContentScroll'>;
-export function DispatchScreen({ draft, noiseEvidence, busy, sendDispatch, setPage, setDraft, onContentScroll }: Props) {
+type Props = Pick<ComplaintFlow, 'draft' | 'noiseEvidence' | 'busy' | 'sendDispatch' | 'setPage' | 'openPublicMap'> & Pick<ScreenChrome, 'onContentScroll'>;
+export function DispatchScreen({ draft, noiseEvidence, busy, sendDispatch, setPage, openPublicMap, onContentScroll }: Props) {
   return (draft ? (<>
         <PageHeader title="Share your complaint" subtitle="Choose how to share your complaint" onBack={() => setPage('draft')} />
         <ScrollView onScroll={onContentScroll} scrollEventThrottle={16} contentContainerStyle={styles.scroll}>
@@ -30,7 +30,7 @@ export function DispatchScreen({ draft, noiseEvidence, busy, sendDispatch, setPa
           {draft.domain === 'NOISE' && <Button title="Open police dialler · 112" onPress={() => void Linking.openURL('tel:112')} secondary />}
           {busy && <ActivityIndicator color={green} />}
           <Button title="Back to draft" onPress={() => setPage('draft')} />
-          <Button title="Back to home page" onPress={() => { setPage('tracker'); setDraft(null); }} disabled={busy} secondary tone="neutral" />
+          <Button title="View complaint on public map" onPress={() => openPublicMap(draft.complaint_id)} disabled={busy} secondary />
         </ScrollView>
       </>) : null);
 }

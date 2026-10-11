@@ -21,16 +21,19 @@ export function useComplaintFlow() {
   const [pdfComplaintId, setPdfComplaintId] = useState('');
   const openReportPdf = (id: string) => { setPdfComplaintId(id); setPage('pdf'); };
   const [domain, setDomain] = useState<CivicDomain>('ROADS');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const category = selectedCategories[0] ?? categoriesByDomain[domain][0].key;
+  const [mapComplaintId, setMapComplaintId] = useState('');
+  const openPublicMap = (id = '') => { setMapComplaintId(id); setPage('map'); };
   const { location, setLocation, nearbyComplaints, setNearbyComplaints, getLocation } = useEvidenceLocation(domain);
   const { photos, setPhotos, perpetratorPhotos, setPerpetratorPhotos, capturedAt, setCapturedAt,
-    maxEvidencePhotos, captureNativePhoto, openCamera, choosePhotos, attachOffenderPhoto } = useEvidenceCapture({ domain, location, getLocation, setPage });
+    maxEvidencePhotos, captureNativePhoto, openCamera, choosePhotos, attachOffenderPhoto } = useEvidenceCapture({ domain, category, location, getLocation, setPage });
   const [noiseEvidence, setNoiseEvidence] = useState<NoiseEvidence | null>(null);
   const [profile, setProfile] = useState<Profile>(blankProfile);
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileDraft, setProfileDraft] = useState<Profile>(blankProfile);
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
   const [perpetratorName, setPerpetratorName] = useState('');
   const [perpetratorPhone, setPerpetratorPhone] = useState('');
@@ -45,7 +48,6 @@ export function useComplaintFlow() {
   const [verificationPhoto, setVerificationPhoto] = useState<Photo | null>(null);
   const [verificationResult, setVerificationResult] = useState<{ ai_verdict: string; ai_confidence: number; ai_notes_en: string; ai_notes_mr: string; final_status: string; gps_valid: boolean; distance_from_original_m: number; reopen_count: number } | null>(null);
   const [verificationNote, setVerificationNote] = useState('');
-  const category = selectedCategories[0] ?? 'DANGEROUS_LEANING_FALL_RISK';
   const categories = categoriesByDomain[domain];
   const selectedGuides = (categories.find(item => item.key === category) ?? categories[0]).guides;
   const photoGuides = domain === 'TREES' ? [
@@ -58,7 +60,7 @@ export function useComplaintFlow() {
     setNoiseEvidence, photos, perpetratorPhotos, capturedAt, profile, notes, perpetratorName, perpetratorPhone,
     refresh, operationRef, setBusy, setPage, aiSettings });
   const visibleComplaints = complaints.filter(item => (item.domain || domainFor(item.issue_type)) === domain);
-  const sessionReady = useComplaintSession({ page, domain, pdfComplaintId, selectedCategories, notes, perpetratorName, perpetratorPhone,
+  const sessionReady = useComplaintSession({ page, domain, pdfComplaintId, mapComplaintId, selectedCategories, notes, perpetratorName, perpetratorPhone,
     photos, perpetratorPhotos, capturedAt, location, noiseEvidence, draft, detail, verificationPhoto, verificationNote, verificationResult }, async saved => {
     if (!['tracker', 'map', 'pdf', 'category', 'guidance', 'capture', 'review', 'noise', 'draft', 'dispatch', 'verify'].includes(saved.page) || !['TREES', 'ROADS', 'GARBAGE', 'NOISE'].includes(saved.domain)) return;
     const readPhoto = async (photo: Photo): Promise<Photo> => ({ uri: photo.uri, base64: await new File(photo.uri).base64() });
@@ -71,6 +73,7 @@ export function useComplaintFlow() {
     setLocation(saved.location); setNoiseEvidence(saved.noiseEvidence); setDraft(saved.draft); setDetail(saved.detail);
     setVerificationPhoto(restoredVerification); setVerificationNote(saved.verificationNote || ''); setVerificationResult(saved.verificationResult);
     setPdfComplaintId(saved.pdfComplaintId || '');
+    setMapComplaintId(saved.mapComplaintId || '');
     setPage(saved.page === 'pdf' && !saved.pdfComplaintId ? 'draft' : saved.page);
   });
 
@@ -183,9 +186,9 @@ export function useComplaintFlow() {
         if (!result.whatsapp?.deep_link_url) throw new Error('The WhatsApp summary could not be prepared.');
         await Linking.openURL(result.whatsapp.deep_link_url);
       }
-      // Android reports the composer as "sent" even when delivery is unknown.
-      // Keep this screen available to retry or share through the other channel.
+      // The saved report appears on the map; composer return does not confirm delivery.
       await refresh();
+      openPublicMap(pdf.complaint_id);
     } catch (error) {
       Alert.alert('Dispatch incomplete', error instanceof Error ? error.message : 'Your draft is still available. Try again when connected.');
     } finally { operationRef.current = false; setBusy(false); }
@@ -226,6 +229,8 @@ export function useComplaintFlow() {
   };
 
   return {
+    mapComplaintId,
+    openPublicMap,
     sessionReady,
     pdfComplaintId,
     openReportPdf,

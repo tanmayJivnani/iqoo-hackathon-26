@@ -44,7 +44,7 @@ export default function HomeScreen() {
     <KeyboardAvoidingView style={{ flex: 1, paddingTop: 0 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {page === 'tracker' && <TrackerScreen {...flow} onTrackerScroll={onTrackerScroll} homeHeaderHeight={homeHeaderHeight} heroHeight={heroHeight} />}
 
-      {page === 'map' && <PublicMapScreen setPage={setPage} />}
+      {page === 'map' && <PublicMapScreen key={flow.mapComplaintId} setPage={setPage} complaintId={flow.mapComplaintId} />}
       {page === 'pdf' && <PdfScreen complaintId={flow.pdfComplaintId} onBack={() => setPage('draft')} />}
 
       {page === 'category' && <CategoryScreen {...flow} onContentScroll={onContentScroll} />}
@@ -74,7 +74,7 @@ export default function HomeScreen() {
         <Pressable onPress={() => { setPendingProfileStart(false); setProfileDraft(profile); setProfileOpen(true); }} style={[styles.avatar, { backgroundColor: palette.primaryContainer }]}><Text style={[styles.avatarText, { color: palette.primary }]}>{profile.name ? profile.name[0].toUpperCase() : '👤'}</Text></Pressable>
         <Pressable onPress={() => void refresh()} style={styles.refresh}><Text style={{ color: palette.primary, fontSize: 22 }}>⟳</Text></Pressable>
       </View>}
-    <View style={{ paddingHorizontal: 20, paddingBottom: 14 }}><Button title="Open public map" onPress={() => setPage('map')} secondary tone="neutral" /></View>
+    <View style={{ paddingHorizontal: 20, paddingBottom: 14 }}><Button title="Open public map" onPress={() => flow.openPublicMap()} secondary tone="neutral" /></View>
     <CategoryTabs domain={domain} disabled={busy} onSelect={(nextDomain) => {
       setDomain(nextDomain); setPage('tracker'); setDetail(null); setDraft(null); setNoiseEvidence(null);
     }} />

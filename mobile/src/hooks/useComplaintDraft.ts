@@ -22,6 +22,7 @@ export function useComplaintDraft({ domain, category, location, noiseEvidence, s
     if (operationRef.current) return;
     if (!location || (domain === 'NOISE' ? !noiseEvidence : !photos.length)) { Alert.alert('Evidence required', 'Capture evidence and GPS before preparing the notice.'); return; }
     if (domain === 'TREES' && photos.length !== 2) { Alert.alert('Two photos required', 'Take an overall view of the whole tree and location, followed by a close-up of the issue.'); return; }
+    if (category === 'ROAD_POTHOLE' && photos.length !== 2) { Alert.alert('Two photos required', 'Take a close-up of the pothole, then a wider photo showing the surrounding road and a nearby landmark.'); return; }
     if (domain === 'NOISE' && noiseEvidence) {
       const hourStr = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', hourCycle: 'h23' }).format(new Date(noiseEvidence.captured_at));
       const isNight = Number(hourStr) >= 22 || Number(hourStr) < 6;

@@ -36,6 +36,10 @@ export function MapDashboard() {
 
   // Mobile layout view toggle
   const [mobileView, setMobileView] = useState<'map' | 'list'>('map');
+  useEffect(() => {
+    const complaintId = new URLSearchParams(window.location.search).get('complaint');
+    if (complaintId) setSelectedComplaintId(complaintId);
+  }, []);
 
   // Fetch summary complaints on mount
   useEffect(() => {

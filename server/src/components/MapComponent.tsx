@@ -8,6 +8,7 @@ import { formatStatusLabel } from './StatusBadge';
 // Pune City Center coordinates
 const DEFAULT_CENTER: [number, number] = [18.5204, 73.8567];
 const DEFAULT_ZOOM = 12;
+const STREET_ZOOM = 19;
 
 export default function MapComponent({
   complaints,
@@ -23,6 +24,8 @@ export default function MapComponent({
   const mapInstanceRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const markersRef = useRef<{ [id: string]: any }>({});
+  const selectedIdRef = useRef(selectedComplaintId);
+  selectedIdRef.current = selectedComplaintId;
 
   useEffect(() => {
     let isMounted = true;
@@ -120,12 +123,18 @@ export default function MapComponent({
       if (latLngs.length > 0) {
         try {
           const bounds = L.latLngBounds(latLngs);
-          map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+          map.fitBounds(bounds, { padding: [40, 40], maxZoom: STREET_ZOOM });
         } catch {
           map.setView(DEFAULT_CENTER, DEFAULT_ZOOM);
         }
       } else {
         map.setView(DEFAULT_CENTER, DEFAULT_ZOOM);
+      }
+      // Selection may arrive before the asynchronous Leaflet initialization.
+      const focused = validComplaints.find(c => c.id === selectedIdRef.current);
+      if (focused) {
+        map.setView([focused.latitude, focused.longitude], STREET_ZOOM);
+        markersRef.current[focused.id]?.openPopup();
       }
     });
 
@@ -139,8 +148,8 @@ export default function MapComponent({
     if (!selectedComplaintId || !mapInstanceRef.current) return;
     const selected = complaints.find((c) => c.id === selectedComplaintId);
     if (selected && typeof selected.latitude === 'number' && typeof selected.longitude === 'number') {
-      mapInstanceRef.current.flyTo([selected.latitude, selected.longitude], 15, {
-        duration: 1.2,
+      mapInstanceRef.current.flyTo([selected.latitude, selected.longitude], STREET_ZOOM, {
+        duration: 0.7,
       });
       const marker = markersRef.current[selected.id];
       if (marker && !marker.isPopupOpen()) {
@@ -157,7 +166,7 @@ export default function MapComponent({
       );
       if (validComplaints.length > 0) {
         const bounds = L.latLngBounds(validComplaints.map((c) => [c.latitude, c.longitude]));
-        mapInstanceRef.current.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+        mapInstanceRef.current.fitBounds(bounds, { padding: [40, 40], maxZoom: STREET_ZOOM });
       } else {
         mapInstanceRef.current.setView(DEFAULT_CENTER, DEFAULT_ZOOM);
       }

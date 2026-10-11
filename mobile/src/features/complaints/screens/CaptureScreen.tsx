@@ -15,7 +15,7 @@ export function CaptureScreen({ domain, category, currentPhotoIndex, currentPhot
             <EvidencePhotos photos={photos} guides={photoGuides} />
           </View>}
           <View style={styles.captureIntro}>
-            <Text style={styles.captureEyebrow}>{domain === 'TREES' ? `PHOTO ${currentPhotoIndex + 1} OF 2` : `PHOTO ${currentPhotoIndex + 1}`}</Text>
+            <Text style={styles.captureEyebrow}>{maxEvidencePhotos === 2 ? `PHOTO ${currentPhotoIndex + 1} OF 2` : `PHOTO ${currentPhotoIndex + 1}`}</Text>
             <Text style={styles.captureTitle}>{currentPhotoGuide.title}</Text>
             <Text style={styles.captureDescription}>{currentPhotoGuide.instruction}</Text>
           </View>
@@ -27,7 +27,7 @@ export function CaptureScreen({ domain, category, currentPhotoIndex, currentPhot
         </ScrollView>
         <View style={[styles.captureActions, { paddingBottom: insets.bottom + 20 }]}>
           <Button title="Take photo" onPress={() => void openCamera(photos.length >= maxEvidencePhotos ? currentPhotoIndex : null)} />
-          <Button title={domain === 'TREES' ? 'Upload photo' : 'Choose existing photos'} onPress={() => void choosePhotos(photos.length >= maxEvidencePhotos ? currentPhotoIndex : null)} secondary />
+          <Button title={maxEvidencePhotos === 2 ? 'Upload photo' : 'Choose existing photos'} onPress={() => void choosePhotos(photos.length >= maxEvidencePhotos ? currentPhotoIndex : null)} secondary />
         </View>
       </>);
 }
