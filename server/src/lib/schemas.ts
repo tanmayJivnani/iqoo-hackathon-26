@@ -46,7 +46,7 @@ export const localTextSchema = z.object({
   additional_issues: z.array(additionalIssueSchema).max(6).optional(),
 }).strict();
 const localAiFields = {
-  ai_mode: z.enum(['CLOUD', 'LOCAL_QWEN', 'LOCAL_QWEN_OMNI']).default('CLOUD'),
+  ai_mode: z.enum(['CLOUD', 'LOCAL_QWEN', 'LOCAL_QWEN_OMNI', 'LOCAL_QWEN_35']).default('CLOUD'),
   local_text: localTextSchema.optional(),
 };
 export const localAiSelection = z.object(localAiFields).refine(value => value.ai_mode !== 'CLOUD' ? Boolean(value.local_text) : !value.local_text,

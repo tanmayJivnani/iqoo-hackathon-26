@@ -204,7 +204,7 @@ export function useComplaintFlow() {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (permission.status !== 'granted') throw new Error('Location access is required to reverify the concern on site.');
       const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      const localText = aiSettings.mode === 'LOCAL_QWEN_OMNI' ? await aiSettings.summarize({ issue: detail.issue_type, address: detail.address_landmark, original_observations: detail.visual_damage_summary, citizen_followup: verificationNote || 'No follow-up observations provided.' }, true, { imageUris: [detail.photo_urls?.[0] ? `${API_BASE}${detail.photo_urls?.[0]}` : '', verificationPhoto.uri].filter(Boolean) }) : undefined;
+      const localText = aiSettings.mode === 'LOCAL_QWEN_35' ? await aiSettings.summarize({ issue: detail.issue_type, address: detail.address_landmark, original_observations: detail.visual_damage_summary, citizen_followup: verificationNote || 'No follow-up observations provided.' }, true, { imageUris: [detail.photo_urls?.[0] ? `${API_BASE}${detail.photo_urls?.[0]}` : '', verificationPhoto.uri].filter(Boolean) }) : undefined;
       const result = await api<{ ai_verdict: string; ai_confidence: number; ai_notes_en: string; ai_notes_mr: string; final_status: string; gps_valid: boolean; distance_from_original_m: number; reopen_count: number }>(`/api/v1/complaints/${detail.id}/verify`, { method: 'POST', body: JSON.stringify({
         complaint_id: detail.id, photo_base64: photoBase64(verificationPhoto),
         latitude: current.coords.latitude, longitude: current.coords.longitude,

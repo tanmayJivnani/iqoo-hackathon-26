@@ -35,7 +35,7 @@ export function useComplaintDraft({ domain, category, location, noiseEvidence, s
     if (aiSettings.loading || aiSettings.importing) { Alert.alert('AI settings loading', 'Wait for model settings to finish loading.'); return; }
     operationRef.current = true; setBusy(true);
     try {
-      const localText = aiSettings.mode === 'LOCAL_QWEN_OMNI' ? await aiSettings.summarize({
+      const localText = aiSettings.mode === 'LOCAL_QWEN_35' ? await aiSettings.summarize({
         issue: category, address: location.address, citizen_observations: notes || 'No additional observations.',
       }, false, { imageUris: photos.map(photo => photo.uri) }) : undefined;
       const audioBase64 = noiseEvidence ? await new File(noiseEvidence.uri).base64() : undefined;

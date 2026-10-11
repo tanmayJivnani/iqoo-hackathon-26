@@ -65,13 +65,12 @@ npm --prefix mobile test
 ```
 
 
-### Local Qwen2.5-Omni with GenieX (Android)
+### Local Qwen3.5-4B with GenieX (Android)
 
-Select **Local Omni** or **Cloud AI** in Citizen profile, Review evidence, Noise evidence and Ground re-audit. The choice persists across restarts; previous Local Qwen preferences migrate to Omni. Local mode never silently calls cloud AI.
+Select **Local Qwen3.5** or **Cloud AI** in the AI settings. The choice persists across restarts. Local mode never silently calls cloud AI. The backend is still needed for routing, saving reports, PDF creation and dispatch.
 
-- Import **Qwen2.5-Omni-7B-Q4_K_M.gguf**, then its **matching mmproj GGUF** from the same conversion. Both are required. Import copies both into a staging directory and replaces the pair together; cancellation or a failed copy preserves the previous pair. Qwen3 weights cannot be relabelled as Omni.
-- Uses Qualcomm `geniex-android:0.4.0` and llama.cpp/mtmd. The language model uses the Hexagon NPU; the vision/audio projector runs on CPU in this SDK. Android API 27+ and a supported Snapdragon ARM64 phone are required. Rebuild/install after pulling; the native API changed. Keep the app open during inference. A temporary CPU wake lock and screen timeout protection prevent suspension while analysis runs. The F32 projector can take several minutes for media encoding; the token-generation deadline is 15 minutes.
-- Local reports analyze up to three photos and the recorded audio, then prepare English/Marathi observations. Photos are resized to 640 pixels for the local encoder. WAV and AAC/M4A recordings are decoded to mono 16 kHz PCM WAV, up to 30 seconds. The runtime must confirm both image and audio capability before analysis; missing/invalid projectors fail visibly.
-- This Omni GGUF accepts text, images and audio. It does not accept direct video or generate speech. Video stays attached to the report; the separately captured audio is analyzed. Re-audits compare original/follow-up photos but remain advisory (INCONCLUSIVE) and require authority confirmation.
-- Backend saving, tracking, PDFs and email preparation still require the backend. Evidence is uploaded there. Local inference does not make these workflows fully offline.
-- The Q4_K_M model is about 4.7 GB; the downloaded F32 projector is about 5.3 GB. Allow space for both files and an additional pair during replacement. Runtime memory needs are substantial (about 7.4 GB resident memory in the image/audio diagnostic). Imported weights are never committed. Debug-accessible GenieX downloads can be copied into this app's private `files/qwen25-omni/model.gguf` and `mmproj.gguf`; production users use the file picker.
+- Import **Qwen3.5-4B-Q4_0.gguf**, then its **matching mmproj GGUF** from the same conversion using the model import button. Both files are required. Imports replace the pair together and preserve the previous pair if copying fails.
+- Uses Qualcomm `geniex-android:0.4.0` and llama.cpp/mtmd. The language model requests the Hexagon NPU; the vision projector runs on CPU in this SDK. Build a native Android development app after changing the integration.
+- Local analysis accepts up to three photos, resized to 640 pixels. Keep the app open during inference.
+- Qwen3.5 analyzes supplied photos and prepares English/Marathi observations. Thinking is disabled. Audio and video are not supplied to AI; noise notices use device-reported dB measurements, with recordings attached for authority review. Photo re-audits remain advisory (INCONCLUSIVE) and require authority confirmation.
+- The Q4_0 model is about 2.58 GB and the F32 projector about 1.33 GB. Allow storage for both and an additional pair during replacement. Files live in the app's private `files/qwen35-4b/model.gguf` and `mmproj.gguf`; old Omni files are separate. Imported weights are never committed.

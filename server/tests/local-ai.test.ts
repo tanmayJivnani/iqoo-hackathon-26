@@ -13,6 +13,8 @@ test('local mode requires summaries and never accepts them in cloud mode', () =>
   assert.equal(fastDraftSchema.safeParse({ ...base, local_text }).success, false);
   assert.equal(fastDraftSchema.safeParse({ ...base, ai_mode: 'LOCAL_QWEN', local_text }).success, true);
   assert.equal(fastDraftSchema.safeParse({ ...base, ai_mode: 'LOCAL_QWEN_OMNI', local_text }).success, true);
+  assert.equal(fastDraftSchema.safeParse({ ...base, ai_mode: 'LOCAL_QWEN_35', local_text }).success, true);
+  assert.equal(fastDraftSchema.safeParse({ ...base, ai_mode: 'LOCAL_QWEN_35' }).success, false);
   assert.equal(verifySchema.safeParse({ complaint_id: 'one', latitude: 18.52, longitude: 73.85, photo_base64: 'x'.repeat(20), ai_mode: 'LOCAL_QWEN' }).success, false);
 });
 test('local reports save real attachments without any cloud call; local advisory audits cannot close a report', async () => {
@@ -28,16 +30,16 @@ test('local reports save real attachments without any cloud call; local advisory
     assert.equal(calls, 0); assert.equal(report.ai_provider, 'LOCAL_QWEN_TEXT');
     assert.equal(report.evidence_classification, 'CITIZEN_REPORTED'); assert.equal(report.tree_detected, false);
     assert.equal(report.photo_urls.length, 2); assert.match(report.draft_body_en, /photos\/audio not analyzed/);
-    const omni = await fastDraft(fastDraftSchema.parse({ ...base, ai_mode: 'LOCAL_QWEN_OMNI', local_text, photos_base64: [photo] }));
-    assert.equal(calls, 0); assert.equal(omni.ai_provider, 'LOCAL_QWEN_OMNI');
-    assert.equal(omni.evidence_classification, 'AI_ASSISTED_VISUAL');
-    assert.match(omni.draft_body_en, /Observations from supplied photos\/audio/);
-    assert.doesNotMatch(omni.draft_body_en, /photos\/audio not analyzed/);
-    assert.doesNotMatch(omni.draft_body_en, /Qwen|Omni|OpenRouter|Gemini|Local AI/i);
+    const vision = await fastDraft(fastDraftSchema.parse({ ...base, ai_mode: 'LOCAL_QWEN_35', local_text, photos_base64: [photo] }));
+    assert.equal(calls, 0); assert.equal(vision.ai_provider, 'LOCAL_QWEN_35');
+    assert.equal(vision.evidence_classification, 'AI_ASSISTED_VISUAL');
+    assert.match(vision.draft_body_en, /Observations from supplied photos/);
+    assert.doesNotMatch(vision.draft_body_en, /photos\/audio not analyzed/);
+    assert.doesNotMatch(vision.draft_body_en, /Qwen|Omni|OpenRouter|Gemini|Local AI/i);
     assert.doesNotMatch(report.draft_body_en, /Qwen|Omni|OpenRouter|Gemini|Local AI/i);
     const stored = repository().get(report.complaint_id)!; stored.reverification_due_at = null; repository().save(stored);
-    const result = await verify(report.complaint_id, verifySchema.parse({ complaint_id: report.complaint_id, latitude: 18.52, longitude: 73.85, photo_base64: photo, ai_mode: 'LOCAL_QWEN_OMNI', local_text, citizen_notes: 'resolved' }));
+    const result = await verify(report.complaint_id, verifySchema.parse({ complaint_id: report.complaint_id, latitude: 18.52, longitude: 73.85, photo_base64: photo, ai_mode: 'LOCAL_QWEN_35', local_text, citizen_notes: 'resolved' }));
     assert.equal(calls, 0); assert.equal(result.ai_verdict, 'INCONCLUSIVE'); assert.equal(result.ai_confidence, 0);
-    assert.equal(result.final_status, 'AWAITING_CITIZEN_PHOTO'); assert.equal(result.ai_provider, 'LOCAL_QWEN_OMNI');
+    assert.equal(result.final_status, 'AWAITING_CITIZEN_PHOTO'); assert.equal(result.ai_provider, 'LOCAL_QWEN_35');
   } finally { globalThis.fetch = originalFetch; repository().close(); }
 });
