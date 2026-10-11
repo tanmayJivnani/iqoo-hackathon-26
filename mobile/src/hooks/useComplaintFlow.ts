@@ -20,7 +20,7 @@ export function useComplaintFlow() {
   const [page, setPage] = useState<Page>('tracker');
   const [pdfComplaintId, setPdfComplaintId] = useState('');
   const openReportPdf = (id: string) => { setPdfComplaintId(id); setPage('pdf'); };
-  const [domain, setDomain] = useState<CivicDomain>('TREES');
+  const [domain, setDomain] = useState<CivicDomain>('ROADS');
   const { location, setLocation, nearbyComplaints, setNearbyComplaints, getLocation } = useEvidenceLocation(domain);
   const { photos, setPhotos, perpetratorPhotos, setPerpetratorPhotos, capturedAt, setCapturedAt,
     maxEvidencePhotos, captureNativePhoto, openCamera, choosePhotos, attachOffenderPhoto } = useEvidenceCapture({ domain, location, getLocation, setPage });
@@ -52,7 +52,7 @@ export function useComplaintFlow() {
     { title: 'Whole tree and location', badge: 'Overall view', instruction: 'Step back safely and show the entire tree, its base, and nearby street or landmarks. For a felled tree, show the whole affected site.' },
     { ...selectedGuides[selectedGuides.length - 1], title: 'Close-up of the issue', badge: 'Close-up' },
   ] : selectedGuides;
-  const currentPhotoIndex = domain === 'TREES' ? Math.min(photos.length, 1) : 0;
+  const currentPhotoIndex = Math.min(photos.length, maxEvidencePhotos - 1);
   const currentPhotoGuide = photoGuides[currentPhotoIndex] ?? photoGuides[0];
   const { draft, setDraft, prepareFastDraft } = useComplaintDraft({ domain, category, location, noiseEvidence,
     setNoiseEvidence, photos, perpetratorPhotos, capturedAt, profile, notes, perpetratorName, perpetratorPhone,

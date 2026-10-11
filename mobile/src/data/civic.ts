@@ -2,9 +2,9 @@ import { categories as treeCategories, legalGrounding as treeLegal, type TreeCat
 
 export type CivicDomain = 'TREES' | 'ROADS' | 'GARBAGE' | 'NOISE';
 export const tabs: { key: CivicDomain; title: string; emoji: string; caption: string }[] = [
-  { key: 'TREES', title: 'Trees', emoji: '🌳', caption: 'Preservation and tree hazards' },
   { key: 'ROADS', title: 'Roads', emoji: '🛣️', caption: 'Potholes, drains and footpaths' },
   { key: 'GARBAGE', title: 'Garbage', emoji: '♻️', caption: 'Waste dumps and burning' },
+  { key: 'TREES', title: 'Trees', emoji: '🌳', caption: 'Preservation and tree hazards' },
   { key: 'NOISE', title: 'Noise', emoji: '🔊', caption: 'Loudspeakers and night-time noise' },
 ];
 const photoIssue = (key: string, title: string, emoji: string, description: string, instruction: string): TreeCategory => ({ key, title, emoji, description, guides: [{ title: 'Hazard and location', badge: 'Evidence', instruction }] });

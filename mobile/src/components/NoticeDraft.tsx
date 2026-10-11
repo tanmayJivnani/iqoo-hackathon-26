@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Alert, Text } from 'react-native';
+import { Alert, Text, View } from 'react-native';
+import { IconButton } from 'react-native-paper';
 import { Button, Card, Field } from './ui';
 import { api, type Draft, type ComplaintDetail } from '../lib/api';
 import { categoryLabel } from '../data/civic';
@@ -33,11 +34,13 @@ export function NoticeDraft({ report, onSaved, disabled, onEditingChange }: Prop
     finally { setSaving(false); }
   };
   return <Card>
-    <Text style={styles.legalTitle}>Email draft</Text>
-    {!editing && <Button title="Edit draft" onPress={() => {
-      setFields({ draft_subject_en: report.draft_subject_en, draft_body_en: report.draft_body_en, draft_summary_mr: report.draft_summary_mr });
-      setEditing(true); onEditingChange(true);
-    }} disabled={disabled || !editorReady} secondary />}
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Text style={styles.legalTitle}>Email draft</Text>
+      {!editing && <IconButton icon="pencil-outline" size={18} accessibilityLabel="Edit draft" style={{ margin: 0, width: 36, height: 36 }} onPress={() => {
+        setFields({ draft_subject_en: report.draft_subject_en, draft_body_en: report.draft_body_en, draft_summary_mr: report.draft_summary_mr });
+        setEditing(true); onEditingChange(true);
+      }} disabled={disabled || !editorReady} />}
+    </View>
     <Text style={styles.subtle}>Please review the details before sending. This complaint will be sent in your name.</Text>
     {editing ? <>
       <Field label="Subject" value={fields.draft_subject_en} onChangeText={value => setFields(current => ({ ...current, draft_subject_en: value }))} editable={!saving} maxLength={2000} />
