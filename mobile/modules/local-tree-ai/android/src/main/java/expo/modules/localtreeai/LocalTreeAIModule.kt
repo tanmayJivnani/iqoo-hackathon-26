@@ -22,6 +22,14 @@ class LocalTreeAIModule : Module() {
 
   override fun definition() = ModuleDefinition {
     Name("LocalTreeAI")
+    OnDestroy { QwenEngine.releaseAsync() }
+    AsyncFunction("preloadQwen") {
+      val context = appContext.reactContext ?: throw IllegalStateException("App context unavailable")
+      QwenEngine.preload(context)
+      true
+    }
+    AsyncFunction("releaseQwen") { QwenEngine.release(); true }
+    AsyncFunction("clearQwenCache") { QwenEngine.clearCache(); true }
 
     Function("getModelStatus") {
       val model = modelFile()

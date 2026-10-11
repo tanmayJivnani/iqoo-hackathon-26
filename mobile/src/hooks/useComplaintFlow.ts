@@ -15,8 +15,8 @@ import { useEvidenceCapture } from './useEvidenceCapture';
 import { useLocalAI } from './useLocalAI';
 import { useComplaintDraft } from './useComplaintDraft';
 export function useComplaintFlow() {
-  const aiSettings = useLocalAI();
   const [page, setPage] = useState<Page>('tracker');
+  const aiSettings = useLocalAI(['guidance', 'capture', 'review', 'noise', 'draft', 'dispatch', 'verify', 'pdf'].includes(page));
   const [pdfComplaintId, setPdfComplaintId] = useState('');
   const openReportPdf = (id: string) => { setPdfComplaintId(id); setPage('pdf'); };
   const [domain, setDomain] = useState<CivicDomain>('ROADS');

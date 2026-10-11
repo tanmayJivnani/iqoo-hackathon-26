@@ -2,6 +2,9 @@ import { registerWebModule, NativeModule } from 'expo';
 import type { LocalAnalysis, ModelStatus } from './LocalTreeAI.types';
 
 class LocalTreeAIModule extends NativeModule {
+  async preloadQwen() { return false; }
+  async releaseQwen() { return true; }
+  async clearQwenCache() { return true; }
   getQwenStatus() { return { installed: false, modelName: 'Android only', vision: false, audio: false }; }
   async importQwenModel(): Promise<{ installed: boolean; modelName: string }> { throw new Error('Local Qwen is available on Android.'); }
   async generateQwen(): Promise<string> { throw new Error('Local Qwen is available on Android.'); }

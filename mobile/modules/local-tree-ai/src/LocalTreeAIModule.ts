@@ -2,6 +2,9 @@ import { NativeModule, requireNativeModule } from 'expo';
 import type { LocalAnalysis, ModelStatus } from './LocalTreeAI.types';
 
 declare class LocalTreeAIModule extends NativeModule {
+  preloadQwen(): Promise<boolean>;
+  releaseQwen(): Promise<boolean>;
+  clearQwenCache(): Promise<boolean>;
   getModelStatus(): ModelStatus;
   getQwenStatus(): { installed: boolean; modelName: string; vision: boolean; audio: boolean };
   importQwenModel(uri: string, projectorUri: string): Promise<{ installed: boolean; modelName: string }>;

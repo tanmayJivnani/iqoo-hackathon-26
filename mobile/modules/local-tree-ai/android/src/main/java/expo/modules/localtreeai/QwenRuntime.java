@@ -11,5 +11,6 @@ public final class QwenRuntime {
   public void generate(long handle, String prompt, GenerationConfig config, LLMTokenCallback callback) {
     vlm.generate(handle, prompt, config, callback);
   }
+  public int reset(long handle) { return vlm.reset(handle); }
   public void destroy(long handle) { vlm.destroy(handle); }
 }

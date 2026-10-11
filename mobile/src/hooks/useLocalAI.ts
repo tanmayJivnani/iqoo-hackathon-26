@@ -6,12 +6,13 @@ import { Alert } from 'react-native';
 import LocalTreeAI from '../../modules/local-tree-ai/src/LocalTreeAIModule';
 import { localTextPrompt, parseLocalText, type AiMode } from '../lib/local-qwen';
 
-export function useLocalAI() {
+export function useLocalAI(reportActive = false) {
   const [mode, setMode] = useState<AiMode>('CLOUD');
   const [installed, setInstalled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const preferenceBusy = useRef(false);
+  const preloadSequence = useRef(0);
   useEffect(() => {
     let active = true;
     void (async () => {
@@ -24,6 +25,25 @@ export function useLocalAI() {
       finally { if (active) setLoading(false); }
     })();
     return () => { active = false; };
+  }, []);
+  useEffect(() => {
+    let cancelled = false;
+    const tag = `qwen35-preload-${++preloadSequence.current}`;
+    void (async () => {
+      try {
+        if (reportActive && mode === 'LOCAL_QWEN_35' && installed && !loading && !importing) {
+          await activateKeepAwakeAsync(tag);
+          if (!cancelled) await LocalTreeAI.preloadQwen();
+        } else {
+          await LocalTreeAI.releaseQwen();
+        }
+      } catch (error) { console.warn('Local model preparation failed', error); }
+      finally { await deactivateKeepAwake(tag); }
+    })();
+    return () => { cancelled = true; };
+  }, [reportActive, mode, installed, loading, importing]);
+  useEffect(() => () => {
+    void LocalTreeAI.releaseQwen().catch(error => console.warn('Local model release failed', error));
   }, []);
   async function select(next: AiMode) {
     if (loading || importing || preferenceBusy.current) return;
@@ -58,7 +78,14 @@ export function useLocalAI() {
     const images = media.imageUris || [];
     const tag = 'qwen35-inference';
     await activateKeepAwakeAsync(tag);
-    try { return parseLocalText(await LocalTreeAI.generateQwen(localTextPrompt(context, verification, { images: images.length }), images, null)); }
+    try {
+      const output = await LocalTreeAI.generateQwen(localTextPrompt(context, verification, { images: images.length }), images, null);
+      try { return parseLocalText(output); }
+      catch (error) {
+        await LocalTreeAI.clearQwenCache();
+        throw error;
+      }
+    }
     finally { await deactivateKeepAwake(tag); }
   }
   return { mode, installed, loading, importing, select, importModel, summarize };
