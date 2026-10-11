@@ -1,6 +1,6 @@
 import { BlurTargetView } from 'expo-blur';
 import { useRef } from 'react';
-import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, RefreshControl, Text, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, Pressable, RefreshControl, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, Field } from '../components/ui';
 import { ProfileSheet } from '../components/ProfileSheet';
@@ -10,7 +10,6 @@ import { ReportHero } from '../components/ReportHero';
 import { useComplaintFlow } from '../hooks/useComplaintFlow';
 import { useScrollChrome } from '../hooks/useScrollChrome';
 import { styles } from '../features/complaints/styles';
-import { colors } from '../theme';
 import { categoryPalettes } from '../theme';
 import { CategoryTheme } from '../theme/CategoryTheme';
 import { TrackerScreen } from '../features/complaints/screens/TrackerScreen';
@@ -24,7 +23,6 @@ import { NoticeScreen } from '../features/complaints/screens/NoticeScreen';
 import { DispatchScreen } from '../features/complaints/screens/DispatchScreen';
 import { VerificationScreen } from '../features/complaints/screens/VerificationScreen';
 import { NoiseScreen } from '../features/complaints/screens/NoiseScreen';
-const green = colors.primary;
 export default function HomeScreen() {
   const flow = useComplaintFlow();
   const palette = categoryPalettes[flow.domain];
@@ -33,7 +31,6 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { homeHeaderHeight, setHomeHeaderHeight, heroHeight, setHeroHeight, heroScrollY,
     navHidden, heroCompact, refreshAtTop, onContentScroll, onTrackerScroll } = useScrollChrome(page, domain);
-  if (!flow.sessionReady) return <SafeAreaView style={[styles.safe, { alignItems: 'center', justifyContent: 'center' }]}><ActivityIndicator color={green} /></SafeAreaView>;
   return <CategoryTheme domain={domain}><SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
     <RefreshControl refreshing={page === 'tracker' && loading} onRefresh={refresh}
       enabled={page === 'tracker' && (refreshAtTop || loading)} colors={[palette.primary]} progressBackgroundColor={palette.canvas}

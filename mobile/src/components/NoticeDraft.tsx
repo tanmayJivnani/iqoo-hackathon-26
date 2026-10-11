@@ -5,7 +5,6 @@ import { Button, Card, Field } from './ui';
 import { api, type Draft, type ComplaintDetail } from '../lib/api';
 import { categoryLabel } from '../data/civic';
 import { styles } from '../features/complaints/styles';
-import { useComplaintSession } from '../hooks/useComplaintSession';
 
 type Props = { report: Draft | ComplaintDetail; onSaved: (draft: Draft) => void; disabled?: boolean };
 function save(report: Props['report'], fields: Partial<Draft> = {}) {
@@ -20,11 +19,6 @@ export function NoticeDraft({ report, onSaved, disabled, onEditingChange }: Prop
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [fields, setFields] = useState({ draft_subject_en: report.draft_subject_en, draft_body_en: report.draft_body_en, draft_summary_mr: report.draft_summary_mr });
-  const editorReady = useComplaintSession({ id: report.complaint_id, editing, fields }, async saved => {
-    if (saved.id === report.complaint_id && saved.editing && saved.fields) {
-      setFields(saved.fields); setEditing(true); onEditingChange(true);
-    }
-  }, 'complaint-draft-editor');
   const finish = () => { setEditing(false); onEditingChange(false); };
   const submit = async () => {
     if (saving) return;
@@ -39,7 +33,7 @@ export function NoticeDraft({ report, onSaved, disabled, onEditingChange }: Prop
       {!editing && <IconButton icon="pencil-outline" size={18} accessibilityLabel="Edit draft" style={{ margin: 0, width: 36, height: 36 }} onPress={() => {
         setFields({ draft_subject_en: report.draft_subject_en, draft_body_en: report.draft_body_en, draft_summary_mr: report.draft_summary_mr });
         setEditing(true); onEditingChange(true);
-      }} disabled={disabled || !editorReady} />}
+      }} disabled={disabled} />}
     </View>
     <Text style={styles.subtle}>Please review the details before sending. This complaint will be sent in your name.</Text>
     {editing ? <>

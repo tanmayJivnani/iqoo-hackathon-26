@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { previousPage, type Page } from '../src/features/complaints/types.ts';
 import { apiDate, canUseLocalAnalysis, isResolved, isTimelocked, nextPhotoRejection } from '../src/lib/complaint-flow.ts';
 
 test('three rejections trigger a three-hour cooldown', () => {
@@ -35,4 +36,21 @@ test('UTC API dates and the remaining timelock are preserved', () => {
   assert.equal(isTimelocked('PENDING_TIMELOCK', '2026-10-09T12:00:00', now), true);
   assert.equal(isTimelocked('PENDING_TIMELOCK', '2026-10-09T12:00:00', now + 60_000), false);
   assert.equal(isTimelocked('VERIFIED_UNRESOLVED_ESCALATED', '2026-10-09T12:00:00', now), false);
+});
+
+test('Back exits the photo flow without bouncing between review and capture', () => {
+  for (const domain of ['ROADS', 'TREES', 'GARBAGE'] as const) {
+    const visited: Page[] = ['dispatch'];
+    while (visited.at(-1) !== 'tracker' && visited.length < 10) {
+      visited.push(previousPage(visited.at(-1)!, domain, false));
+    }
+    assert.deepEqual(visited, ['dispatch', 'draft', 'review', 'capture', 'guidance', 'category', 'tracker']);
+  }
+});
+
+test('Back from noise, saved reports and PDF preserves their intended destinations', () => {
+  assert.equal(previousPage('draft', 'NOISE', false), 'noise');
+  assert.equal(previousPage('noise', 'NOISE', false), 'category');
+  assert.equal(previousPage('draft', 'ROADS', true), 'tracker');
+  assert.equal(previousPage('pdf', 'ROADS', false), 'draft');
 });
