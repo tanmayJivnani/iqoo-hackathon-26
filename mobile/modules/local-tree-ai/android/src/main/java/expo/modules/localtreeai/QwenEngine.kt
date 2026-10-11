@@ -17,6 +17,10 @@ import java.util.UUID
 /** Qwen3.5 uses a GGUF language model and matching vision projector. */
 object QwenEngine {
   private val lock = Any()
+  // Bound only the temporary AI input. Original evidence remains full resolution.
+  private const val MAX_ANALYSIS_EDGE = 512
+  private const val MAX_DECODE_EDGE = 1024
+  private const val ANALYSIS_JPEG_QUALITY = 85
   private fun directory(context: Context) = File(context.filesDir, "qwen35-4b")
   fun status(context: Context): Map<String, Any> {
     val installed = File(directory(context), "model.gguf").length() > 0 && File(directory(context), "mmproj.gguf").length() > 0
@@ -56,12 +60,13 @@ object QwenEngine {
       require(bounds.outWidth > 0 && bounds.outHeight > 0) { "Could not decode evidence image" }
       val options = BitmapFactory.Options().apply {
         inSampleSize = 1
-        while (maxOf(bounds.outWidth, bounds.outHeight) / inSampleSize > 1280) inSampleSize *= 2
+        while (maxOf(bounds.outWidth, bounds.outHeight) / inSampleSize > MAX_DECODE_EDGE) inSampleSize *= 2
       }
       val bitmap = BitmapFactory.decodeFile(source.path, options) ?: error("Could not decode evidence image")
-      val scale = minOf(1f, 640f / maxOf(bitmap.width, bitmap.height))
+      val scale = minOf(1f, MAX_ANALYSIS_EDGE.toFloat() / maxOf(bitmap.width, bitmap.height))
       val resized = Bitmap.createScaledBitmap(bitmap, maxOf(1, (bitmap.width * scale).toInt()), maxOf(1, (bitmap.height * scale).toInt()), true)
-      try { target.outputStream().use { check(resized.compress(Bitmap.CompressFormat.JPEG, 90, it)) } }
+      Log.i("LocalQwen", "AI image ${bounds.outWidth}x${bounds.outHeight} -> ${resized.width}x${resized.height}")
+      try { target.outputStream().use { check(resized.compress(Bitmap.CompressFormat.JPEG, ANALYSIS_JPEG_QUALITY, it)) } }
       finally { if (resized !== bitmap) resized.recycle(); bitmap.recycle() }
       return target.path
     } finally { source.delete() }

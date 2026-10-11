@@ -70,7 +70,7 @@ npm --prefix mobile test
 Select **Local Qwen3.5** or **Cloud AI** in the AI settings. The choice persists across restarts. Local mode never silently calls cloud AI. The backend is still needed for routing, saving reports, PDF creation and dispatch.
 
 - Import **Qwen3.5-4B-Q4_0.gguf**, then its **matching mmproj GGUF** from the same conversion using the model import button. Both files are required. Imports replace the pair together and preserve the previous pair if copying fails.
-- Uses Qualcomm `geniex-android:0.4.0` and llama.cpp/mtmd. The language model requests the Hexagon NPU; the vision projector runs on CPU in this SDK. Build a native Android development app after changing the integration.
-- Local analysis accepts up to three photos, resized to 640 pixels. Keep the app open during inference.
+- Uses Qualcomm `geniex-android:0.4.0` and llama.cpp/mtmd. The language model requests the Hexagon NPU; vision encoding uses the SDK's selected backend. Build a native Android development app after changing the integration.
+- Local analysis accepts up to three photos, resized to at most 512 pixels on the longest edge for local AI only; original report/PDF evidence is retained. Keep the app open during inference.
 - Qwen3.5 analyzes supplied photos and prepares English/Marathi observations. Thinking is disabled. Audio and video are not supplied to AI; noise notices use device-reported dB measurements, with recordings attached for authority review. Photo re-audits remain advisory (INCONCLUSIVE) and require authority confirmation.
 - The Q4_0 model is about 2.58 GB and the F32 projector about 1.33 GB. Allow storage for both and an additional pair during replacement. Files live in the app's private `files/qwen35-4b/model.gguf` and `mmproj.gguf`; old Omni files are separate. Imported weights are never committed.
