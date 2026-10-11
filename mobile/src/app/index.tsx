@@ -69,7 +69,7 @@ export default function HomeScreen() {
       headerHidden={navHidden} headerHeight={homeHeaderHeight} onExpandedHeight={setHeroHeight} onReport={startComplaint} />}
     {page === 'tracker' && <ScrollHeader hidden={navHidden} height={homeHeaderHeight} onHeight={setHomeHeaderHeight}>
       {page === 'tracker' && <View style={styles.homeHeader}>
-        <View style={[styles.brandMark, { backgroundColor: '#F7F5EE' }]}><Image source={require('../../assets/images/civic-logo.png')} accessibilityLabel="Pune Fast Complaint logo" style={{ width: 48, height: 48 }} resizeMode="contain" /></View>
+        <View style={[styles.brandMark, { backgroundColor: '#FFFFFF' }]}><Image source={require('../../assets/images/civic-logo.png')} accessibilityLabel="Pune Fast Complaint logo" style={{ width: 48, height: 48 }} resizeMode="contain" /></View>
         <View style={{ flex: 1 }}><Text style={[styles.brand, { color: palette.text }]}>Pune Fast Complaint</Text><Text style={styles.subtle}>Super Fast and Easy complaint filing</Text></View>
         <Pressable onPress={() => { setPendingProfileStart(false); setProfileDraft(profile); setProfileOpen(true); }} style={[styles.avatar, { backgroundColor: palette.primaryContainer }]}><Text style={[styles.avatarText, { color: palette.primary }]}>{profile.name ? profile.name[0].toUpperCase() : '👤'}</Text></Pressable>
         <Pressable onPress={() => void refresh()} style={styles.refresh}><Text style={{ color: palette.primary, fontSize: 22 }}>⟳</Text></Pressable>

@@ -16,7 +16,7 @@
     "android": {
       "package": "org.punetrees.app",
       "adaptiveIcon": {
-        "backgroundColor": "#F7F5EE",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/civic-logo.png"
       },
       "predictiveBackGestureEnabled": true
@@ -51,7 +51,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#F7F5EE",
+          "backgroundColor": "#FFFFFF",
           "image": "./assets/images/civic-logo.png",
           "imageWidth": 76
         }
